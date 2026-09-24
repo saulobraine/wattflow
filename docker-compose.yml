@@ -1,0 +1,78 @@
+services:
+  # -------------------------------------------------------------------------
+  # 1. Banco de Dados PostgreSQL Local (Compatível com Supabase)
+  # -------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: wattflow_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-wattflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-wattflow_password}
+      POSTGRES_DB: ${POSTGRES_DB:-wattflow}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-wattflow} -d ${POSTGRES_DB:-wattflow}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # -------------------------------------------------------------------------
+  # 2. Aplicação WattFlow (Next.js Pages Router + Prisma)
+  # -------------------------------------------------------------------------
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wattflow_app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:-postgresql://wattflow:wattflow_password@postgres:5432/wattflow?schema=public}
+      DIRECT_URL: ${DIRECT_URL:-postgresql://wattflow:wattflow_password@postgres:5432/wattflow?schema=public}
+      AUTH_SECRET: ${AUTH_SECRET:-wattflow_secure_production_auth_secret_key_random_64_bits_abc123}
+      CRON_SECRET_TOKEN: ${CRON_SECRET_TOKEN:-wattflow_secret_token_123}
+      PORT: 3000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  # -------------------------------------------------------------------------
+  # 3. Agendador Automático do Cron Job (Sync Periódico de Energia)
+  # -------------------------------------------------------------------------
+  cron-scheduler:
+    image: alpine:latest
+    container_name: wattflow_cron
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      SYNC_INTERVAL_SECONDS: ${SYNC_INTERVAL_SECONDS:-60}
+      CRON_SECRET_TOKEN: ${CRON_SECRET_TOKEN:-wattflow_secret_token_123}
+    command:
+      - /bin/sh
+      - -c
+      - |
+        echo "=== [WattFlow Cron] Agendador automatico iniciado ==="
+        while true; do
+          sleep $${SYNC_INTERVAL_SECONDS:-60}
+          echo "Disparando sincronizacao de energia..."
+          wget -q -O - "http://app:3000/api/sync?token=$${CRON_SECRET_TOKEN}" || echo "Falha ao acionar rota /api/sync"
+          echo ""
+        done
+
+volumes:
+  postgres_data:
+    name: wattflow_postgres_data

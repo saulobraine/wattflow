@@ -1,0 +1,56 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                String             @id @default(uuid())
+  email             String             @unique
+  passwordHash      String
+  fullName          String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  userConfiguration UserConfiguration?
+
+  @@map("users")
+}
+
+model UserConfiguration {
+  id                   String             @id @default(uuid())
+  userId               String             @unique
+  user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tuyaAccessId         String             @default("")
+  tuyaAccessSecret     String             @default("")
+  tuyaDeviceId         String             @default("")
+  tuyaEndpointRegion   String             @default("https://openapi.tuyaus.com")
+  ecoflowEndpointRegion String            @default("https://api.ecoflow.com")
+  ecoflowAccessKey     String             @default("")
+  ecoflowAccessSecret  String             @default("")
+  ecoflowSerialNumber String             @default("")
+  turnOnThreshold      Int                @default(90)
+  turnOffThreshold     Int                @default(30)
+  isAutomationActive   Boolean            @default(true)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  syncExecutionLogs    SyncExecutionLog[]
+
+  @@map("user_configurations")
+}
+
+model SyncExecutionLog {
+  id                  String            @id @default(uuid())
+  userConfigurationId String
+  batteryPercentage   Int
+  solarInputWatts     Int               @default(0)
+  actionTriggered     String
+  executionDetails    String?
+  executedAt          DateTime          @default(now())
+  userConfiguration   UserConfiguration @relation(fields: [userConfigurationId], references: [id], onDelete: Cascade)
+
+  @@map("sync_execution_logs")
+}
