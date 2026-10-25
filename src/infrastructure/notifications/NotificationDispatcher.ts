@@ -187,7 +187,7 @@ export class NotificationDispatcher {
       icon = "🔴";
     }
 
-    let result = `<b>${icon} [WattFlow] ${title}</b>\n\n${message}`;
+    let result = `<b>${icon} [WattFlow] ${title}</b>\n\n${message}\n`;
 
     if (batteryPercentage !== undefined) {
       result += `\n🔋 <b>Bateria EcoFlow:</b> ${batteryPercentage}%`;
@@ -205,7 +205,7 @@ export class NotificationDispatcher {
   private buildPlainText(payload: NotificationPayload): string {
     const { title, message, batteryPercentage, solarWatts } = payload;
     const eventTime = this.formatReadableTimestamp(payload.timestamp);
-    let result = `⚡ [WattFlow] ${title}\n\n${message}`;
+    let result = `⚡ [WattFlow] ${title}\n\n${message}\n`;
 
     if (batteryPercentage !== undefined) {
       result += `\n🔋 Bateria EcoFlow: ${batteryPercentage}%`;
