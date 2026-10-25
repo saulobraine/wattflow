@@ -153,23 +153,37 @@ export function Layout({ children, title }: LayoutProps) {
 
               {user && (
                 <div className="flex items-center gap-2 sm:gap-3 border-l border-slate-800/80 pl-2 sm:pl-3">
-                  <div
-                    aria-label={`Usuário autenticado: ${user.fullName || user.email}`}
-                    className={`hidden md:flex items-center gap-1.5 text-xs text-slate-300 bg-slate-900/50 rounded-lg border border-slate-800 transition-all duration-300 ${
-                      isScrolled ? "px-2 py-1" : "px-2.5 py-1.5"
-                    }`}
-                  >
-                    <div className="p-0.5 rounded-full bg-slate-800 border border-slate-700">
-                      <User className="w-3 h-3 text-emerald-400" aria-hidden="true" />
-                    </div>
-                    <span
-                      className={`truncate font-medium transition-all duration-300 ${
-                        isScrolled ? "max-w-[80px] text-[11px]" : "max-w-[140px]"
-                      }`}
-                    >
-                      {user.fullName || user.email}
-                    </span>
-                  </div>
+                  <Tooltip enabled={isScrolled}>
+                    <TooltipTrigger asChild>
+                      <TransitionLink
+                        href="/profile"
+                        aria-label={`Meu Perfil (${user.fullName || user.email})`}
+                        className={`flex items-center gap-1.5 text-xs rounded-lg border transition-all duration-300 ${
+                          router.pathname === "/profile"
+                            ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/30"
+                            : "text-slate-300 bg-slate-900/50 border-slate-800 hover:bg-slate-800/80 hover:border-slate-700 hover:text-white"
+                        } ${isScrolled ? "p-1.5 md:px-2 md:py-1" : "p-1.5 sm:px-2.5 sm:py-1.5"}`}
+                      >
+                        <div
+                          className={`p-0.5 rounded-full border transition-colors ${
+                            router.pathname === "/profile"
+                              ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300"
+                              : "bg-slate-800 border-slate-700 text-emerald-400"
+                          }`}
+                        >
+                          <User className="w-3.5 h-3.5" aria-hidden="true" />
+                        </div>
+                        <span
+                          className={`hidden md:inline truncate font-medium transition-all duration-300 ${
+                            isScrolled ? "max-w-[80px] text-[11px]" : "max-w-[140px]"
+                          }`}
+                        >
+                          {user.fullName || user.email}
+                        </span>
+                      </TransitionLink>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">Meu Perfil e Segurança</TooltipContent>
+                  </Tooltip>
 
                   <Tooltip enabled={isScrolled}>
                     <TooltipTrigger asChild>

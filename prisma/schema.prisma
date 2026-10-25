@@ -14,11 +14,29 @@ model User {
   email             String             @unique
   passwordHash      String
   fullName          String?
+  twoFactorEnabled  Boolean            @default(false)
+  twoFactorSecret   String?
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   userConfiguration UserConfiguration?
+  passkeys          UserPasskey[]
 
   @@map("users")
+}
+
+model UserPasskey {
+  id           String    @id @default(uuid())
+  userId       String
+  name         String    @default("Passkey")
+  credentialId String    @unique
+  publicKey    String
+  counter      BigInt    @default(0)
+  transports   String?
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_passkeys")
 }
 
 model UserConfiguration {
