@@ -7,7 +7,7 @@ import { PercentageValue } from "../values/PercentageValue";
  * Respeita Object Calisthenics:
  * - Apenas 2 variáveis de instância
  * - Sem uso de else (early returns)
- * - Tell, Don't Ask (decide a ação coordenada com base na bateria)
+ * - Tell, Don't Ask (decide a ação com base no nível da bateria da EcoFlow)
  * - Nomes sem abreviação
  */
 export class AutomationThresholdPair {
@@ -26,12 +26,12 @@ export class AutomationThresholdPair {
   public evaluateBattery(batteryLevel: BatteryLevel): DesiredDeviceAction {
     const isBatteryFull = batteryLevel.isSufficientToTurnOn(this.upperThreshold);
     if (isBatteryFull) {
-      return DesiredDeviceAction.batteryHighDischarge();
+      return DesiredDeviceAction.enableEcoFlowAc();
     }
 
     const isBatteryDepleted = batteryLevel.isDepletedToTurnOff(this.lowerThreshold);
     if (isBatteryDepleted) {
-      return DesiredDeviceAction.batteryLowRecharge();
+      return DesiredDeviceAction.disableEcoFlowAc();
     }
 
     return DesiredDeviceAction.holdCurrentState();

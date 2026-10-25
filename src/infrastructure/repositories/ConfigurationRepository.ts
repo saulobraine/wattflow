@@ -1,7 +1,6 @@
 import { PrismaClient, UserConfiguration as PrismaUserConfiguration } from "@prisma/client";
 import { AccessKey } from "../../domain/values/AccessKey";
 import { AccessSecret } from "../../domain/values/AccessSecret";
-import { DeviceIdentifier } from "../../domain/values/DeviceIdentifier";
 import { DeviceSerialNumber } from "../../domain/values/DeviceSerialNumber";
 import { PercentageValue } from "../../domain/values/PercentageValue";
 import { AutomationProfile } from "../../domain/models/AutomationProfile";
@@ -10,17 +9,17 @@ import { CredentialsBundle } from "../../domain/models/CredentialsBundle";
 import { DevicePair } from "../../domain/models/DevicePair";
 import { EcoFlowCredentials } from "../../domain/models/EcoFlowCredentials";
 import { OrchestratorConfiguration } from "../../domain/models/OrchestratorConfiguration";
-import { TuyaCredentials } from "../../domain/models/TuyaCredentials";
 
 export interface RetrievedConfigurationRecord {
   databaseRecordId: string;
-  tuyaEndpointRegion: string;
   ecoflowEndpointRegion: string;
   configuration: OrchestratorConfiguration;
 }
 
 /**
  * Repositório para carregar configurações do PostgreSQL/Supabase.
+ * Focado 100% na integração EcoFlow para chave de transferência automática (ATS).
+ *
  * Respeita Object Calisthenics:
  * - Apenas 1 variável de instância
  * - Sem a palavra-chave else
@@ -38,8 +37,8 @@ export class ConfigurationRepository {
     const rawRecord = await this.databaseClient.userConfiguration.findFirst({
       where: {
         isAutomationActive: true,
-        tuyaAccessId: { not: "" },
         ecoflowAccessKey: { not: "" },
+        ecoflowSerialNumber: { not: "" },
       },
     });
 
@@ -59,9 +58,10 @@ export class ConfigurationRepository {
       return null;
     }
 
-    const hasTuya = rawRecord.tuyaAccessId.trim().length > 0;
-    const hasEcoFlow = rawRecord.ecoflowAccessKey.trim().length > 0;
-    if (!hasTuya || !hasEcoFlow) {
+    const hasEcoFlow =
+      rawRecord.ecoflowAccessKey.trim().length > 0 &&
+      rawRecord.ecoflowSerialNumber.trim().length > 0;
+    if (!hasEcoFlow) {
       return null;
     }
 
@@ -72,8 +72,8 @@ export class ConfigurationRepository {
     const rawRecords = await this.databaseClient.userConfiguration.findMany({
       where: {
         isAutomationActive: true,
-        tuyaAccessId: { not: "" },
         ecoflowAccessKey: { not: "" },
+        ecoflowSerialNumber: { not: "" },
       },
     });
 
@@ -104,19 +104,14 @@ export class ConfigurationRepository {
   }
 
   private mapRecordToConfiguration(rawRecord: PrismaUserConfiguration): RetrievedConfigurationRecord {
-    const tuyaKey = new AccessKey(rawRecord.tuyaAccessId);
-    const tuyaSecret = new AccessSecret(rawRecord.tuyaAccessSecret);
-    const tuyaCredentials = new TuyaCredentials(tuyaKey, tuyaSecret);
-
     const ecoflowKey = new AccessKey(rawRecord.ecoflowAccessKey);
     const ecoflowSecret = new AccessSecret(rawRecord.ecoflowAccessSecret);
     const ecoflowCredentials = new EcoFlowCredentials(ecoflowKey, ecoflowSecret);
 
-    const credentialsBundle = new CredentialsBundle(tuyaCredentials, ecoflowCredentials);
+    const credentialsBundle = new CredentialsBundle(ecoflowCredentials);
 
-    const tuyaDevice = new DeviceIdentifier(rawRecord.tuyaDeviceId);
     const ecoflowDevice = new DeviceSerialNumber(rawRecord.ecoflowSerialNumber);
-    const devicePair = new DevicePair(tuyaDevice, ecoflowDevice);
+    const devicePair = new DevicePair(ecoflowDevice);
 
     const onThreshold = new PercentageValue(rawRecord.turnOnThreshold);
     const offThreshold = new PercentageValue(rawRecord.turnOffThreshold);
@@ -127,7 +122,6 @@ export class ConfigurationRepository {
 
     return {
       databaseRecordId: rawRecord.id,
-      tuyaEndpointRegion: rawRecord.tuyaEndpointRegion,
       ecoflowEndpointRegion: rawRecord.ecoflowEndpointRegion,
       configuration,
     };

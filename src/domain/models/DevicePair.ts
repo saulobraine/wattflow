@@ -1,27 +1,17 @@
-import { DeviceIdentifier } from "../values/DeviceIdentifier";
 import { DeviceSerialNumber } from "../values/DeviceSerialNumber";
 
 /**
- * Par de dispositivos configurados para o fluxo de orquestração.
+ * Representação do dispositivo EcoFlow configurado para a automação com a Chave de Transferência Automática.
  * Respeita Object Calisthenics:
- * - Apenas 2 variáveis de instância
+ * - Apenas 1 variável de instância
  * - Sem a palavra-chave else
  * - Tell, Don't Ask
  */
 export class DevicePair {
-  private readonly tuyaDeviceIdentifier: DeviceIdentifier;
   private readonly ecoflowSerialNumber: DeviceSerialNumber;
 
-  constructor(
-    tuyaDeviceIdentifier: DeviceIdentifier,
-    ecoflowSerialNumber: DeviceSerialNumber
-  ) {
-    this.tuyaDeviceIdentifier = tuyaDeviceIdentifier;
+  constructor(ecoflowSerialNumber: DeviceSerialNumber) {
     this.ecoflowSerialNumber = ecoflowSerialNumber;
-  }
-
-  public provideTuyaIdentifier(receiver: (identifier: string) => void): void {
-    this.tuyaDeviceIdentifier.transferIdentifier(receiver);
   }
 
   public provideEcoFlowSerialNumber(receiver: (serialNumber: string) => void): void {
