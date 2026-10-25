@@ -36,8 +36,8 @@ services:
       - "${PORT:-3000}:3000"
     environment:
       NODE_ENV: production
-      DATABASE_URL: ${DATABASE_URL:-postgresql://wattflow:wattflow_password@postgres:5432/wattflow?schema=public}
-      DIRECT_URL: ${DIRECT_URL:-postgresql://wattflow:wattflow_password@postgres:5432/wattflow?schema=public}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-wattflow}:${POSTGRES_PASSWORD:-wattflow_password}@postgres:5432/${POSTGRES_DB:-wattflow}?schema=public
+      DIRECT_URL: postgresql://${POSTGRES_USER:-wattflow}:${POSTGRES_PASSWORD:-wattflow_password}@postgres:5432/${POSTGRES_DB:-wattflow}?schema=public
       AUTH_SECRET: ${AUTH_SECRET:-wattflow_secure_production_auth_secret_key_random_64_bits_abc123}
       CRON_SECRET_TOKEN: ${CRON_SECRET_TOKEN:-wattflow_secret_token_123}
       PORT: 3000
