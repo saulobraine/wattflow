@@ -47,10 +47,10 @@ export default function RegisterPage() {
       <Head>
         <title>Criar Conta | WattFlow</title>
       </Head>
-      <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center px-4 py-12">
-        <div className="w-full max-w-md space-y-8">
+      <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center px-4 py-12 animate-fade-in">
+        <div className="w-full max-w-md space-y-8 animate-card stagger-1">
           <div className="text-center space-y-2">
-            <div className="inline-flex p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 mb-2">
+            <div className="inline-flex p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 mb-2 shadow-lg shadow-emerald-950/40 animate-float">
               <Zap className="w-8 h-8" />
             </div>
             <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">
@@ -61,10 +61,10 @@ export default function RegisterPage() {
             </p>
           </div>
 
-          <div className="p-8 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl space-y-6">
+          <div className="p-8 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl space-y-6 interactive-card">
             {errorMessage && (
-              <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 flex items-center gap-3 text-sm">
-                <AlertCircle className="w-5 h-5 shrink-0" />
+              <div className="animate-alert p-4 rounded-xl bg-rose-500/10 border border-rose-500/40 text-rose-300 flex items-center gap-3 text-sm shadow-md shadow-rose-950/20">
+                <AlertCircle className="w-5 h-5 shrink-0 text-rose-400" />
                 <span>{errorMessage}</span>
               </div>
             )}
@@ -75,13 +75,13 @@ export default function RegisterPage() {
                   Nome Completo (Opcional)
                 </label>
                 <div className="relative">
-                  <User className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                  <User className="w-4 h-4 text-slate-500 absolute left-3 top-3.5 transition-colors" />
                   <input
                     type="text"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     placeholder="Seu Nome"
-                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-sm focus:border-emerald-500 focus:outline-none"
+                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-sm focus:border-emerald-500 focus:outline-none transition-colors"
                   />
                 </div>
               </div>
@@ -91,14 +91,14 @@ export default function RegisterPage() {
                   E-mail
                 </label>
                 <div className="relative">
-                  <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                  <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-3.5 transition-colors" />
                   <input
                     type="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="seu@email.com"
-                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-sm focus:border-emerald-500 focus:outline-none"
+                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-sm focus:border-emerald-500 focus:outline-none transition-colors"
                   />
                 </div>
               </div>
@@ -108,14 +108,14 @@ export default function RegisterPage() {
                   Senha (mínimo 6 caracteres)
                 </label>
                 <div className="relative">
-                  <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                  <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3.5 transition-colors" />
                   <input
                     type="password"
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-sm focus:border-emerald-500 focus:outline-none"
+                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-sm focus:border-emerald-500 focus:outline-none transition-colors"
                   />
                 </div>
               </div>
@@ -123,16 +123,16 @@ export default function RegisterPage() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3 px-4 rounded-xl font-semibold text-sm bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-lg shadow-emerald-950 flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
+                className="w-full py-3 px-4 rounded-xl font-semibold text-sm bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all duration-150 shadow-lg shadow-emerald-950 flex items-center justify-center gap-2 disabled:opacity-50 mt-2 cursor-pointer disabled:cursor-not-allowed"
               >
                 <span>{isLoading ? "Criando Conta..." : "Registrar e Entrar"}</span>
-                <ArrowRight className="w-4 h-4" />
+                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
               </button>
             </form>
 
             <div className="border-t border-slate-800 pt-4 text-center text-xs text-slate-400">
               Já possui uma conta?{" "}
-              <TransitionLink href="/login" className="font-semibold text-emerald-400 hover:text-emerald-300 underline">
+              <TransitionLink href="/login" className="font-semibold text-emerald-400 hover:text-emerald-300 underline transition-colors">
                 Fazer Login
               </TransitionLink>
             </div>

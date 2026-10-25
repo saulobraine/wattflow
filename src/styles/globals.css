@@ -63,11 +63,152 @@ body {
   animation: none !important;
 }
 
+/* ==========================================================================
+   Smooth Animations & Keyframes (Cards, Popups, Alerts, Modais)
+   Compatível com React 19 / Next.js 15
+   ========================================================================== */
+
+@keyframes cardEntrance {
+  0% {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes modalBackdropFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalBackdropFadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes alertSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes alertSlideOut {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.98);
+  }
+}
+
+@keyframes barGrow {
+  0% {
+    transform: scaleY(0);
+    opacity: 0.3;
+  }
+  100% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+@keyframes subtleFloat {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+/* Utility Animation Classes */
+.animate-card {
+  animation: cardEntrance 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-backdrop-in {
+  animation: modalBackdropFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-backdrop-out {
+  animation: modalBackdropFadeOut 0.2s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+.animate-alert {
+  animation: alertSlideIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-alert-exit {
+  animation: alertSlideOut 0.22s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+.animate-bar-grow {
+  transform-origin: bottom;
+  animation: barGrow 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-float {
+  animation: subtleFloat 3s ease-in-out infinite;
+}
+
+/* Stagger Delays para Sequência de Aparição Suave */
+.stagger-1 { animation-delay: 50ms; }
+.stagger-2 { animation-delay: 100ms; }
+.stagger-3 { animation-delay: 150ms; }
+.stagger-4 { animation-delay: 200ms; }
+.stagger-5 { animation-delay: 250ms; }
+.stagger-6 { animation-delay: 300ms; }
+
+/* Interactive Elevation & Micro-transitions */
+.interactive-card {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), 
+              box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.2s ease;
+}
+
+.interactive-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(51, 65, 85, 0.9);
+  box-shadow: 0 14px 30px -10px rgba(0, 0, 0, 0.7);
+}
+
+/* Acessibilidade: Desativa animações se o usuário preferir movimento reduzido */
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-old(*),
   ::view-transition-new(*),
   ::view-transition-group(*) {
     animation-duration: 0s !important;
     animation-delay: 0s !important;
+  }
+
+  .animate-card,
+  .animate-backdrop-in,
+  .animate-backdrop-out,
+  .animate-alert,
+  .animate-alert-exit,
+  .animate-bar-grow,
+  .animate-float,
+  .interactive-card {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
   }
 }

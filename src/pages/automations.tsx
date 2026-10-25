@@ -89,25 +89,25 @@ export default function AutomationsPage() {
       <div className="space-y-6">
         {feedback && (
           <div
-            className={`p-4 rounded-xl border flex items-center gap-3 text-sm ${
+            className={`animate-alert p-4 rounded-xl border flex items-center gap-3 text-sm transition-all duration-200 shadow-md ${
               feedback.type === "success"
-                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
-                : "bg-rose-500/10 border-rose-500/30 text-rose-300"
+                ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-300 shadow-emerald-950/30"
+                : "bg-rose-500/10 border-rose-500/40 text-rose-300 shadow-rose-950/30"
             }`}
           >
             {feedback.type === "success" ? (
-              <CheckCircle2 className="w-5 h-5 shrink-0" />
+              <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-400" />
             ) : (
-              <AlertCircle className="w-5 h-5 shrink-0" />
+              <AlertCircle className="w-5 h-5 shrink-0 text-rose-400" />
             )}
-            <span>{feedback.message}</span>
+            <span className="font-medium">{feedback.message}</span>
           </div>
         )}
 
         {/* Card Explicativo sobre a Comutação da ATS */}
-        <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 flex items-start gap-3">
+        <div className="animate-card stagger-1 interactive-card p-4 rounded-xl bg-slate-900 border border-slate-800 flex items-start gap-3 shadow-lg">
           <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 shrink-0">
-            <ArrowLeftRight className="w-5 h-5" />
+            <ArrowLeftRight className="w-5 h-5 animate-float" />
           </div>
           <div className="text-xs text-slate-300 space-y-1">
             <span className="font-semibold text-slate-100 text-sm block">
@@ -120,7 +120,7 @@ export default function AutomationsPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+          <div className="animate-card stagger-2 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
             <div className="flex items-center justify-between border-b border-slate-800 pb-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
@@ -134,13 +134,15 @@ export default function AutomationsPage() {
                 </div>
               </div>
 
-              <label className="flex items-center gap-2 cursor-pointer">
-                <span className="text-xs font-semibold text-slate-300">Automação Ativa</span>
+              <label className="flex items-center gap-2 cursor-pointer group">
+                <span className="text-xs font-semibold text-slate-300 group-hover:text-emerald-300 transition-colors">
+                  Automação Ativa
+                </span>
                 <input
                   type="checkbox"
                   checked={isAutomationActive}
                   onChange={(e) => setIsAutomationActive(e.target.checked)}
-                  className="w-5 h-5 accent-emerald-500 rounded cursor-pointer"
+                  className="w-5 h-5 accent-emerald-500 rounded cursor-pointer transition-transform active:scale-90"
                 />
               </label>
             </div>
@@ -152,7 +154,7 @@ export default function AutomationsPage() {
                   <Zap className="w-4 h-4 text-emerald-400" />
                   Limite Superior (Bateria Cheia &rarr; Comutar ATS para EcoFlow)
                 </label>
-                <span className="font-mono text-emerald-400 font-bold text-lg bg-emerald-500/10 px-3 py-1 rounded-lg border border-emerald-500/20">
+                <span className="font-mono text-emerald-400 font-bold text-lg bg-emerald-500/10 px-3 py-1 rounded-lg border border-emerald-500/20 transition-all">
                   {turnOnThreshold}%
                 </span>
               </div>
@@ -165,7 +167,7 @@ export default function AutomationsPage() {
                 max="100"
                 value={turnOnThreshold}
                 onChange={(e) => handleUpperThresholdChange(Number(e.target.value))}
-                className="w-full accent-emerald-500 cursor-pointer h-2 bg-slate-800 rounded-lg"
+                className="w-full accent-emerald-500 cursor-pointer h-2 bg-slate-800 rounded-lg transition-all"
               />
             </div>
 
@@ -176,7 +178,7 @@ export default function AutomationsPage() {
                   <Power className="w-4 h-4 text-rose-400" />
                   Limite Inferior (Bateria Baixa &rarr; Comutar ATS para Concessionária)
                 </label>
-                <span className="font-mono text-rose-400 font-bold text-lg bg-rose-500/10 px-3 py-1 rounded-lg border border-rose-500/20">
+                <span className="font-mono text-rose-400 font-bold text-lg bg-rose-500/10 px-3 py-1 rounded-lg border border-rose-500/20 transition-all">
                   {turnOffThreshold}%
                 </span>
               </div>
@@ -189,7 +191,7 @@ export default function AutomationsPage() {
                 max="99"
                 value={turnOffThreshold}
                 onChange={(e) => handleLowerThresholdChange(Number(e.target.value))}
-                className="w-full accent-rose-500 cursor-pointer h-2 bg-slate-800 rounded-lg"
+                className="w-full accent-rose-500 cursor-pointer h-2 bg-slate-800 rounded-lg transition-all"
               />
             </div>
 
@@ -199,17 +201,17 @@ export default function AutomationsPage() {
                 Comportamento da Chave de Transferência Automática:
               </span>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-slate-300">
-                <div className="p-3 rounded-lg bg-rose-950/40 border border-rose-900/40 space-y-1.5">
+                <div className="p-3 rounded-lg bg-rose-950/40 border border-rose-900/40 space-y-1.5 transition-all hover:border-rose-700/60 hover:bg-rose-950/60">
                   <div className="font-semibold text-rose-400">&le; {turnOffThreshold}% (Bateria Baixa)</div>
                   <div className="text-slate-200">&bull; Saída AC EcoFlow: <span className="text-rose-400 font-bold">DESLIGADA</span></div>
                   <div className="text-slate-200">&bull; Chave ATS: <span className="text-amber-400 font-bold">POSIÇÃO A (REDE)</span></div>
                 </div>
-                <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 space-y-1.5">
+                <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 space-y-1.5 transition-all hover:border-slate-700 hover:bg-slate-850">
                   <div className="font-semibold text-amber-400">{turnOffThreshold}% a {turnOnThreshold}% (Histerese)</div>
                   <div className="text-slate-300">&bull; Faixa intermediária estável</div>
                   <div className="text-slate-400">Mantém a posição atual da chave ATS</div>
                 </div>
-                <div className="p-3 rounded-lg bg-emerald-950/40 border border-emerald-900/40 space-y-1.5">
+                <div className="p-3 rounded-lg bg-emerald-950/40 border border-emerald-900/40 space-y-1.5 transition-all hover:border-emerald-700/60 hover:bg-emerald-950/60">
                   <div className="font-semibold text-emerald-400">&ge; {turnOnThreshold}% (Bateria Carregada)</div>
                   <div className="text-slate-200">&bull; Saída AC EcoFlow: <span className="text-emerald-400 font-bold">LIGADA</span></div>
                   <div className="text-slate-200">&bull; Chave ATS: <span className="text-emerald-400 font-bold">POSIÇÃO B (SOLAR/BAT)</span></div>
@@ -222,7 +224,7 @@ export default function AutomationsPage() {
             <button
               type="submit"
               disabled={isSaving || isLoading}
-              className="py-3 px-6 rounded-xl font-semibold text-sm bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-lg shadow-emerald-950 disabled:opacity-50"
+              className="py-3 px-6 rounded-xl font-semibold text-sm bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all duration-150 shadow-lg shadow-emerald-950 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
             >
               {isSaving ? "Salvando..." : "Salvar Regras de Automação"}
             </button>
