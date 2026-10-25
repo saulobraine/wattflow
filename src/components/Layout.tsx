@@ -31,9 +31,13 @@ export function Layout({ children, title }: LayoutProps) {
         <Head>
           <title>{browserTitle}</title>
         </Head>
-        <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400">
-          <div className="flex items-center gap-3 p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur animate-fade-in">
-            <Zap className="w-5 h-5 text-emerald-400 animate-pulse animate-float" />
+        <div
+          role="status"
+          aria-live="polite"
+          className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400"
+        >
+          <div className="flex items-center gap-3 p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur animate-fade-in shadow-xl">
+            <Zap className="w-5 h-5 text-emerald-400 animate-pulse animate-float" aria-hidden="true" />
             <span className="text-sm font-medium tracking-wide">Carregando WattFlow...</span>
           </div>
         </div>
@@ -47,11 +51,18 @@ export function Layout({ children, title }: LayoutProps) {
         <title>{browserTitle}</title>
       </Head>
       <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100">
-        <header className="site-header border-b border-slate-800/90 bg-slate-900/70 backdrop-blur-md sticky top-0 z-50 transition-all duration-200">
+        <header
+          role="banner"
+          className="site-header border-b border-slate-800/90 bg-slate-900/70 backdrop-blur-md sticky top-0 z-50 transition-all duration-200"
+        >
           <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-            <TransitionLink href="/" className="flex items-center gap-2 group transition-transform active:scale-95 duration-150">
+            <TransitionLink
+              href="/"
+              aria-label="WattFlow Início"
+              className="flex items-center gap-2 group transition-transform active:scale-95 duration-150"
+            >
               <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 group-hover:scale-105 group-hover:bg-emerald-500/20 group-hover:border-emerald-500/50 transition-all duration-200 shadow-sm shadow-emerald-950">
-                <Zap className="w-5 h-5 transition-transform group-hover:rotate-6 duration-200" />
+                <Zap className="w-5 h-5 transition-transform group-hover:rotate-6 duration-200" aria-hidden="true" />
               </div>
               <div>
                 <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">
@@ -62,7 +73,11 @@ export function Layout({ children, title }: LayoutProps) {
             </TransitionLink>
 
             <div className="flex items-center gap-3 sm:gap-6">
-              <nav className="flex items-center gap-1 sm:gap-2">
+              <nav
+                role="navigation"
+                aria-label="Navegação Principal"
+                className="flex items-center gap-1 sm:gap-2"
+              >
                 {navItems.map((item) => {
                   const Icon = item.icon;
                   const isActive = router.pathname === item.href;
@@ -70,13 +85,15 @@ export function Layout({ children, title }: LayoutProps) {
                     <TransitionLink
                       key={item.href}
                       href={item.href}
+                      aria-current={isActive ? "page" : undefined}
+                      aria-label={item.label}
                       className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 active:scale-95 ${
                         isActive
                           ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 shadow-sm shadow-emerald-950"
                           : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 hover:border-slate-700/60 border border-transparent"
                       }`}
                     >
-                      <Icon className={`w-4 h-4 transition-transform ${isActive ? "scale-105" : "group-hover:scale-105"}`} />
+                      <Icon className={`w-4 h-4 transition-transform ${isActive ? "scale-105" : "group-hover:scale-105"}`} aria-hidden="true" />
                       <span className="hidden sm:inline">{item.label}</span>
                     </TransitionLink>
                   );
@@ -85,9 +102,12 @@ export function Layout({ children, title }: LayoutProps) {
 
               {user && (
                 <div className="flex items-center gap-3 border-l border-slate-800/80 pl-3 sm:pl-4">
-                  <div className="hidden md:flex items-center gap-2 text-xs text-slate-300 bg-slate-900/50 px-2.5 py-1.5 rounded-lg border border-slate-800 transition-colors">
+                  <div
+                    aria-label={`Usuário autenticado: ${user.fullName || user.email}`}
+                    className="hidden md:flex items-center gap-2 text-xs text-slate-300 bg-slate-900/50 px-2.5 py-1.5 rounded-lg border border-slate-800 transition-colors"
+                  >
                     <div className="p-1 rounded-full bg-slate-800 border border-slate-700">
-                      <User className="w-3.5 h-3.5 text-emerald-400" />
+                      <User className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
                     </div>
                     <span className="max-w-[140px] truncate font-medium">
                       {user.fullName || user.email}
@@ -97,9 +117,10 @@ export function Layout({ children, title }: LayoutProps) {
                   <button
                     onClick={logout}
                     title="Sair da Conta"
-                    className="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 active:scale-90 transition-all duration-150"
+                    aria-label="Sair da Conta"
+                    className="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 active:scale-90 transition-all duration-150 cursor-pointer"
                   >
-                    <LogOut className="w-4 h-4" />
+                    <LogOut className="w-4 h-4" aria-hidden="true" />
                   </button>
                 </div>
               )}
@@ -107,7 +128,10 @@ export function Layout({ children, title }: LayoutProps) {
           </div>
         </header>
 
-        <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8 page-content animate-fade-in">
+        <main
+          role="main"
+          className="flex-1 max-w-6xl w-full mx-auto px-4 py-8 page-content animate-fade-in"
+        >
           {title && (
             <div className="mb-8 animate-slide-down">
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-100">{title}</h1>
@@ -116,7 +140,10 @@ export function Layout({ children, title }: LayoutProps) {
           {children}
         </main>
 
-        <footer className="border-t border-slate-800/80 py-6 text-center text-xs text-slate-500">
+        <footer
+          role="contentinfo"
+          className="border-t border-slate-800/80 py-6 text-center text-xs text-slate-500"
+        >
           <p>WattFlow &bull; EcoFlow Open API + Chave de Transferência Automática (ATS) &bull; Object Calisthenics</p>
         </footer>
       </div>

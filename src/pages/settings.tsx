@@ -304,9 +304,12 @@ export default function SettingsPage() {
     <Layout title="Configurações e Credenciais (BYOK)">
       <div className="space-y-8">
         {/* Banner Informativo sobre a Chave de Transferência Automática (ATS) */}
-        <div className="animate-card stagger-1 interactive-card p-4 rounded-xl bg-slate-900 border border-slate-800 flex items-start gap-3 shadow-lg">
+        <section
+          aria-label="Sobre a automação EcoFlow e Chave ATS"
+          className="animate-card stagger-1 interactive-card p-4 rounded-xl bg-slate-900 border border-slate-800 flex items-start gap-3 shadow-lg"
+        >
           <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 shrink-0">
-            <ArrowLeftRight className="w-5 h-5 animate-float" />
+            <ArrowLeftRight className="w-5 h-5 animate-float" aria-hidden="true" />
           </div>
           <div className="text-xs text-slate-300 space-y-1">
             <span className="font-semibold text-slate-100 text-sm block">
@@ -316,10 +319,12 @@ export default function SettingsPage() {
               O WattFlow comuta a saída AC da sua estação <strong>EcoFlow</strong>. Quando a saída AC é ativada, a chave ATS transfere as cargas para solar/bateria. Ao desligar a saída AC, a ATS transfere para a concessionária. As notificações informam instantaneamente sobre cada comutação via Telegram ou WhatsApp.
             </p>
           </div>
-        </div>
+        </section>
 
         {feedback && (
           <div
+            role="alert"
+            aria-live="polite"
             className={`animate-alert p-4 rounded-xl border flex items-center gap-3 text-sm transition-all duration-200 shadow-md ${
               feedback.type === "success"
                 ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-300 shadow-emerald-950/30"
@@ -327,9 +332,9 @@ export default function SettingsPage() {
             }`}
           >
             {feedback.type === "success" ? (
-              <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-400" />
+              <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-400" aria-hidden="true" />
             ) : (
-              <AlertCircle className="w-5 h-5 shrink-0 text-rose-400" />
+              <AlertCircle className="w-5 h-5 shrink-0 text-rose-400" aria-hidden="true" />
             )}
             <span className="font-medium">{feedback.message}</span>
           </div>
@@ -341,7 +346,7 @@ export default function SettingsPage() {
           <div className="animate-card stagger-2 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-5">
             <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
               <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
-                <Cpu className="w-5 h-5" />
+                <Cpu className="w-5 h-5" aria-hidden="true" />
               </div>
               <div>
                 <h2 className="text-lg font-bold text-slate-100">EcoFlow Developer Open API</h2>
@@ -353,11 +358,14 @@ export default function SettingsPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5 md:col-span-2">
-                <label className="text-xs font-semibold text-slate-300">Região do Endpoint</label>
+                <label htmlFor="ecoflow-endpoint-select" className="text-xs font-semibold text-slate-300">
+                  Região do Endpoint
+                </label>
                 <select
+                  id="ecoflow-endpoint-select"
                   value={ecoflowEndpointRegion}
                   onChange={(e) => setEcoflowEndpointRegion(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 transition-colors"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-emerald-500 transition-colors"
                 >
                   <option value="https://api.ecoflow.com">Global / Américas (api.ecoflow.com)</option>
                   <option value="https://api-e.ecoflow.com">Europa (api-e.ecoflow.com)</option>
@@ -365,54 +373,62 @@ export default function SettingsPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300">Access Key</label>
+                <label htmlFor="ecoflow-access-key-input" className="text-xs font-semibold text-slate-300">
+                  Access Key
+                </label>
                 <input
+                  id="ecoflow-access-key-input"
                   type="text"
                   required
                   placeholder="Ex: ak_live_..."
                   value={ecoflowAccessKey}
                   onChange={(e) => setEcoflowAccessKey(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 font-mono transition-colors"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-emerald-500 font-mono transition-colors"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300">Secret Key</label>
+                <label htmlFor="ecoflow-secret-key-input" className="text-xs font-semibold text-slate-300">
+                  Secret Key
+                </label>
                 <div className="relative">
                   <input
+                    id="ecoflow-secret-key-input"
                     type={showEcoflowSecret ? "text" : "password"}
                     required
                     placeholder="Ex: sk_live_..."
                     value={ecoflowAccessSecret}
                     onChange={(e) => setEcoflowAccessSecret(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-4 pr-11 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 font-mono transition-colors"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-4 pr-11 py-2.5 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-emerald-500 font-mono transition-colors"
                   />
                   <button
                     type="button"
                     onClick={() => setShowEcoflowSecret((prev) => !prev)}
                     title={showEcoflowSecret ? "Ocultar Secret Key" : "Visualizar Secret Key"}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-slate-400 hover:text-emerald-300 hover:bg-slate-900/80 transition-colors active:scale-90"
+                    aria-label={showEcoflowSecret ? "Ocultar Secret Key da EcoFlow" : "Visualizar Secret Key da EcoFlow"}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-slate-400 hover:text-emerald-300 hover:bg-slate-900/80 transition-colors active:scale-90 cursor-pointer"
                   >
                     {showEcoflowSecret ? (
-                      <EyeOff className="w-4 h-4 text-emerald-400" />
+                      <EyeOff className="w-4 h-4 text-emerald-400" aria-hidden="true" />
                     ) : (
-                      <Eye className="w-4 h-4 text-slate-400" />
+                      <Eye className="w-4 h-4 text-slate-400" aria-hidden="true" />
                     )}
                   </button>
                 </div>
               </div>
 
               <div className="space-y-1.5 md:col-span-2">
-                <label className="text-xs font-semibold text-slate-300">
+                <label htmlFor="ecoflow-sn-input" className="text-xs font-semibold text-slate-300">
                   Número de Série da Estação (SN)
                 </label>
                 <input
+                  id="ecoflow-sn-input"
                   type="text"
                   required
                   placeholder="Ex: R331Z..."
                   value={ecoflowSerialNumber}
                   onChange={(e) => setEcoflowSerialNumber(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 font-mono transition-colors"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-emerald-500 font-mono transition-colors"
                 />
                 <span className="text-[11px] text-slate-400 block">
                   Compatível com River 2, River 2 Max/Pro, Delta 2, Delta 2 Max, Delta Pro.
@@ -426,7 +442,7 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between border-b border-slate-800 pb-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-cyan-500/10 text-cyan-400">
-                  <Bell className="w-5 h-5" />
+                  <Bell className="w-5 h-5" aria-hidden="true" />
                 </div>
                 <div>
                   <h2 className="text-lg font-bold text-slate-100">Notificações Instantâneas (Telegram &amp; WhatsApp)</h2>
@@ -436,11 +452,12 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <label className="flex items-center gap-2 cursor-pointer group">
+              <label htmlFor="notifications-active-checkbox" className="flex items-center gap-2 cursor-pointer group">
                 <span className="text-xs font-semibold text-slate-300 group-hover:text-cyan-300 transition-colors">
                   Notificações Ativas
                 </span>
                 <input
+                  id="notifications-active-checkbox"
                   type="checkbox"
                   checked={isNotificationActive}
                   onChange={(e) => setIsNotificationActive(e.target.checked)}
@@ -453,7 +470,7 @@ export default function SettingsPage() {
             <div className="space-y-4 p-5 rounded-xl bg-slate-950 border border-sky-900/30 transition-all hover:border-sky-850">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Send className="w-4 h-4 text-sky-400" />
+                  <Send className="w-4 h-4 text-sky-400" aria-hidden="true" />
                   <span className="text-sm font-bold text-sky-300">Telegram Bot (100% Gratuito &amp; Imediato)</span>
                 </div>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-sky-950 text-sky-300 border border-sky-800/60 font-mono">
@@ -467,37 +484,44 @@ export default function SettingsPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-300">Telegram Bot Token</label>
+                  <label htmlFor="telegram-token-input" className="text-xs font-semibold text-slate-300">
+                    Telegram Bot Token
+                  </label>
                   <div className="relative">
                     <input
+                      id="telegram-token-input"
                       type={showTelegramToken ? "text" : "password"}
                       placeholder="Ex: 123456789:ABCdefGhIJKlmNoPQRstuVWxyz"
                       value={telegramBotToken}
                       onChange={(e) => setTelegramBotToken(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-4 pr-11 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-sky-500 font-mono transition-colors"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-4 pr-11 py-2.5 text-base sm:text-xs text-slate-200 focus:outline-none focus:border-sky-500 font-mono transition-colors"
                     />
                     <button
                       type="button"
                       onClick={() => setShowTelegramToken((prev) => !prev)}
                       title={showTelegramToken ? "Ocultar Bot Token" : "Visualizar Bot Token salvo"}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-slate-400 hover:text-sky-300 hover:bg-slate-800/80 transition-colors active:scale-90"
+                      aria-label={showTelegramToken ? "Ocultar Bot Token do Telegram" : "Visualizar Bot Token do Telegram"}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-slate-400 hover:text-sky-300 hover:bg-slate-800/80 transition-colors active:scale-90 cursor-pointer"
                     >
                       {showTelegramToken ? (
-                        <EyeOff className="w-4 h-4 text-sky-400" />
+                        <EyeOff className="w-4 h-4 text-sky-400" aria-hidden="true" />
                       ) : (
-                        <Eye className="w-4 h-4 text-slate-400" />
+                        <Eye className="w-4 h-4 text-slate-400" aria-hidden="true" />
                       )}
                     </button>
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-300">Chat ID do Telegram</label>
+                  <label htmlFor="telegram-chat-id-input" className="text-xs font-semibold text-slate-300">
+                    Chat ID do Telegram
+                  </label>
                   <input
+                    id="telegram-chat-id-input"
                     type="text"
                     placeholder="Ex: 987654321 ou -100123456"
                     value={telegramChatId}
                     onChange={(e) => setTelegramChatId(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-sky-500 font-mono transition-colors"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-xs text-slate-200 focus:outline-none focus:border-sky-500 font-mono transition-colors"
                   />
                 </div>
               </div>
@@ -511,12 +535,13 @@ export default function SettingsPage() {
                   type="button"
                   disabled={isTestingTelegram || !telegramBotToken || !telegramChatId}
                   onClick={handleTestTelegram}
+                  aria-label="Testar envio de notificação no Telegram"
                   className="w-full sm:w-auto py-2 px-4 rounded-xl font-semibold text-xs bg-sky-950 hover:bg-sky-900/90 active:scale-95 text-sky-200 border border-sky-700/60 transition-all duration-150 flex items-center justify-center gap-2 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
                 >
                   {isTestingTelegram ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-sky-400" />
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-sky-400" aria-hidden="true" />
                   ) : (
-                    <Send className="w-3.5 h-3.5 text-sky-400" />
+                    <Send className="w-3.5 h-3.5 text-sky-400" aria-hidden="true" />
                   )}
                   {isTestingTelegram ? "Enviando para Telegram..." : "Testar Envio Telegram"}
                 </button>
@@ -524,6 +549,8 @@ export default function SettingsPage() {
 
               {telegramFeedback && (
                 <div
+                  role="alert"
+                  aria-live="polite"
                   className={`animate-alert p-3 rounded-xl border text-xs font-mono flex items-center gap-2 shadow-sm ${
                     telegramFeedback.isSuccess
                       ? "bg-slate-900 border-sky-500/40 text-sky-300"
@@ -531,9 +558,9 @@ export default function SettingsPage() {
                   }`}
                 >
                   {telegramFeedback.isSuccess ? (
-                    <CheckCircle2 className="w-4 h-4 text-sky-400 shrink-0" />
+                    <CheckCircle2 className="w-4 h-4 text-sky-400 shrink-0" aria-hidden="true" />
                   ) : (
-                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" aria-hidden="true" />
                   )}
                   <span>{telegramFeedback.message}</span>
                 </div>
@@ -544,7 +571,7 @@ export default function SettingsPage() {
             <div className="space-y-4 p-5 rounded-xl bg-slate-950 border border-emerald-900/30 transition-all hover:border-emerald-850">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <MessageSquare className="w-4 h-4 text-emerald-400" />
+                  <MessageSquare className="w-4 h-4 text-emerald-400" aria-hidden="true" />
                   <span className="text-sm font-bold text-emerald-300">WhatsApp (CallMeBot API Gratuita)</span>
                 </div>
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800/60 font-mono">
@@ -558,35 +585,42 @@ export default function SettingsPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-300">Número de WhatsApp (DDI + DDD)</label>
+                  <label htmlFor="whatsapp-number-input" className="text-xs font-semibold text-slate-300">
+                    Número de WhatsApp (DDI + DDD)
+                  </label>
                   <input
+                    id="whatsapp-number-input"
                     type="text"
                     placeholder="Ex: +5511999999999"
                     value={whatsappPhoneNumber}
                     onChange={(e) => setWhatsappPhoneNumber(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-mono transition-colors"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-mono transition-colors"
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-300">API Key CallMeBot</label>
+                  <label htmlFor="whatsapp-api-key-input" className="text-xs font-semibold text-slate-300">
+                    API Key CallMeBot
+                  </label>
                   <div className="relative">
                     <input
+                      id="whatsapp-api-key-input"
                       type={showWhatsappApiKey ? "text" : "password"}
                       placeholder="Ex: 1234567"
                       value={whatsappApiKey}
                       onChange={(e) => setWhatsappApiKey(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-4 pr-11 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-mono transition-colors"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-4 pr-11 py-2.5 text-base sm:text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-mono transition-colors"
                     />
                     <button
                       type="button"
                       onClick={() => setShowWhatsappApiKey((prev) => !prev)}
                       title={showWhatsappApiKey ? "Ocultar API Key" : "Visualizar API Key salva"}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-slate-400 hover:text-emerald-300 hover:bg-slate-800/80 transition-colors active:scale-90"
+                      aria-label={showWhatsappApiKey ? "Ocultar API Key do CallMeBot" : "Visualizar API Key do CallMeBot"}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-slate-400 hover:text-emerald-300 hover:bg-slate-800/80 transition-colors active:scale-90 cursor-pointer"
                     >
                       {showWhatsappApiKey ? (
-                        <EyeOff className="w-4 h-4 text-emerald-400" />
+                        <EyeOff className="w-4 h-4 text-emerald-400" aria-hidden="true" />
                       ) : (
-                        <Eye className="w-4 h-4 text-slate-400" />
+                        <Eye className="w-4 h-4 text-slate-400" aria-hidden="true" />
                       )}
                     </button>
                   </div>
@@ -602,12 +636,13 @@ export default function SettingsPage() {
                   type="button"
                   disabled={isTestingWhatsApp || !whatsappPhoneNumber || !whatsappApiKey}
                   onClick={handleTestWhatsApp}
+                  aria-label="Testar envio de notificação no WhatsApp"
                   className="w-full sm:w-auto py-2 px-4 rounded-xl font-semibold text-xs bg-emerald-950 hover:bg-emerald-900/90 active:scale-95 text-emerald-200 border border-emerald-700/60 transition-all duration-150 flex items-center justify-center gap-2 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
                 >
                   {isTestingWhatsApp ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" aria-hidden="true" />
                   ) : (
-                    <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
+                    <MessageSquare className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
                   )}
                   {isTestingWhatsApp ? "Enviando para WhatsApp..." : "Testar Envio WhatsApp"}
                 </button>
@@ -615,6 +650,8 @@ export default function SettingsPage() {
 
               {whatsappFeedback && (
                 <div
+                  role="alert"
+                  aria-live="polite"
                   className={`animate-alert p-3 rounded-xl border text-xs font-mono flex items-center gap-2 shadow-sm ${
                     whatsappFeedback.isSuccess
                       ? "bg-slate-900 border-emerald-500/40 text-emerald-300"
@@ -622,9 +659,9 @@ export default function SettingsPage() {
                   }`}
                 >
                   {whatsappFeedback.isSuccess ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" aria-hidden="true" />
                   ) : (
-                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" aria-hidden="true" />
                   )}
                   <span>{whatsappFeedback.message}</span>
                 </div>
@@ -638,18 +675,21 @@ export default function SettingsPage() {
               disabled={isSaving || isLoading}
               className="py-3 px-8 rounded-xl font-semibold text-sm bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all duration-150 shadow-lg shadow-emerald-950 disabled:opacity-50 flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed"
             >
-              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="w-4 h-4" aria-hidden="true" />}
               {isSaving ? "Salvando..." : "Salvar Configurações"}
             </button>
           </div>
         </form>
 
         {/* Painel de Validação e Teste do Acionamento AC */}
-        <div className="animate-card stagger-4 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-5">
+        <section
+          aria-label="Painel de Testes e Validação Direta"
+          className="animate-card stagger-4 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-5"
+        >
           <div className="flex items-center justify-between border-b border-slate-800 pb-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400">
-                <Power className="w-5 h-5" />
+                <Power className="w-5 h-5" aria-hidden="true" />
               </div>
               <div>
                 <h3 className="text-base font-bold text-slate-100">Teste Direto do Inversor EcoFlow (ATS)</h3>
@@ -660,7 +700,7 @@ export default function SettingsPage() {
             </div>
             {isTestingEcoFlow && (
               <span className="text-xs font-semibold text-amber-400 flex items-center gap-1.5 animate-pulse">
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
                 Testando...
               </span>
             )}
@@ -671,9 +711,10 @@ export default function SettingsPage() {
               type="button"
               disabled={isTestingEcoFlow || !ecoflowAccessKey || !ecoflowSerialNumber}
               onClick={() => requestConfirmation("ECOFLOW_TELEMETRY")}
+              aria-label="Solicitar teste de leitura de telemetria da EcoFlow"
               className="py-3 px-4 rounded-xl font-semibold text-xs bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-700 transition-all duration-150 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
             >
-              <Activity className="w-4 h-4 text-cyan-400" />
+              <Activity className="w-4 h-4 text-cyan-400" aria-hidden="true" />
               Testar Telemetria (SOC)
             </button>
 
@@ -681,9 +722,10 @@ export default function SettingsPage() {
               type="button"
               disabled={isTestingEcoFlow || !ecoflowAccessKey || !ecoflowSerialNumber}
               onClick={() => requestConfirmation("ECOFLOW_ON")}
+              aria-label="Solicitar teste para ligar saída AC e comutar ATS para bateria"
               className="py-3 px-4 rounded-xl font-semibold text-xs bg-emerald-950/60 hover:bg-emerald-900/80 active:scale-95 text-emerald-200 border border-emerald-800/60 transition-all duration-150 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
             >
-              <Zap className="w-4 h-4 text-emerald-400" />
+              <Zap className="w-4 h-4 text-emerald-400" aria-hidden="true" />
               Ligar Saída AC (ATS &rarr; Solar)
             </button>
 
@@ -691,15 +733,18 @@ export default function SettingsPage() {
               type="button"
               disabled={isTestingEcoFlow || !ecoflowAccessKey || !ecoflowSerialNumber}
               onClick={() => requestConfirmation("ECOFLOW_OFF")}
+              aria-label="Solicitar teste para desligar saída AC e comutar ATS para rede"
               className="py-3 px-4 rounded-xl font-semibold text-xs bg-rose-950/60 hover:bg-rose-900/80 active:scale-95 text-rose-200 border border-rose-800/60 transition-all duration-150 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
             >
-              <Power className="w-4 h-4 text-rose-400" />
+              <Power className="w-4 h-4 text-rose-400" aria-hidden="true" />
               Desligar Saída AC (ATS &rarr; Rede)
             </button>
           </div>
 
           {testFeedback && (
             <div
+              role="alert"
+              aria-live="polite"
               className={`animate-alert p-4 rounded-xl border space-y-2 text-xs font-mono transition-all duration-200 ${
                 testFeedback.isSuccess
                   ? "bg-slate-950/90 border-emerald-500/40 text-emerald-300 shadow-md shadow-emerald-950/20"
@@ -708,9 +753,9 @@ export default function SettingsPage() {
             >
               <div className="flex items-center gap-2 font-bold text-sm">
                 {testFeedback.isSuccess ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" aria-hidden="true" />
                 ) : (
-                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" aria-hidden="true" />
                 )}
                 <span>{testFeedback.summary}</span>
               </div>
@@ -725,12 +770,16 @@ export default function SettingsPage() {
               </div>
             </div>
           )}
-        </div>
+        </section>
       </div>
 
       {/* Modal de Confirmação Explícita com Digitação Obrigatória e Animações Fluídas de Entrada/Saída */}
       {confirmationModal && (
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="security-modal-title"
+          aria-describedby="security-modal-desc"
           onClick={(e) => {
             if (e.target === e.currentTarget) closeModal();
           }}
@@ -746,28 +795,34 @@ export default function SettingsPage() {
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 shrink-0">
-                  <ShieldAlert className="w-6 h-6 animate-pulse" />
+                  <ShieldAlert className="w-6 h-6 animate-pulse" aria-hidden="true" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-100">Confirmação de Segurança</h3>
+                  <h3 id="security-modal-title" className="text-base font-bold text-slate-100">
+                    Confirmação de Segurança
+                  </h3>
                   <p className="text-xs text-amber-400/90 font-medium">{confirmationModal.actionTitle}</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={closeModal}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-all active:scale-90"
+                aria-label="Fechar janela de confirmação"
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-all active:scale-90 cursor-pointer"
               >
-                <X className="w-5 h-5" />
+                <X className="w-5 h-5" aria-hidden="true" />
               </button>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800/80 text-xs text-slate-300 leading-relaxed">
+            <div
+              id="security-modal-desc"
+              className="p-3.5 rounded-xl bg-slate-950 border border-slate-800/80 text-xs text-slate-300 leading-relaxed"
+            >
               <p>{confirmationModal.warningText}</p>
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs text-slate-300 block">
+              <label htmlFor="modal-confirmation-input" className="text-xs text-slate-300 block">
                 Para autorizar esta operação, digite exatamente{" "}
                 <span className="font-mono font-bold text-amber-300 px-1.5 py-0.5 rounded bg-amber-950/60 border border-amber-800/40">
                   {confirmationModal.expectedWord}
@@ -775,6 +830,7 @@ export default function SettingsPage() {
                 abaixo:
               </label>
               <input
+                id="modal-confirmation-input"
                 type="text"
                 autoFocus
                 placeholder={`Digite ${confirmationModal.expectedWord}`}
@@ -790,7 +846,7 @@ export default function SettingsPage() {
                     closeModal();
                   }
                 }}
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-400 font-mono tracking-wider text-center uppercase transition-colors"
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-base sm:text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-400 font-mono tracking-wider text-center uppercase transition-colors"
               />
             </div>
 
@@ -798,7 +854,7 @@ export default function SettingsPage() {
               <button
                 type="button"
                 onClick={closeModal}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800 active:scale-95 transition-all"
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800 active:scale-95 transition-all cursor-pointer"
               >
                 Cancelar
               </button>
@@ -806,9 +862,10 @@ export default function SettingsPage() {
                 type="button"
                 disabled={confirmationInput.trim().toUpperCase() !== confirmationModal.expectedWord}
                 onClick={executeConfirmedAction}
-                className={`px-5 py-2.5 rounded-xl text-xs font-semibold active:scale-95 transition-all shadow-md flex items-center gap-2 disabled:opacity-30 disabled:cursor-not-allowed ${confirmationModal.confirmButtonColor}`}
+                aria-label={`Confirmar e executar ${confirmationModal.actionTitle}`}
+                className={`px-5 py-2.5 rounded-xl text-xs font-semibold active:scale-95 transition-all shadow-md flex items-center gap-2 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer ${confirmationModal.confirmButtonColor}`}
               >
-                <Zap className="w-4 h-4" />
+                <Zap className="w-4 h-4" aria-hidden="true" />
                 Confirmar e Executar
               </button>
             </div>

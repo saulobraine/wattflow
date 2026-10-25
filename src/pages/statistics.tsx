@@ -233,10 +233,13 @@ export default function StatisticsPage() {
         </div>
 
         {/* Gráfico da Curva de Potência Solar */}
-        <div className="animate-card stagger-5 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4">
+        <section
+          aria-label="Gráfico de Curva de Geração Solar Recente"
+          className="animate-card stagger-5 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4"
+        >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-amber-400" />
+              <BarChart3 className="w-5 h-5 text-amber-400" aria-hidden="true" />
               <h3 className="font-bold text-slate-100">Curva de Geração Solar Recente</h3>
             </div>
             <div className="flex items-center gap-3">
@@ -357,12 +360,15 @@ export default function StatisticsPage() {
               </div>
             </div>
           )}
-        </div>
+        </section>
 
         {/* Tabela de Telemetria Detalhada */}
-        <div className="animate-card stagger-6 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4">
+        <section
+          aria-label="Tabela de Amostras de Telemetria"
+          className="animate-card stagger-6 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4"
+        >
           <div className="flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-emerald-400" />
+            <Calendar className="w-5 h-5 text-emerald-400" aria-hidden="true" />
             <h3 className="font-bold text-slate-100">Histórico de Amostras de Telemetria</h3>
           </div>
 
@@ -372,14 +378,14 @@ export default function StatisticsPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm text-slate-300">
+              <table className="w-full text-left text-sm text-slate-300" aria-label="Histórico detalhado de amostras de telemetria">
                 <thead className="text-xs uppercase bg-slate-800/60 text-slate-400 border-b border-slate-800">
                   <tr>
-                    <th className="py-3 px-4">Horário</th>
-                    <th className="py-3 px-4">Entrada Solar (PV)</th>
-                    <th className="py-3 px-4">Bateria (SOC)</th>
-                    <th className="py-3 px-4">Decisão de Automação</th>
-                    <th className="py-3 px-4">Status dos Dispositivos</th>
+                    <th scope="col" className="py-3 px-4">Horário</th>
+                    <th scope="col" className="py-3 px-4">Entrada Solar (PV)</th>
+                    <th scope="col" className="py-3 px-4">Bateria (SOC)</th>
+                    <th scope="col" className="py-3 px-4">Decisão de Automação</th>
+                    <th scope="col" className="py-3 px-4">Status dos Dispositivos</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
@@ -399,7 +405,7 @@ export default function StatisticsPage() {
                                 : "bg-slate-800 text-slate-400"
                             }`}
                           >
-                            <Sun className="w-3 h-3 text-amber-400" />
+                            <Sun className="w-3 h-3 text-amber-400" aria-hidden="true" />
                             {log.solarInputWatts} W
                           </span>
                         </td>
@@ -409,13 +415,13 @@ export default function StatisticsPage() {
                         <td className="py-3 px-4 text-xs">
                           {log.actionTriggered === "BATTERY_HIGH_DISCHARGE" && (
                             <span className="text-emerald-400 font-semibold inline-flex items-center gap-1">
-                              <ArrowUpRight className="w-3 h-3" />
+                              <ArrowUpRight className="w-3 h-3" aria-hidden="true" />
                               Modo Bateria
                             </span>
                           )}
                           {log.actionTriggered === "BATTERY_LOW_RECHARGE" && (
                             <span className="text-amber-400 font-semibold inline-flex items-center gap-1">
-                              <ArrowDownRight className="w-3 h-3" />
+                              <ArrowDownRight className="w-3 h-3" aria-hidden="true" />
                               Modo Recarga
                             </span>
                           )}
@@ -433,7 +439,7 @@ export default function StatisticsPage() {
               </table>
             </div>
           )}
-        </div>
+        </section>
       </div>
     </Layout>
   );
