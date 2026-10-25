@@ -4,6 +4,7 @@ import { useRouter } from "next/router";
 import { Zap, Sliders, Settings, Activity, LogOut, User, BarChart3 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { TransitionLink } from "./TransitionLink";
+import { Tooltip, TooltipTrigger, TooltipContent } from "./ui/tooltip";
 
 interface LayoutProps {
   children: ReactNode;
@@ -115,34 +116,37 @@ export function Layout({ children, title }: LayoutProps) {
                   const Icon = item.icon;
                   const isActive = router.pathname === item.href;
                   return (
-                    <TransitionLink
-                      key={item.href}
-                      href={item.href}
-                      aria-current={isActive ? "page" : undefined}
-                      aria-label={item.label}
-                      title={item.label}
-                      className={`flex items-center rounded-lg font-medium transition-all duration-300 active:scale-95 ${
-                        isScrolled ? "px-2.5 py-1.5 text-xs gap-1.5" : "px-3 py-2 text-sm gap-2"
-                      } ${
-                        isActive
-                          ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 shadow-sm shadow-emerald-950"
-                          : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 hover:border-slate-700/60 border border-transparent"
-                      }`}
-                    >
-                      <Icon
-                        className={`transition-all duration-300 ${
-                          isScrolled ? "w-3.5 h-3.5" : "w-4 h-4"
-                        } ${isActive ? "scale-105" : "group-hover:scale-105"}`}
-                        aria-hidden="true"
-                      />
-                      <span
-                        className={`hidden sm:inline overflow-hidden whitespace-nowrap transition-all duration-300 ease-in-out ${
-                          isScrolled ? "max-w-0 opacity-0 -ml-0.5" : "max-w-[160px] opacity-100 ml-0"
-                        }`}
-                      >
-                        {item.label}
-                      </span>
-                    </TransitionLink>
+                    <Tooltip key={item.href} enabled={isScrolled}>
+                      <TooltipTrigger asChild>
+                        <TransitionLink
+                          href={item.href}
+                          aria-current={isActive ? "page" : undefined}
+                          aria-label={item.label}
+                          className={`flex items-center rounded-lg font-medium transition-all duration-300 active:scale-95 ${
+                            isScrolled ? "px-2.5 py-1.5 text-xs gap-1.5" : "px-3 py-2 text-sm gap-2"
+                          } ${
+                            isActive
+                              ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 shadow-sm shadow-emerald-950"
+                              : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 hover:border-slate-700/60 border border-transparent"
+                          }`}
+                        >
+                          <Icon
+                            className={`transition-all duration-300 ${
+                              isScrolled ? "w-3.5 h-3.5" : "w-4 h-4"
+                            } ${isActive ? "scale-105" : "group-hover:scale-105"}`}
+                            aria-hidden="true"
+                          />
+                          <span
+                            className={`hidden sm:inline overflow-hidden whitespace-nowrap transition-all duration-300 ease-in-out ${
+                              isScrolled ? "max-w-0 opacity-0 -ml-0.5" : "max-w-[160px] opacity-100 ml-0"
+                            }`}
+                          >
+                            {item.label}
+                          </span>
+                        </TransitionLink>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">{item.label}</TooltipContent>
+                    </Tooltip>
                   );
                 })}
               </nav>
@@ -167,16 +171,20 @@ export function Layout({ children, title }: LayoutProps) {
                     </span>
                   </div>
 
-                  <button
-                    onClick={logout}
-                    title="Sair da Conta"
-                    aria-label="Sair da Conta"
-                    className={`rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 active:scale-90 transition-all duration-200 cursor-pointer ${
-                      isScrolled ? "p-1.5" : "p-2"
-                    }`}
-                  >
-                    <LogOut className={isScrolled ? "w-3.5 h-3.5" : "w-4 h-4"} aria-hidden="true" />
-                  </button>
+                  <Tooltip enabled={isScrolled}>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={logout}
+                        aria-label="Sair da Conta"
+                        className={`rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 active:scale-90 transition-all duration-200 cursor-pointer ${
+                          isScrolled ? "p-1.5" : "p-2"
+                        }`}
+                      >
+                        <LogOut className={isScrolled ? "w-3.5 h-3.5" : "w-4 h-4"} aria-hidden="true" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">Sair da Conta</TooltipContent>
+                  </Tooltip>
                 </div>
               )}
             </div>
