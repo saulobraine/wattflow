@@ -1,13 +1,7 @@
 import { ConfigurationRepository, RetrievedConfigurationRecord } from "../infrastructure/repositories/ConfigurationRepository";
 import { EcoFlowHttpClient } from "../infrastructure/http/EcoFlowHttpClient";
-import { TuyaHttpClient } from "../infrastructure/http/TuyaHttpClient";
-import { DeviceCommandCode } from "../domain/values/DeviceCommandCode";
-import { DeviceIdentifier } from "../domain/values/DeviceIdentifier";
 import { DeviceSerialNumber } from "../domain/values/DeviceSerialNumber";
-import { TuyaCommand } from "../domain/models/TuyaCommand";
-import { TuyaCommandCollection } from "../domain/models/TuyaCommandCollection";
 import { DesiredDeviceAction } from "../domain/values/DesiredDeviceAction";
-import { TuyaCredentials } from "../domain/models/TuyaCredentials";
 import { EcoFlowCredentials } from "../domain/models/EcoFlowCredentials";
 import { AutomationThresholdPair } from "../domain/models/AutomationThresholdPair";
 
@@ -20,8 +14,10 @@ export interface SyncExecutionResult {
 }
 
 /**
- * Caso de Uso principal para sincronização e orquestração de energia.
- * Integração inteligente entre a estação EcoFlow e a tomada Tuya.
+ * Caso de Uso principal para sincronização e automação de energia via EcoFlow.
+ * Opera em conjunto com uma Chave de Transferência Automática (ATS) física:
+ * - Ao atingir o limite superior de carga, liga a saída AC da EcoFlow -> ATS comuta para Solar/Bateria.
+ * - Ao atingir o limite inferior de carga, desliga a saída AC da EcoFlow -> ATS comuta para a Concessionária (Rede).
  *
  * Respeita Object Calisthenics:
  * - Apenas 2 variáveis de instância
@@ -70,27 +66,19 @@ export class OrchestratorSyncUseCase {
   }
 
   private async executeSyncForRecord(configurationRecord: RetrievedConfigurationRecord): Promise<SyncExecutionResult> {
-    const { databaseRecordId, tuyaEndpointRegion, ecoflowEndpointRegion, configuration } = configurationRecord;
+    const { databaseRecordId, ecoflowEndpointRegion, configuration } = configurationRecord;
 
-    let tuyaCredentials: TuyaCredentials | undefined;
     let ecoflowCredentials: EcoFlowCredentials | undefined;
     configuration.provideCredentialsBundle((bundle) => {
-      bundle.provideTuyaCredentials((credentials) => {
-        tuyaCredentials = credentials;
-      });
       bundle.provideEcoFlowCredentials((credentials) => {
         ecoflowCredentials = credentials;
       });
     });
 
-    let tuyaDevice: DeviceIdentifier | undefined;
     let ecoflowDevice: DeviceSerialNumber | undefined;
     let thresholdPair: AutomationThresholdPair | undefined;
     configuration.provideAutomationProfile((profile) => {
       profile.provideDevicePair((devices) => {
-        devices.provideTuyaIdentifier((identifierString) => {
-          tuyaDevice = new DeviceIdentifier(identifierString);
-        });
         devices.provideEcoFlowSerialNumber((serialString) => {
           ecoflowDevice = new DeviceSerialNumber(serialString);
         });
@@ -100,9 +88,9 @@ export class OrchestratorSyncUseCase {
       });
     });
 
-    if (!tuyaCredentials || !ecoflowCredentials || !tuyaDevice || !ecoflowDevice || !thresholdPair) {
+    if (!ecoflowCredentials || !ecoflowDevice || !thresholdPair) {
       throw new Error(
-        "[WattFlow] Configuração incompleta: preencha as credenciais da Tuya e EcoFlow na tela de Configurações."
+        "[WattFlow] Configuração incompleta: preencha as credenciais da EcoFlow na tela de Configurações."
       );
     }
 
@@ -124,14 +112,11 @@ export class OrchestratorSyncUseCase {
       });
 
       const desiredAction = thresholdPair.evaluateBattery(batteryLevel);
-      const tuyaClient = new TuyaHttpClient(tuyaCredentials, tuyaEndpointRegion);
-
-      const actionResult = await this.dispatchCoordinatedActions(
+      const actionResult = await this.dispatchEcoFlowAcAction(
         desiredAction,
-        tuyaDevice,
-        tuyaClient,
         ecoflowDevice,
-        ecoflowClient
+        ecoflowClient,
+        telemetry.isAcOutputEnabled
       );
 
       let actionName = "";
@@ -170,50 +155,28 @@ export class OrchestratorSyncUseCase {
     }
   }
 
-  private async dispatchCoordinatedActions(
+  private async dispatchEcoFlowAcAction(
     desiredAction: DesiredDeviceAction,
-    tuyaDevice: DeviceIdentifier,
-    tuyaClient: TuyaHttpClient,
     ecoflowDevice: DeviceSerialNumber,
-    ecoflowClient: EcoFlowHttpClient
+    ecoflowClient: EcoFlowHttpClient,
+    isCurrentlyAcEnabled: boolean | null
   ): Promise<string> {
-    const isHighDischarge = desiredAction.isBatteryHighDischarge();
-    if (isHighDischarge) {
-      // 1. Desliga a Tomada Tuya PRIMEIRO
-      const switchCode = DeviceCommandCode.standardSwitch();
-      const command = TuyaCommand.createTurnOff(switchCode);
-      const collection = TuyaCommandCollection.singleCommand(command);
-      await tuyaClient.sendDeviceCommands(tuyaDevice, collection);
-
-      // 2. Tempo Morto (Dead-Time) de 2.500ms para abertura física dos relés
-      await new Promise((resolve) => setTimeout(resolve, 2500));
-
-      // 3. Somente após a Tuya estar desligada, liga a Saída AC da EcoFlow
-      const ecoflowFeedback = await ecoflowClient.setAcOutputState(ecoflowDevice, true);
-      return `Bateria Alta (atingiu limite superior): Tomada Tuya DESLIGADA e Saída AC EcoFlow ATIVADA. [EcoFlow: ${ecoflowFeedback}]`;
+    const isEnable = desiredAction.isEnableEcoFlowAc();
+    if (isEnable) {
+      if (isCurrentlyAcEnabled === true) {
+        return "Bateria Alta (atingiu limite superior): Saída AC EcoFlow já está LIGADA. Chave ATS mantida em Solar/Bateria.";
+      }
+      const feedback = await ecoflowClient.setAcOutputState(ecoflowDevice, true);
+      return `Bateria Alta (atingiu limite superior): Saída AC EcoFlow LIGADA. A Chave ATS comutou para Solar/Bateria. [EcoFlow: ${feedback}]`;
     }
 
-    const isLowRecharge = desiredAction.isBatteryLowRecharge();
-    if (isLowRecharge) {
-      // 1. Desliga a Saída AC da EcoFlow PRIMEIRO
-      const ecoflowFeedback = await ecoflowClient.setAcOutputState(ecoflowDevice, false);
-      const isEcoflowFailed = ecoflowFeedback.includes("Falha") || ecoflowFeedback.includes("Erro");
-      if (isEcoflowFailed) {
-        throw new Error(
-          `[Bloqueio de Segurança] Falha ao desligar Saída AC da EcoFlow (${ecoflowFeedback}). A Tomada Tuya NÃO foi ligada para evitar queima do inversor por retorno de rede.`
-        );
+    const isDisable = desiredAction.isDisableEcoFlowAc();
+    if (isDisable) {
+      if (isCurrentlyAcEnabled === false) {
+        return "Bateria Baixa (atingiu limite inferior): Saída AC EcoFlow já está DESLIGADA. Chave ATS mantida na Concessionária.";
       }
-
-      // 2. Tempo Morto (Dead-Time) de 2.500ms para desenergização de relés e capacitores
-      await new Promise((resolve) => setTimeout(resolve, 2500));
-
-      // 3. Somente após a EcoFlow estar desligada, liga a Tomada Tuya
-      const switchCode = DeviceCommandCode.standardSwitch();
-      const command = TuyaCommand.createTurnOn(switchCode);
-      const collection = TuyaCommandCollection.singleCommand(command);
-      await tuyaClient.sendDeviceCommands(tuyaDevice, collection);
-
-      return `Bateria Baixa (atingiu limite inferior): Saída AC EcoFlow DESATIVADA e Tomada Tuya LIGADA. [EcoFlow: ${ecoflowFeedback}]`;
+      const feedback = await ecoflowClient.setAcOutputState(ecoflowDevice, false);
+      return `Bateria Baixa (atingiu limite inferior): Saída AC EcoFlow DESLIGADA. A Chave ATS comutou para a Rede Concessionária. [EcoFlow: ${feedback}]`;
     }
 
     return "Bateria em faixa intermediária (histerese). Estados atuais mantidos.";

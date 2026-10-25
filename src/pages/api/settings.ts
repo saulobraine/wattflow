@@ -6,10 +6,6 @@ interface SettingsResponseBody {
   success: boolean;
   message: string;
   data?: {
-    tuyaAccessId: string;
-    tuyaAccessSecretMasked: string;
-    tuyaDeviceId: string;
-    tuyaEndpointRegion: string;
     ecoflowEndpointRegion: string;
     ecoflowAccessKey: string;
     ecoflowAccessSecretMasked: string;
@@ -55,10 +51,6 @@ export default async function handleSettings(
       success: true,
       message: "Configurações carregadas com sucesso.",
       data: {
-        tuyaAccessId: existing.tuyaAccessId,
-        tuyaAccessSecretMasked: maskSecret(existing.tuyaAccessSecret),
-        tuyaDeviceId: existing.tuyaDeviceId,
-        tuyaEndpointRegion: existing.tuyaEndpointRegion,
         ecoflowEndpointRegion: existing.ecoflowEndpointRegion,
         ecoflowAccessKey: existing.ecoflowAccessKey,
         ecoflowAccessSecretMasked: maskSecret(existing.ecoflowAccessSecret),
@@ -70,55 +62,50 @@ export default async function handleSettings(
 
   if (request.method === "POST") {
     const {
-      tuyaAccessId,
-      tuyaAccessSecret,
-      tuyaDeviceId,
-      tuyaEndpointRegion,
       ecoflowEndpointRegion,
       ecoflowAccessKey,
       ecoflowAccessSecret,
       ecoflowSerialNumber,
     } = request.body;
 
-    if (!tuyaAccessId || !tuyaAccessSecret || !tuyaDeviceId || !ecoflowAccessKey || !ecoflowAccessSecret || !ecoflowSerialNumber) {
+    if (!ecoflowAccessKey || !ecoflowAccessSecret || !ecoflowSerialNumber) {
       response.status(400).json({
         success: false,
-        message: "Todos os campos de credenciais são obrigatórios.",
+        message: "Access Key, Secret Key e Serial Number da EcoFlow são obrigatórios.",
       });
       return;
     }
 
+    const isMaskedSecret = (value?: string) => !value || value.includes("••••");
+
+    const existingConfig = await prisma.userConfiguration.findUnique({
+      where: { userId: extractedUserId },
+    });
+
+    const finalSecret = isMaskedSecret(ecoflowAccessSecret)
+      ? existingConfig?.ecoflowAccessSecret || ""
+      : ecoflowAccessSecret.trim();
+
     await prisma.userConfiguration.upsert({
       where: { userId: extractedUserId },
       update: {
-        tuyaAccessId,
-        tuyaAccessSecret,
-        tuyaDeviceId,
-        tuyaEndpointRegion: tuyaEndpointRegion || "https://openapi.tuyaus.com",
         ecoflowEndpointRegion: ecoflowEndpointRegion || "https://api.ecoflow.com",
-        ecoflowAccessKey,
-        ecoflowAccessSecret,
-        ecoflowSerialNumber,
+        ecoflowAccessKey: ecoflowAccessKey.trim(),
+        ecoflowAccessSecret: finalSecret,
+        ecoflowSerialNumber: ecoflowSerialNumber.trim(),
       },
       create: {
         userId: extractedUserId,
-        tuyaAccessId,
-        tuyaAccessSecret,
-        tuyaDeviceId,
-        tuyaEndpointRegion: tuyaEndpointRegion || "https://openapi.tuyaus.com",
         ecoflowEndpointRegion: ecoflowEndpointRegion || "https://api.ecoflow.com",
-        ecoflowAccessKey,
-        ecoflowAccessSecret,
-        ecoflowSerialNumber,
-        turnOnThreshold: 90,
-        turnOffThreshold: 30,
-        isAutomationActive: true,
+        ecoflowAccessKey: ecoflowAccessKey.trim(),
+        ecoflowAccessSecret: finalSecret,
+        ecoflowSerialNumber: ecoflowSerialNumber.trim(),
       },
     });
 
     response.status(200).json({
       success: true,
-      message: "Credenciais salvas com sucesso!",
+      message: "Credenciais da EcoFlow salvas com sucesso!",
     });
     return;
   }

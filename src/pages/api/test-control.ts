@@ -3,20 +3,13 @@ import { prisma } from "../../infrastructure/database/prismaClient";
 import { extractUserFromRequest } from "../../infrastructure/auth/sessionHelper";
 import { AccessKey } from "../../domain/values/AccessKey";
 import { AccessSecret } from "../../domain/values/AccessSecret";
-import { DeviceIdentifier } from "../../domain/values/DeviceIdentifier";
 import { DeviceSerialNumber } from "../../domain/values/DeviceSerialNumber";
-import { TuyaCredentials } from "../../domain/models/TuyaCredentials";
 import { EcoFlowCredentials } from "../../domain/models/EcoFlowCredentials";
-import { TuyaHttpClient } from "../../infrastructure/http/TuyaHttpClient";
 import { EcoFlowHttpClient } from "../../infrastructure/http/EcoFlowHttpClient";
-import { DeviceTestInterlockUseCase, DeviceTestResult } from "../../application/DeviceTestInterlockUseCase";
+import { EcoFlowTestUseCase, EcoFlowTestResult } from "../../application/EcoFlowTestUseCase";
 
 interface TestControlRequestBody {
-  actionTarget: "TUYA_ON" | "TUYA_OFF" | "ECOFLOW_ON" | "ECOFLOW_OFF";
-  tuyaAccessId?: string;
-  tuyaAccessSecret?: string;
-  tuyaDeviceId?: string;
-  tuyaEndpointRegion?: string;
+  actionTarget: "ECOFLOW_ON" | "ECOFLOW_OFF" | "ECOFLOW_TELEMETRY";
   ecoflowEndpointRegion?: string;
   ecoflowAccessKey?: string;
   ecoflowAccessSecret?: string;
@@ -26,7 +19,7 @@ interface TestControlRequestBody {
 interface TestControlApiResponse {
   success: boolean;
   message: string;
-  data?: DeviceTestResult;
+  data?: EcoFlowTestResult;
 }
 
 export default async function handleTestControl(
@@ -59,11 +52,11 @@ export default async function handleTestControl(
   const body = (request.body ?? {}) as TestControlRequestBody;
   const { actionTarget } = body;
 
-  const validTargets = ["TUYA_ON", "TUYA_OFF", "ECOFLOW_ON", "ECOFLOW_OFF"];
+  const validTargets = ["ECOFLOW_ON", "ECOFLOW_OFF", "ECOFLOW_TELEMETRY"];
   if (!validTargets.includes(actionTarget)) {
     response.status(400).json({
       success: false,
-      message: "Ação de teste inválida. Escolha TUYA_ON, TUYA_OFF, ECOFLOW_ON ou ECOFLOW_OFF.",
+      message: "Ação de teste inválida. Escolha ECOFLOW_ON, ECOFLOW_OFF ou ECOFLOW_TELEMETRY.",
     });
     return;
   }
@@ -74,14 +67,6 @@ export default async function handleTestControl(
 
   const isMaskedSecret = (value?: string) => !value || value.includes("••••");
 
-  const effectiveTuyaId = body.tuyaAccessId?.trim() || savedConfiguration?.tuyaAccessId || "";
-  const effectiveTuyaSecret = isMaskedSecret(body.tuyaAccessSecret)
-    ? savedConfiguration?.tuyaAccessSecret || ""
-    : body.tuyaAccessSecret?.trim() || "";
-  const effectiveTuyaDevice = body.tuyaDeviceId?.trim() || savedConfiguration?.tuyaDeviceId || "";
-  const effectiveTuyaRegion =
-    body.tuyaEndpointRegion?.trim() || savedConfiguration?.tuyaEndpointRegion || "https://openapi.tuyaus.com";
-
   const effectiveEcoFlowKey = body.ecoflowAccessKey?.trim() || savedConfiguration?.ecoflowAccessKey || "";
   const effectiveEcoFlowSecret = isMaskedSecret(body.ecoflowAccessSecret)
     ? savedConfiguration?.ecoflowAccessSecret || ""
@@ -90,56 +75,47 @@ export default async function handleTestControl(
   const effectiveEcoFlowRegion =
     body.ecoflowEndpointRegion?.trim() || savedConfiguration?.ecoflowEndpointRegion || "https://api.ecoflow.com";
 
-  const hasCompleteTuya = effectiveTuyaId && effectiveTuyaSecret && effectiveTuyaDevice;
   const hasCompleteEcoFlow = effectiveEcoFlowKey && effectiveEcoFlowSecret && effectiveEcoFlowSerial;
 
-  if (!hasCompleteTuya || !hasCompleteEcoFlow) {
+  if (!hasCompleteEcoFlow) {
     response.status(400).json({
       success: false,
-      message: "Credenciais incompletas. Preencha todos os campos da Tuya e EcoFlow para realizar o teste.",
+      message: "Credenciais incompletas. Preencha todos os campos da EcoFlow para realizar o teste.",
     });
     return;
   }
 
+  const ecoflowKey = new AccessKey(effectiveEcoFlowKey);
+  const ecoflowSecret = new AccessSecret(effectiveEcoFlowSecret);
+  const ecoflowCredentials = new EcoFlowCredentials(ecoflowKey, ecoflowSecret);
+  const ecoflowDevice = new DeviceSerialNumber(effectiveEcoFlowSerial);
+  const ecoflowClient = new EcoFlowHttpClient(ecoflowCredentials, effectiveEcoFlowRegion);
+
+  const testUseCase = new EcoFlowTestUseCase();
+
   try {
-    const tuyaCredentials = new TuyaCredentials(
-      new AccessKey(effectiveTuyaId),
-      new AccessSecret(effectiveTuyaSecret)
-    );
-    const ecoflowCredentials = new EcoFlowCredentials(
-      new AccessKey(effectiveEcoFlowKey),
-      new AccessSecret(effectiveEcoFlowSecret)
-    );
+    let result: EcoFlowTestResult;
 
-    const tuyaDevice = new DeviceIdentifier(effectiveTuyaDevice);
-    const ecoflowDevice = new DeviceSerialNumber(effectiveEcoFlowSerial);
-
-    const tuyaClient = new TuyaHttpClient(tuyaCredentials, effectiveTuyaRegion);
-    const ecoflowClient = new EcoFlowHttpClient(ecoflowCredentials, effectiveEcoFlowRegion);
-    const useCase = new DeviceTestInterlockUseCase();
-
-    let testResult: DeviceTestResult;
-
-    if (actionTarget === "TUYA_ON") {
-      testResult = await useCase.executeTuyaOn(tuyaClient, tuyaDevice, ecoflowClient, ecoflowDevice);
-    } else if (actionTarget === "TUYA_OFF") {
-      testResult = await useCase.executeTuyaOff(tuyaClient, tuyaDevice, ecoflowClient, ecoflowDevice);
+    if (actionTarget === "ECOFLOW_TELEMETRY") {
+      result = await testUseCase.executeTestTelemetry(ecoflowClient, ecoflowDevice);
     } else if (actionTarget === "ECOFLOW_ON") {
-      testResult = await useCase.executeEcoFlowOn(tuyaClient, tuyaDevice, ecoflowClient, ecoflowDevice);
+      result = await testUseCase.executeTestAc(ecoflowClient, ecoflowDevice, true);
     } else {
-      testResult = await useCase.executeEcoFlowOff(tuyaClient, tuyaDevice, ecoflowClient, ecoflowDevice);
+      result = await testUseCase.executeTestAc(ecoflowClient, ecoflowDevice, false);
     }
 
     response.status(200).json({
-      success: testResult.isSuccess,
-      message: testResult.summaryMessage,
-      data: testResult,
+      success: result.isSuccess,
+      message: result.summaryMessage,
+      data: result,
     });
-  } catch (caughtError) {
-    const errorDetail = caughtError instanceof Error ? caughtError.message : "Erro desconhecido no teste.";
+  } catch (caughtError: unknown) {
+    const errorDetails =
+      caughtError instanceof Error ? caughtError.message : "Erro desconhecido durante o teste da EcoFlow.";
+
     response.status(500).json({
       success: false,
-      message: errorDetail,
+      message: errorDetails,
     });
   }
 }
