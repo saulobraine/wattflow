@@ -3,6 +3,7 @@
 @tailwind utilities;
 
 body {
+  font-family: 'Google Sans', sans-serif;
   @apply bg-slate-950 text-slate-100 antialiased min-h-screen;
 }
 

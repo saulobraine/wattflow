@@ -6,6 +6,9 @@ module.exports = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['"Google Sans"', 'sans-serif'],
+      },
       colors: {
         brand: {
           50: '#f0fdf4',

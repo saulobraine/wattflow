@@ -222,7 +222,7 @@ export default function SettingsPage() {
 
   return (
     <Layout title="Configurações e Credenciais (BYOK)">
-      <div className="max-w-4xl mx-auto space-y-8">
+      <div className="space-y-8">
         {/* Banner Informativo sobre a Chave de Transferência Automática (ATS) */}
         <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 flex items-start gap-3">
           <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 shrink-0">

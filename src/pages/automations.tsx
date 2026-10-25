@@ -86,7 +86,7 @@ export default function AutomationsPage() {
 
   return (
     <Layout title="Gatilhos de Automação (EcoFlow + ATS)">
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="space-y-6">
         {feedback && (
           <div
             className={`p-4 rounded-xl border flex items-center gap-3 text-sm ${
