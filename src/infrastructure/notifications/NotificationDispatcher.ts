@@ -138,7 +138,7 @@ export class NotificationDispatcher {
     plainText: string
   ): Promise<{ isSuccess: boolean; errorMessage?: string }> {
     try {
-      const cleanPhone = phone.replace(/[^0-9+]/g, "");
+      const cleanPhone = phone.replace(/[^0-9]/g, "");
       const encodedText = encodeURIComponent(plainText);
       const url = `https://api.callmebot.com/whatsapp.php?phone=${cleanPhone}&text=${encodedText}&apikey=${apiKey}`;
 
@@ -152,9 +152,15 @@ export class NotificationDispatcher {
           textResponse.includes("success"));
 
       if (!isSuccessful) {
+        const cleanErrorMessage = textResponse
+          .replace(/<[^>]*>/g, " ")
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 160);
+
         return {
           isSuccess: false,
-          errorMessage: textResponse.slice(0, 150) || `Status HTTP ${response.status}`,
+          errorMessage: cleanErrorMessage || `Status HTTP ${response.status}`,
         };
       }
 
