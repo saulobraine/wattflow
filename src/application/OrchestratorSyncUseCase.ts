@@ -4,6 +4,10 @@ import { DeviceSerialNumber } from "../domain/values/DeviceSerialNumber";
 import { DesiredDeviceAction } from "../domain/values/DesiredDeviceAction";
 import { EcoFlowCredentials } from "../domain/models/EcoFlowCredentials";
 import { AutomationThresholdPair } from "../domain/models/AutomationThresholdPair";
+import {
+  NotificationDispatcher,
+  NotificationConfig,
+} from "../infrastructure/notifications/NotificationDispatcher";
 
 export interface SyncExecutionResult {
   hasExecutedSuccessfully: boolean;
@@ -18,6 +22,7 @@ export interface SyncExecutionResult {
  * Opera em conjunto com uma Chave de Transferência Automática (ATS) física:
  * - Ao atingir o limite superior de carga, liga a saída AC da EcoFlow -> ATS comuta para Solar/Bateria.
  * - Ao atingir o limite inferior de carga, desliga a saída AC da EcoFlow -> ATS comuta para a Concessionária (Rede).
+ * - Dispara alertas instantâneos via Telegram e WhatsApp (CallMeBot) quando configurados.
  *
  * Respeita Object Calisthenics:
  * - Apenas 2 variáveis de instância
@@ -66,7 +71,7 @@ export class OrchestratorSyncUseCase {
   }
 
   private async executeSyncForRecord(configurationRecord: RetrievedConfigurationRecord): Promise<SyncExecutionResult> {
-    const { databaseRecordId, ecoflowEndpointRegion, configuration } = configurationRecord;
+    const { databaseRecordId, ecoflowEndpointRegion, notificationConfig, configuration } = configurationRecord;
 
     let ecoflowCredentials: EcoFlowCredentials | undefined;
     configuration.provideCredentialsBundle((bundle) => {
@@ -116,7 +121,10 @@ export class OrchestratorSyncUseCase {
         desiredAction,
         ecoflowDevice,
         ecoflowClient,
-        telemetry.isAcOutputEnabled
+        telemetry.isAcOutputEnabled,
+        numericBattery,
+        numericSolarWatts,
+        notificationConfig
       );
 
       let actionName = "";
@@ -159,7 +167,10 @@ export class OrchestratorSyncUseCase {
     desiredAction: DesiredDeviceAction,
     ecoflowDevice: DeviceSerialNumber,
     ecoflowClient: EcoFlowHttpClient,
-    isCurrentlyAcEnabled: boolean | null
+    isCurrentlyAcEnabled: boolean | null,
+    batteryPercentage: number,
+    solarWatts: number,
+    notificationConfig: NotificationConfig
   ): Promise<string> {
     const isEnable = desiredAction.isEnableEcoFlowAc();
     if (isEnable) {
@@ -167,6 +178,20 @@ export class OrchestratorSyncUseCase {
         return "Bateria Alta (atingiu limite superior): Saída AC EcoFlow já está LIGADA. Chave ATS mantida em Solar/Bateria.";
       }
       const feedback = await ecoflowClient.setAcOutputState(ecoflowDevice, true);
+
+      // Dispara notificação de comutação para Solar/Bateria
+      this.dispatchSafeAlert(
+        {
+          title: "ATS Comutada para Solar/Bateria",
+          message:
+            "A bateria atingiu o limite superior configurado. A saída AC da EcoFlow foi ativada e a Chave de Transferência Automática (ATS) comutou a residência para energia solar/bateria!",
+          batteryPercentage,
+          solarWatts,
+          actionState: "SOLAR_BATTERY",
+        },
+        notificationConfig
+      );
+
       return `Bateria Alta (atingiu limite superior): Saída AC EcoFlow LIGADA. A Chave ATS comutou para Solar/Bateria. [EcoFlow: ${feedback}]`;
     }
 
@@ -176,10 +201,40 @@ export class OrchestratorSyncUseCase {
         return "Bateria Baixa (atingiu limite inferior): Saída AC EcoFlow já está DESLIGADA. Chave ATS mantida na Concessionária.";
       }
       const feedback = await ecoflowClient.setAcOutputState(ecoflowDevice, false);
+
+      // Dispara notificação de comutação para a Concessionária
+      this.dispatchSafeAlert(
+        {
+          title: "ATS Comutada para Concessionária",
+          message:
+            "A bateria desceu ao limite inferior de corte. A saída AC da EcoFlow foi desligada para preservar a bateria e a Chave ATS transferiu a residência para a rede da concessionária.",
+          batteryPercentage,
+          solarWatts,
+          actionState: "GRID",
+        },
+        notificationConfig
+      );
+
       return `Bateria Baixa (atingiu limite inferior): Saída AC EcoFlow DESLIGADA. A Chave ATS comutou para a Rede Concessionária. [EcoFlow: ${feedback}]`;
     }
 
     return "Bateria em faixa intermediária (histerese). Estados atuais mantidos.";
+  }
+
+  private dispatchSafeAlert(
+    payload: {
+      title: string;
+      message: string;
+      batteryPercentage: number;
+      solarWatts: number;
+      actionState: "SOLAR_BATTERY" | "GRID";
+    },
+    config: NotificationConfig
+  ): void {
+    const dispatcher = new NotificationDispatcher();
+    dispatcher.dispatchNotification(payload, config).catch((err) => {
+      console.error("[WattFlow Alert] Falha ao enviar notificação:", err);
+    });
   }
 
   private buildEmptyConfigurationResult(): SyncExecutionResult {

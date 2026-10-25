@@ -10,6 +10,11 @@ interface SettingsResponseBody {
     ecoflowAccessKey: string;
     ecoflowAccessSecretMasked: string;
     ecoflowSerialNumber: string;
+    telegramBotTokenMasked: string;
+    telegramChatId: string;
+    whatsappPhoneNumber: string;
+    whatsappApiKeyMasked: string;
+    isNotificationActive: boolean;
   };
 }
 
@@ -44,8 +49,10 @@ export default async function handleSettings(
       return;
     }
 
-    const maskSecret = (secret: string) =>
-      secret.length > 6 ? `${secret.substring(0, 3)}••••••••${secret.slice(-3)}` : "••••••••";
+    const maskSecret = (secret?: string | null) => {
+      if (!secret) return "";
+      return secret.length > 6 ? `${secret.substring(0, 3)}••••••••${secret.slice(-3)}` : "••••••••";
+    };
 
     response.status(200).json({
       success: true,
@@ -55,6 +62,11 @@ export default async function handleSettings(
         ecoflowAccessKey: existing.ecoflowAccessKey,
         ecoflowAccessSecretMasked: maskSecret(existing.ecoflowAccessSecret),
         ecoflowSerialNumber: existing.ecoflowSerialNumber,
+        telegramBotTokenMasked: maskSecret(existing.telegramBotToken),
+        telegramChatId: existing.telegramChatId || "",
+        whatsappPhoneNumber: existing.whatsappPhoneNumber || "",
+        whatsappApiKeyMasked: maskSecret(existing.whatsappApiKey),
+        isNotificationActive: existing.isNotificationActive ?? true,
       },
     });
     return;
@@ -66,6 +78,11 @@ export default async function handleSettings(
       ecoflowAccessKey,
       ecoflowAccessSecret,
       ecoflowSerialNumber,
+      telegramBotToken,
+      telegramChatId,
+      whatsappPhoneNumber,
+      whatsappApiKey,
+      isNotificationActive,
     } = request.body;
 
     if (!ecoflowAccessKey || !ecoflowAccessSecret || !ecoflowSerialNumber) {
@@ -76,36 +93,54 @@ export default async function handleSettings(
       return;
     }
 
-    const isMaskedSecret = (value?: string) => !value || value.includes("••••");
+    const isMasked = (value?: string) => !value || value.includes("••••");
 
     const existingConfig = await prisma.userConfiguration.findUnique({
       where: { userId: extractedUserId },
     });
 
-    const finalSecret = isMaskedSecret(ecoflowAccessSecret)
+    const finalEcoFlowSecret = isMasked(ecoflowAccessSecret)
       ? existingConfig?.ecoflowAccessSecret || ""
       : ecoflowAccessSecret.trim();
+
+    const finalTelegramToken = isMasked(telegramBotToken)
+      ? existingConfig?.telegramBotToken || ""
+      : (telegramBotToken || "").trim();
+
+    const finalWhatsAppKey = isMasked(whatsappApiKey)
+      ? existingConfig?.whatsappApiKey || ""
+      : (whatsappApiKey || "").trim();
 
     await prisma.userConfiguration.upsert({
       where: { userId: extractedUserId },
       update: {
         ecoflowEndpointRegion: ecoflowEndpointRegion || "https://api.ecoflow.com",
         ecoflowAccessKey: ecoflowAccessKey.trim(),
-        ecoflowAccessSecret: finalSecret,
+        ecoflowAccessSecret: finalEcoFlowSecret,
         ecoflowSerialNumber: ecoflowSerialNumber.trim(),
+        telegramBotToken: finalTelegramToken,
+        telegramChatId: (telegramChatId || "").trim(),
+        whatsappPhoneNumber: (whatsappPhoneNumber || "").trim(),
+        whatsappApiKey: finalWhatsAppKey,
+        isNotificationActive: isNotificationActive ?? true,
       },
       create: {
         userId: extractedUserId,
         ecoflowEndpointRegion: ecoflowEndpointRegion || "https://api.ecoflow.com",
         ecoflowAccessKey: ecoflowAccessKey.trim(),
-        ecoflowAccessSecret: finalSecret,
+        ecoflowAccessSecret: finalEcoFlowSecret,
         ecoflowSerialNumber: ecoflowSerialNumber.trim(),
+        telegramBotToken: finalTelegramToken,
+        telegramChatId: (telegramChatId || "").trim(),
+        whatsappPhoneNumber: (whatsappPhoneNumber || "").trim(),
+        whatsappApiKey: finalWhatsAppKey,
+        isNotificationActive: isNotificationActive ?? true,
       },
     });
 
     response.status(200).json({
       success: true,
-      message: "Credenciais da EcoFlow salvas com sucesso!",
+      message: "Credenciais e configurações de notificação salvas com sucesso!",
     });
     return;
   }

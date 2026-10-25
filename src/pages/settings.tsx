@@ -11,6 +11,10 @@ import {
   Loader2,
   Activity,
   ArrowLeftRight,
+  Bell,
+  MessageSquare,
+  Send,
+  HelpCircle,
 } from "lucide-react";
 
 export default function SettingsPage() {
@@ -18,6 +22,12 @@ export default function SettingsPage() {
   const [ecoflowAccessKey, setEcoflowAccessKey] = useState("");
   const [ecoflowAccessSecret, setEcoflowAccessSecret] = useState("");
   const [ecoflowSerialNumber, setEcoflowSerialNumber] = useState("");
+
+  const [telegramBotToken, setTelegramBotToken] = useState("");
+  const [telegramChatId, setTelegramChatId] = useState("");
+  const [whatsappPhoneNumber, setWhatsappPhoneNumber] = useState("");
+  const [whatsappApiKey, setWhatsappApiKey] = useState("");
+  const [isNotificationActive, setIsNotificationActive] = useState(true);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -33,6 +43,12 @@ export default function SettingsPage() {
     isAcOutputEnabled?: boolean | null;
   } | null>(null);
 
+  const [isTestingNotification, setIsTestingNotification] = useState(false);
+  const [notificationFeedback, setNotificationFeedback] = useState<{
+    isSuccess: boolean;
+    message: string;
+  } | null>(null);
+
   useEffect(() => {
     async function loadSettings() {
       try {
@@ -43,6 +59,11 @@ export default function SettingsPage() {
           setEcoflowAccessKey(json.data.ecoflowAccessKey || "");
           setEcoflowAccessSecret(json.data.ecoflowAccessSecretMasked || "");
           setEcoflowSerialNumber(json.data.ecoflowSerialNumber || "");
+          setTelegramBotToken(json.data.telegramBotTokenMasked || "");
+          setTelegramChatId(json.data.telegramChatId || "");
+          setWhatsappPhoneNumber(json.data.whatsappPhoneNumber || "");
+          setWhatsappApiKey(json.data.whatsappApiKeyMasked || "");
+          setIsNotificationActive(json.data.isNotificationActive ?? true);
         }
       } catch (err) {
         console.error("Erro ao carregar configurações:", err);
@@ -67,12 +88,17 @@ export default function SettingsPage() {
           ecoflowAccessKey,
           ecoflowAccessSecret,
           ecoflowSerialNumber,
+          telegramBotToken,
+          telegramChatId,
+          whatsappPhoneNumber,
+          whatsappApiKey,
+          isNotificationActive,
         }),
       });
 
       const json = await response.json();
       if (json.success) {
-        setFeedback({ type: "success", message: "Credenciais EcoFlow salvas com sucesso!" });
+        setFeedback({ type: "success", message: "Credenciais e configurações salvas com sucesso!" });
       } else {
         setFeedback({ type: "error", message: json.message || "Erro ao salvar credenciais." });
       }
@@ -128,6 +154,37 @@ export default function SettingsPage() {
     }
   };
 
+  const handleTestNotification = async () => {
+    setIsTestingNotification(true);
+    setNotificationFeedback(null);
+
+    try {
+      const response = await fetch("/api/test-notification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          telegramBotToken,
+          telegramChatId,
+          whatsappPhoneNumber,
+          whatsappApiKey,
+        }),
+      });
+
+      const json = await response.json();
+      setNotificationFeedback({
+        isSuccess: json.success,
+        message: json.message || "Resultado do teste de notificação recebido.",
+      });
+    } catch {
+      setNotificationFeedback({
+        isSuccess: false,
+        message: "Erro de rede ao disparar teste de notificação.",
+      });
+    } finally {
+      setIsTestingNotification(false);
+    }
+  };
+
   return (
     <Layout title="Configurações e Credenciais (BYOK)">
       <div className="max-w-4xl mx-auto space-y-8">
@@ -138,10 +195,10 @@ export default function SettingsPage() {
           </div>
           <div className="text-xs text-slate-300 space-y-1">
             <span className="font-semibold text-slate-100 text-sm block">
-              Automação com Chave de Transferência Automática (ATS)
+              Automação EcoFlow + Chave de Transferência Automática (ATS)
             </span>
             <p className="text-slate-400">
-              O WattFlow comuta a saída de corrente alternada (AC) da sua estação <strong>EcoFlow</strong>. Quando a saída AC é ligada, sua chave ATS física transfere automaticamente o circuito para a energia solar/bateria. Ao desligar a saída AC, a ATS transfere instantaneamente para a concessionária (rede elétrica).
+              O WattFlow comuta a saída AC da sua estação <strong>EcoFlow</strong>. Quando a saída AC é ativada, a chave ATS transfere as cargas para solar/bateria. Ao desligar a saída AC, a ATS transfere para a concessionária. As notificações informam instantaneamente sobre cada comutação via Telegram ou WhatsApp.
             </p>
           </div>
         </div>
@@ -163,8 +220,9 @@ export default function SettingsPage() {
           </div>
         )}
 
-        {/* Formulário de Credenciais EcoFlow */}
+        {/* Formulário Principal */}
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* 1. EcoFlow Developer Open API */}
           <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-5">
             <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
               <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
@@ -234,6 +292,145 @@ export default function SettingsPage() {
             </div>
           </div>
 
+          {/* 2. Notificações Telegram & WhatsApp */}
+          <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-cyan-500/10 text-cyan-400">
+                  <Bell className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-100">Notificações Instantâneas (Telegram / WhatsApp)</h2>
+                  <p className="text-xs text-slate-400">
+                    Receba alertas automáticos em tempo real sempre que a chave ATS comutar entre Solar e Rede
+                  </p>
+                </div>
+              </div>
+
+              <label className="flex items-center gap-2 cursor-pointer">
+                <span className="text-xs font-semibold text-slate-300">Notificações Ativas</span>
+                <input
+                  type="checkbox"
+                  checked={isNotificationActive}
+                  onChange={(e) => setIsNotificationActive(e.target.checked)}
+                  className="w-5 h-5 accent-cyan-500 rounded cursor-pointer"
+                />
+              </label>
+            </div>
+
+            {/* Subseção Telegram */}
+            <div className="space-y-3 p-4 rounded-xl bg-slate-950 border border-slate-800/80">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Send className="w-4 h-4 text-sky-400" />
+                  <span className="text-sm font-bold text-sky-300">Telegram Bot (100% Gratuito &amp; Imediato)</span>
+                </div>
+                <span className="text-[11px] text-slate-400 font-mono">Recomendado</span>
+              </div>
+              <p className="text-xs text-slate-400">
+                Crie um bot gratuitamente conversando com o <strong>@BotFather</strong> no Telegram para obter o Token, e envie uma mensagem para o bot para obter seu Chat ID (ou via <strong>@userinfobot</strong>).
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-300">Telegram Bot Token</label>
+                  <input
+                    type="password"
+                    placeholder="Ex: 123456789:ABCdefGhIJKlmNoPQRstuVWxyz"
+                    value={telegramBotToken}
+                    onChange={(e) => setTelegramBotToken(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-sky-500 font-mono"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-300">Chat ID do Telegram</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: 987654321 ou -100123456"
+                    value={telegramChatId}
+                    onChange={(e) => setTelegramChatId(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-sky-500 font-mono"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Subseção WhatsApp (CallMeBot) */}
+            <div className="space-y-3 p-4 rounded-xl bg-slate-950 border border-slate-800/80">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4 text-emerald-400" />
+                  <span className="text-sm font-bold text-emerald-300">WhatsApp (CallMeBot API Gratuita)</span>
+                </div>
+                <span className="text-[11px] text-slate-400 font-mono">Opcional</span>
+              </div>
+              <p className="text-xs text-slate-400">
+                Envie uma mensagem WhatsApp com o texto <code>I allow callmebot to send me messages</code> para o número <strong>+34 644 51 95 23</strong> (ou acesse callmebot.com) para receber sua chave gratuita de API.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-300">Número de WhatsApp (DDI + DDD)</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: +5511999999999"
+                    value={whatsappPhoneNumber}
+                    onChange={(e) => setWhatsappPhoneNumber(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-mono"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-300">API Key CallMeBot</label>
+                  <input
+                    type="password"
+                    placeholder="Ex: 1234567"
+                    value={whatsappApiKey}
+                    onChange={(e) => setWhatsappApiKey(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-mono"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Botão de Teste de Notificação */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-slate-800/80">
+              <span className="text-xs text-slate-400">
+                Dispare uma mensagem de teste para verificar a chegada no seu celular
+              </span>
+              <button
+                type="button"
+                disabled={
+                  isTestingNotification ||
+                  (!telegramBotToken && !telegramChatId && !whatsappPhoneNumber && !whatsappApiKey)
+                }
+                onClick={handleTestNotification}
+                className="w-full sm:w-auto py-2.5 px-5 rounded-xl font-semibold text-xs bg-cyan-950/70 hover:bg-cyan-900/90 text-cyan-200 border border-cyan-800/60 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {isTestingNotification ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Bell className="w-3.5 h-3.5 text-cyan-400" />
+                )}
+                {isTestingNotification ? "Enviando Notificação..." : "Testar Notificação Agora"}
+              </button>
+            </div>
+
+            {notificationFeedback && (
+              <div
+                className={`p-3 rounded-xl border text-xs font-mono flex items-center gap-2 ${
+                  notificationFeedback.isSuccess
+                    ? "bg-slate-950 border-cyan-500/40 text-cyan-300"
+                    : "bg-slate-950 border-rose-500/40 text-rose-300"
+                }`}
+              >
+                {notificationFeedback.isSuccess ? (
+                  <CheckCircle2 className="w-4 h-4 text-cyan-400 shrink-0" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                )}
+                <span>{notificationFeedback.message}</span>
+              </div>
+            )}
+          </div>
+
           <div className="flex justify-end">
             <button
               type="submit"
@@ -241,7 +438,7 @@ export default function SettingsPage() {
               className="py-3 px-8 rounded-xl font-semibold text-sm bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-lg shadow-emerald-950 disabled:opacity-50 flex items-center gap-2"
             >
               {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-              {isSaving ? "Salvando..." : "Salvar Credenciais"}
+              {isSaving ? "Salvando..." : "Salvar Configurações"}
             </button>
           </div>
         </form>

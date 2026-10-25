@@ -35,6 +35,11 @@ model UserConfiguration {
   turnOnThreshold      Int                @default(90)
   turnOffThreshold     Int                @default(30)
   isAutomationActive   Boolean            @default(true)
+  telegramBotToken     String             @default("")
+  telegramChatId       String             @default("")
+  whatsappPhoneNumber  String             @default("")
+  whatsappApiKey       String             @default("")
+  isNotificationActive Boolean            @default(true)
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
   syncExecutionLogs    SyncExecutionLog[]

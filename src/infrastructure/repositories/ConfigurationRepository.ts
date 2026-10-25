@@ -9,16 +9,18 @@ import { CredentialsBundle } from "../../domain/models/CredentialsBundle";
 import { DevicePair } from "../../domain/models/DevicePair";
 import { EcoFlowCredentials } from "../../domain/models/EcoFlowCredentials";
 import { OrchestratorConfiguration } from "../../domain/models/OrchestratorConfiguration";
+import { NotificationConfig } from "../notifications/NotificationDispatcher";
 
 export interface RetrievedConfigurationRecord {
   databaseRecordId: string;
   ecoflowEndpointRegion: string;
+  notificationConfig: NotificationConfig;
   configuration: OrchestratorConfiguration;
 }
 
 /**
  * Repositório para carregar configurações do PostgreSQL/Supabase.
- * Focado 100% na integração EcoFlow para chave de transferência automática (ATS).
+ * Focado 100% na integração EcoFlow para chave de transferência automática (ATS) e notificações.
  *
  * Respeita Object Calisthenics:
  * - Apenas 1 variável de instância
@@ -123,6 +125,13 @@ export class ConfigurationRepository {
     return {
       databaseRecordId: rawRecord.id,
       ecoflowEndpointRegion: rawRecord.ecoflowEndpointRegion,
+      notificationConfig: {
+        telegramBotToken: rawRecord.telegramBotToken,
+        telegramChatId: rawRecord.telegramChatId,
+        whatsappPhoneNumber: rawRecord.whatsappPhoneNumber,
+        whatsappApiKey: rawRecord.whatsappApiKey,
+        isNotificationActive: rawRecord.isNotificationActive,
+      },
       configuration,
     };
   }
