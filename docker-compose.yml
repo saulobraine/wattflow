@@ -54,7 +54,8 @@ services:
   cron-scheduler:
     image: alpine:latest
     container_name: wattflow_cron
-    restart: unless-stopped
+    restart: "no"
+    profiles: ["manual"]
     depends_on:
       app:
         condition: service_healthy
