@@ -53,7 +53,7 @@ export function Layout({ children, title }: LayoutProps) {
       <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100">
         <header
           role="banner"
-          className="site-header border-b border-slate-800/90 bg-slate-900/70 backdrop-blur-md sticky top-0 z-50 transition-all duration-200"
+          className="site-header border-b border-slate-800/90 bg-slate-900/70 backdrop-blur-md sticky top-0 z-40 transition-all duration-200"
         >
           <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
             <TransitionLink
