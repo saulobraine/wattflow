@@ -198,7 +198,7 @@ export class NotificationDispatcher {
     }
 
     result += `\n🕒 <b>Horário do Disparo:</b> ${eventTime}`;
-    result += `\n\n<i>WattFlow Automation &bull; ATS Transfer</i>`;
+    result += `\n\n<i>WattFlow Automation • ATS Transfer</i>`;
     return result;
   }
 
