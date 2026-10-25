@@ -117,7 +117,7 @@ export function Layout({ children, title }: LayoutProps) {
         </main>
 
         <footer className="border-t border-slate-800/80 py-6 text-center text-xs text-slate-500">
-          <p>WattFlow Orchestrator &bull; Integração EcoFlow + Tuya Smart &bull; Object Calisthenics Architecture</p>
+          <p>WattFlow &bull; EcoFlow Open API + Chave de Transferência Automática (ATS) &bull; Object Calisthenics</p>
         </footer>
       </div>
     </>

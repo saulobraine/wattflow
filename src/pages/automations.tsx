@@ -1,6 +1,6 @@
 import React, { useEffect, useState, FormEvent } from "react";
 import { Layout } from "../components/Layout";
-import { Sliders, Zap, Power, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Sliders, Zap, Power, AlertCircle, CheckCircle2, ArrowLeftRight } from "lucide-react";
 
 export default function AutomationsPage() {
   const [turnOnThreshold, setTurnOnThreshold] = useState(90);
@@ -85,7 +85,7 @@ export default function AutomationsPage() {
   };
 
   return (
-    <Layout title="Gatilhos de Automação">
+    <Layout title="Gatilhos de Automação (EcoFlow + ATS)">
       <div className="max-w-4xl mx-auto space-y-6">
         {feedback && (
           <div
@@ -104,16 +104,38 @@ export default function AutomationsPage() {
           </div>
         )}
 
+        {/* Card Explicativo sobre a Comutação da ATS */}
+        <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 flex items-start gap-3">
+          <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 shrink-0">
+            <ArrowLeftRight className="w-5 h-5" />
+          </div>
+          <div className="text-xs text-slate-300 space-y-1">
+            <span className="font-semibold text-slate-100 text-sm block">
+              Comutação Automática via Chave de Transferência (ATS)
+            </span>
+            <p className="text-slate-400">
+              A chave de transferência automática monitora a presença de tensão na saída AC da EcoFlow. Ao atingir o limite superior, o WattFlow aciona a saída AC e a chave ATS comuta as cargas da sua casa para a bateria/solar. Ao atingir o limite inferior, o WattFlow desliga a saída AC e a chave ATS retorna instantaneamente para a rede elétrica da concessionária.
+            </p>
+          </div>
+        </div>
+
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
             <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-              <div className="flex items-center gap-2">
-                <Sliders className="w-5 h-5 text-emerald-400" />
-                <h2 className="text-lg font-bold text-slate-100">Regras de Histerese de Bateria</h2>
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
+                  <Sliders className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-100">Limites de Carga e Corte</h2>
+                  <p className="text-xs text-slate-400">
+                    Defina quando ativar a EcoFlow (ATS &rarr; Bateria) e quando retornar para a Concessionária (ATS &rarr; Rede)
+                  </p>
+                </div>
               </div>
 
-              <label className="flex items-center gap-3 cursor-pointer">
-                <span className="text-sm font-medium text-slate-300">Automação Ativa</span>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <span className="text-xs font-semibold text-slate-300">Automação Ativa</span>
                 <input
                   type="checkbox"
                   checked={isAutomationActive}
@@ -128,14 +150,14 @@ export default function AutomationsPage() {
               <div className="flex justify-between items-center">
                 <label className="text-sm font-semibold text-slate-200 flex items-center gap-2">
                   <Zap className="w-4 h-4 text-emerald-400" />
-                  Limite Superior (Bateria Cheia &rarr; Modo Bateria)
+                  Limite Superior (Bateria Cheia &rarr; Comutar ATS para EcoFlow)
                 </label>
                 <span className="font-mono text-emerald-400 font-bold text-lg bg-emerald-500/10 px-3 py-1 rounded-lg border border-emerald-500/20">
                   {turnOnThreshold}%
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                Quando a bateria atingir ou superar este valor (&ge; {turnOnThreshold}%): a tomada Tuya será <strong>DESLIGADA</strong> (corta a recarga da rede) e a saída AC da EcoFlow será <strong>ATIVADA</strong> para alimentar suas cargas via bateria.
+                Quando a bateria atingir ou superar este valor (&ge; {turnOnThreshold}%): a saída AC da EcoFlow será <strong>LIGADA</strong>. A chave ATS detecta a tensão e comuta a alimentação das cargas para a energia solar/bateria.
               </p>
               <input
                 type="range"
@@ -152,14 +174,14 @@ export default function AutomationsPage() {
               <div className="flex justify-between items-center">
                 <label className="text-sm font-semibold text-slate-200 flex items-center gap-2">
                   <Power className="w-4 h-4 text-rose-400" />
-                  Limite Inferior (Bateria Baixa &rarr; Modo Recarga)
+                  Limite Inferior (Bateria Baixa &rarr; Comutar ATS para Concessionária)
                 </label>
                 <span className="font-mono text-rose-400 font-bold text-lg bg-rose-500/10 px-3 py-1 rounded-lg border border-rose-500/20">
                   {turnOffThreshold}%
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                Quando a bateria descer até este valor ou menos (&le; {turnOffThreshold}%): a tomada Tuya será <strong>LIGADA</strong> (inicia a recarga na tomada da concessionária) e a saída AC da EcoFlow será <strong>DESATIVADA</strong> para evitar descarga profunda.
+                Quando a bateria descer até este valor ou menos (&le; {turnOffThreshold}%): a saída AC da EcoFlow será <strong>DESLIGADA</strong> para preservar a bateria. A chave ATS transfere instantaneamente a alimentação para a concessionária.
               </p>
               <input
                 type="range"
@@ -174,23 +196,23 @@ export default function AutomationsPage() {
             {/* Visualização de Faixas */}
             <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
               <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Fluxo de Orquestração Coordenada:
+                Comportamento da Chave de Transferência Automática:
               </span>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-slate-300">
                 <div className="p-3 rounded-lg bg-rose-950/40 border border-rose-900/40 space-y-1.5">
                   <div className="font-semibold text-rose-400">&le; {turnOffThreshold}% (Bateria Baixa)</div>
-                  <div className="text-slate-200">&bull; Tomada Tuya: <span className="text-emerald-400 font-bold">LIGADA</span> (Recarga)</div>
-                  <div className="text-slate-200">&bull; Saída AC EcoFlow: <span className="text-rose-400 font-bold">DESLIGADA</span> (Proteção)</div>
+                  <div className="text-slate-200">&bull; Saída AC EcoFlow: <span className="text-rose-400 font-bold">DESLIGADA</span></div>
+                  <div className="text-slate-200">&bull; Chave ATS: <span className="text-amber-400 font-bold">POSIÇÃO A (REDE)</span></div>
                 </div>
                 <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 space-y-1.5">
                   <div className="font-semibold text-amber-400">{turnOffThreshold}% a {turnOnThreshold}% (Histerese)</div>
                   <div className="text-slate-300">&bull; Faixa intermediária estável</div>
-                  <div className="text-slate-400">Mantém estados atuais sem chaveamento</div>
+                  <div className="text-slate-400">Mantém a posição atual da chave ATS</div>
                 </div>
                 <div className="p-3 rounded-lg bg-emerald-950/40 border border-emerald-900/40 space-y-1.5">
-                  <div className="font-semibold text-emerald-400">&ge; {turnOnThreshold}% (Bateria Cheia)</div>
-                  <div className="text-slate-200">&bull; Tomada Tuya: <span className="text-rose-400 font-bold">DESLIGADA</span> (Corta Rede)</div>
-                  <div className="text-slate-200">&bull; Saída AC EcoFlow: <span className="text-emerald-400 font-bold">ATIVADA</span> (Modo Bateria)</div>
+                  <div className="font-semibold text-emerald-400">&ge; {turnOnThreshold}% (Bateria Carregada)</div>
+                  <div className="text-slate-200">&bull; Saída AC EcoFlow: <span className="text-emerald-400 font-bold">LIGADA</span></div>
+                  <div className="text-slate-200">&bull; Chave ATS: <span className="text-emerald-400 font-bold">POSIÇÃO B (SOLAR/BAT)</span></div>
                 </div>
               </div>
             </div>

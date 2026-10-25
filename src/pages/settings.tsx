@@ -6,17 +6,14 @@ import {
   ShieldCheck,
   CheckCircle2,
   AlertCircle,
-  ArrowLeftRight,
-  Plug,
+  Power,
   Zap,
   Loader2,
+  Activity,
+  ArrowLeftRight,
 } from "lucide-react";
 
 export default function SettingsPage() {
-  const [tuyaAccessId, setTuyaAccessId] = useState("");
-  const [tuyaAccessSecret, setTuyaAccessSecret] = useState("");
-  const [tuyaDeviceId, setTuyaDeviceId] = useState("");
-  const [tuyaEndpointRegion, setTuyaEndpointRegion] = useState("https://openapi.tuyaus.com");
   const [ecoflowEndpointRegion, setEcoflowEndpointRegion] = useState("https://api.ecoflow.com");
   const [ecoflowAccessKey, setEcoflowAccessKey] = useState("");
   const [ecoflowAccessSecret, setEcoflowAccessSecret] = useState("");
@@ -30,8 +27,10 @@ export default function SettingsPage() {
   const [testFeedback, setTestFeedback] = useState<{
     isSuccess: boolean;
     summary: string;
-    tuyaMessage: string;
     ecoflowMessage: string;
+    batteryPercentage?: number;
+    solarWatts?: number;
+    isAcOutputEnabled?: boolean | null;
   } | null>(null);
 
   useEffect(() => {
@@ -40,10 +39,6 @@ export default function SettingsPage() {
         const response = await fetch("/api/settings");
         const json = await response.json();
         if (json.success && json.data) {
-          setTuyaAccessId(json.data.tuyaAccessId || "");
-          setTuyaAccessSecret(json.data.tuyaAccessSecretMasked || "");
-          setTuyaDeviceId(json.data.tuyaDeviceId || "");
-          setTuyaEndpointRegion(json.data.tuyaEndpointRegion || "https://openapi.tuyaus.com");
           setEcoflowEndpointRegion(json.data.ecoflowEndpointRegion || "https://api.ecoflow.com");
           setEcoflowAccessKey(json.data.ecoflowAccessKey || "");
           setEcoflowAccessSecret(json.data.ecoflowAccessSecretMasked || "");
@@ -68,10 +63,6 @@ export default function SettingsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          tuyaAccessId,
-          tuyaAccessSecret,
-          tuyaDeviceId,
-          tuyaEndpointRegion,
           ecoflowEndpointRegion,
           ecoflowAccessKey,
           ecoflowAccessSecret,
@@ -81,7 +72,7 @@ export default function SettingsPage() {
 
       const json = await response.json();
       if (json.success) {
-        setFeedback({ type: "success", message: "Credenciais salvas com sucesso no banco de dados!" });
+        setFeedback({ type: "success", message: "Credenciais EcoFlow salvas com sucesso!" });
       } else {
         setFeedback({ type: "error", message: json.message || "Erro ao salvar credenciais." });
       }
@@ -92,9 +83,7 @@ export default function SettingsPage() {
     }
   };
 
-  const handleTestControl = async (
-    actionTarget: "TUYA_ON" | "TUYA_OFF" | "ECOFLOW_ON" | "ECOFLOW_OFF"
-  ) => {
+  const handleTestControl = async (actionTarget: "ECOFLOW_ON" | "ECOFLOW_OFF" | "ECOFLOW_TELEMETRY") => {
     setIsTesting(true);
     setTestFeedback(null);
 
@@ -104,41 +93,35 @@ export default function SettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           actionTarget,
-          tuyaAccessId,
-          tuyaAccessSecret,
-          tuyaDeviceId,
-          tuyaEndpointRegion,
+          ecoflowEndpointRegion,
           ecoflowAccessKey,
           ecoflowAccessSecret,
           ecoflowSerialNumber,
-          ecoflowEndpointRegion,
         }),
       });
 
       const json = await response.json();
-      if (json.success && json.data) {
+      if (json.data) {
         setTestFeedback({
           isSuccess: json.data.isSuccess,
           summary: json.data.summaryMessage,
-          tuyaMessage: json.data.tuyaMessage,
           ecoflowMessage: json.data.ecoflowMessage,
+          batteryPercentage: json.data.batteryPercentage,
+          solarWatts: json.data.solarWatts,
+          isAcOutputEnabled: json.data.isAcOutputEnabled,
         });
-        return;
+      } else {
+        setTestFeedback({
+          isSuccess: false,
+          summary: json.message || "Falha na execução do teste.",
+          ecoflowMessage: "Verifique suas credenciais e conexão de rede.",
+        });
       }
-
-      const errorMessage = json.message || "Falha ao executar o comando de teste dos dispositivos.";
-      setTestFeedback({
-        isSuccess: false,
-        summary: errorMessage,
-        tuyaMessage: "Operação não concluída.",
-        ecoflowMessage: "Operação não concluída.",
-      });
     } catch {
       setTestFeedback({
         isSuccess: false,
-        summary: "Erro na comunicação com a API interna do WattFlow.",
-        tuyaMessage: "Falha de conexão.",
-        ecoflowMessage: "Falha de conexão.",
+        summary: "Erro ao comunicar com a rota de testes.",
+        ecoflowMessage: "Falha de rede local.",
       });
     } finally {
       setIsTesting(false);
@@ -146,15 +129,19 @@ export default function SettingsPage() {
   };
 
   return (
-    <Layout title="Credenciais de Integração (BYOK)">
-      <div className="max-w-4xl mx-auto space-y-6">
-        <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 text-sm text-slate-300 flex items-start gap-3">
-          <ShieldCheck className="w-5 h-5 text-emerald-400 mt-0.5 shrink-0" />
-          <div>
-            <span className="font-semibold text-slate-200">Arquitetura BYOK (Bring Your Own Key):</span>
-            <p className="mt-1 text-slate-400">
-              O WattFlow não armazena credenciais compartilhadas globais. Cada requisição utiliza diretamente
-              as chaves da sua conta de desenvolvedor da Tuya Cloud e EcoFlow Open API.
+    <Layout title="Configurações e Credenciais (BYOK)">
+      <div className="max-w-4xl mx-auto space-y-8">
+        {/* Banner Informativo sobre a Chave de Transferência Automática (ATS) */}
+        <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 flex items-start gap-3">
+          <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 shrink-0">
+            <ArrowLeftRight className="w-5 h-5" />
+          </div>
+          <div className="text-xs text-slate-300 space-y-1">
+            <span className="font-semibold text-slate-100 text-sm block">
+              Automação com Chave de Transferência Automática (ATS)
+            </span>
+            <p className="text-slate-400">
+              O WattFlow comuta a saída de corrente alternada (AC) da sua estação <strong>EcoFlow</strong>. Quando a saída AC é ligada, sua chave ATS física transfere automaticamente o circuito para a energia solar/bateria. Ao desligar a saída AC, a ATS transfere instantaneamente para a concessionária (rede elétrica).
             </p>
           </div>
         </div>
@@ -176,292 +163,171 @@ export default function SettingsPage() {
           </div>
         )}
 
+        {/* Formulário de Credenciais EcoFlow */}
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Seção Tuya Cloud */}
-          <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4">
-            <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
-              <KeyRound className="w-5 h-5 text-emerald-400" />
-              <h2 className="text-lg font-bold text-slate-100">Tuya Cloud OpenAPI (Smart Life)</h2>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                  Tuya Access ID / Client ID
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={tuyaAccessId}
-                  onChange={(e) => setTuyaAccessId(e.target.value)}
-                  placeholder="Ex: 1a2b3c4d5e6f7g8h"
-                  className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 font-mono text-sm focus:border-emerald-500 focus:outline-none"
-                />
+          <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-5">
+            <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
+              <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
+                <Cpu className="w-5 h-5" />
               </div>
-
               <div>
-                <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                  Tuya Access Secret
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={tuyaAccessSecret}
-                  onChange={(e) => setTuyaAccessSecret(e.target.value)}
-                  placeholder="Ex: 8h7g6f5e4d3c2b1a"
-                  className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 font-mono text-sm focus:border-emerald-500 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                  ID do Dispositivo Tuya (Device ID)
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={tuyaDeviceId}
-                  onChange={(e) => setTuyaDeviceId(e.target.value)}
-                  placeholder="Ex: eb12345678abcdef"
-                  className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 font-mono text-sm focus:border-emerald-500 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                  Região do Endpoint Tuya
-                </label>
-                <select
-                  value={tuyaEndpointRegion}
-                  onChange={(e) => setTuyaEndpointRegion(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 text-sm focus:border-emerald-500 focus:outline-none"
-                >
-                  <option value="https://openapi.tuyaus.com">América Ocidental (https://openapi.tuyaus.com)</option>
-                  <option value="https://openapi-ueaz.tuyaus.com">América Oriental (https://openapi-ueaz.tuyaus.com)</option>
-                  <option value="https://openapi.tuyaeu.com">Europa Central (https://openapi.tuyaeu.com)</option>
-                  <option value="https://openapi-weaz.tuyaeu.com">Europa Ocidental (https://openapi-weaz.tuyaeu.com)</option>
-                  <option value="https://openapi.tuyacn.com">China (https://openapi.tuyacn.com)</option>
-                  <option value="https://openapi.tuyain.com">Índia (https://openapi.tuyain.com)</option>
-                  <option value="https://openapi-sg.iotbing.com">Cingapura (https://openapi-sg.iotbing.com)</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* Seção EcoFlow Developer */}
-          <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center gap-2">
-                <Cpu className="w-5 h-5 text-emerald-400" />
                 <h2 className="text-lg font-bold text-slate-100">EcoFlow Developer Open API</h2>
+                <p className="text-xs text-slate-400">
+                  Credenciais obtidas no portal de desenvolvedores da EcoFlow (developer.ecoflow.com)
+                </p>
               </div>
-              <span className="text-xs font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                {ecoflowEndpointRegion}
-              </span>
             </div>
-            <p className="text-xs text-slate-400">
-              Certifique-se de selecionar a região onde sua conta no Developer Portal da EcoFlow foi criada (Global ou Europa). O WattFlow conta também com auto-fallback resiliente entre os dois servidores.
-            </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                  Região do Endpoint EcoFlow
-                </label>
+              <div className="space-y-1.5 md:col-span-2">
+                <label className="text-xs font-semibold text-slate-300">Região do Endpoint</label>
                 <select
                   value={ecoflowEndpointRegion}
                   onChange={(e) => setEcoflowEndpointRegion(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 text-sm focus:border-emerald-500 focus:outline-none"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500"
                 >
-                  <option value="https://api.ecoflow.com">Global / Américas / Brasil (https://api.ecoflow.com)</option>
-                  <option value="https://api-e.ecoflow.com">Europa (https://api-e.ecoflow.com)</option>
+                  <option value="https://api.ecoflow.com">Global / Américas (api.ecoflow.com)</option>
+                  <option value="https://api-e.ecoflow.com">Europa (api-e.ecoflow.com)</option>
                 </select>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                  Número de Série (SN) do Dispositivo EcoFlow
-                </label>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-300">Access Key</label>
                 <input
                   type="text"
                   required
-                  value={ecoflowSerialNumber}
-                  onChange={(e) => setEcoflowSerialNumber(e.target.value)}
-                  placeholder="Ex: R331XXXXXXXXX (River 2 / Delta 2)"
-                  className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 font-mono text-sm focus:border-emerald-500 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                  EcoFlow Access Key
-                </label>
-                <input
-                  type="text"
-                  required
+                  placeholder="Ex: ak_live_..."
                   value={ecoflowAccessKey}
                   onChange={(e) => setEcoflowAccessKey(e.target.value)}
-                  placeholder="Chave de acesso pública da EcoFlow"
-                  className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 font-mono text-sm focus:border-emerald-500 focus:outline-none"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 font-mono"
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                  EcoFlow Access Secret
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-300">Secret Key</label>
+                <input
+                  type="password"
+                  required
+                  placeholder="Ex: sk_live_..."
+                  value={ecoflowAccessSecret}
+                  onChange={(e) => setEcoflowAccessSecret(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 font-mono"
+                />
+              </div>
+
+              <div className="space-y-1.5 md:col-span-2">
+                <label className="text-xs font-semibold text-slate-300">
+                  Número de Série da Estação (SN)
                 </label>
                 <input
                   type="text"
                   required
-                  value={ecoflowAccessSecret}
-                  onChange={(e) => setEcoflowAccessSecret(e.target.value)}
-                  placeholder="Segredo de API da EcoFlow"
-                  className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 font-mono text-sm focus:border-emerald-500 focus:outline-none"
+                  placeholder="Ex: R331Z..."
+                  value={ecoflowSerialNumber}
+                  onChange={(e) => setEcoflowSerialNumber(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 font-mono"
                 />
+                <span className="text-[11px] text-slate-400 block">
+                  Compatível com River 2, River 2 Max/Pro, Delta 2, Delta 2 Max, Delta Pro.
+                </span>
               </div>
             </div>
-          </div>
-
-          {/* Seção de Teste de Acionamento com Intertravamento de Segurança */}
-          <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
-              <div className="flex items-center gap-2">
-                <ArrowLeftRight className="w-5 h-5 text-emerald-400" />
-                <h2 className="text-lg font-bold text-slate-100">
-                  Teste Operacional de Intertravamento (Safety Interlock)
-                </h2>
-              </div>
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 w-fit">
-                Intertravamento Ativo
-              </span>
-            </div>
-
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Teste os comandos de acionamento em tempo real diretamente com as APIs oficiais. Para proteção elétrica e evitar sobrecarga na rede, o sistema aplica regra estrita de intertravamento: <strong>ligar um dispositivo comuta o outro para desligado automaticamente</strong>.
-            </p>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Card Tomada Tuya */}
-              <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800/80 space-y-3">
-                <div className="flex items-center gap-2 text-slate-200 font-semibold text-sm">
-                  <Plug className="w-4 h-4 text-emerald-400" />
-                  <span>Tomada Tuya (Rede AC)</span>
-                </div>
-                <p className="text-xs text-slate-400">
-                  Ao ligar a tomada para alimentar pela rede, a saída AC da bateria é desarmada.
-                </p>
-                <div className="flex flex-col gap-2 pt-1">
-                  <button
-                    type="button"
-                    disabled={isTesting || isLoading}
-                    onClick={() => handleTestControl("TUYA_ON")}
-                    className="w-full py-2.5 px-4 rounded-xl font-medium text-xs bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-between transition-colors shadow-md shadow-emerald-950/30 disabled:opacity-50"
-                  >
-                    <span className="font-semibold">Ligar Tomada</span>
-                    <span className="text-[11px] bg-emerald-700/60 px-2 py-0.5 rounded">
-                      Desliga AC EcoFlow
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isTesting || isLoading}
-                    onClick={() => handleTestControl("TUYA_OFF")}
-                    className="w-full py-2.5 px-4 rounded-xl font-medium text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center justify-between transition-colors disabled:opacity-50"
-                  >
-                    <span>Desligar Tomada</span>
-                    <span className="text-[11px] bg-slate-900 px-2 py-0.5 rounded text-slate-300">
-                      Liga AC EcoFlow
-                    </span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Card Saída AC EcoFlow */}
-              <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800/80 space-y-3">
-                <div className="flex items-center gap-2 text-slate-200 font-semibold text-sm">
-                  <Zap className="w-4 h-4 text-emerald-400" />
-                  <span>Saída AC EcoFlow (Inversor / Bateria)</span>
-                </div>
-                <p className="text-xs text-slate-400">
-                  Ao ligar a saída AC da bateria, a tomada da concessionária é desarmada.
-                </p>
-                <div className="flex flex-col gap-2 pt-1">
-                  <button
-                    type="button"
-                    disabled={isTesting || isLoading}
-                    onClick={() => handleTestControl("ECOFLOW_ON")}
-                    className="w-full py-2.5 px-4 rounded-xl font-medium text-xs bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-between transition-colors shadow-md shadow-emerald-950/30 disabled:opacity-50"
-                  >
-                    <span className="font-semibold">Ligar Saída AC</span>
-                    <span className="text-[11px] bg-emerald-700/60 px-2 py-0.5 rounded">
-                      Desliga Tomada Tuya
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isTesting || isLoading}
-                    onClick={() => handleTestControl("ECOFLOW_OFF")}
-                    className="w-full py-2.5 px-4 rounded-xl font-medium text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center justify-between transition-colors disabled:opacity-50"
-                  >
-                    <span>Desligar Saída AC</span>
-                    <span className="text-[11px] bg-slate-900 px-2 py-0.5 rounded text-slate-300">
-                      Liga Tomada Tuya
-                    </span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Indicador de Execução */}
-            {isTesting && (
-              <div className="flex items-center justify-center gap-2.5 p-3 rounded-xl bg-slate-950/70 border border-slate-800 text-xs text-slate-300">
-                <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
-                <span>Enviando comandos coordenados com intertravamento para os servidores...</span>
-              </div>
-            )}
-
-            {/* Resultado do Teste de Intertravamento */}
-            {testFeedback && (
-              <div
-                className={`p-4 rounded-xl border space-y-3 text-xs ${
-                  testFeedback.isSuccess
-                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-200"
-                    : "bg-rose-500/10 border-rose-500/30 text-rose-200"
-                }`}
-              >
-                <div className="flex items-center gap-2 font-semibold text-sm">
-                  {testFeedback.isSuccess ? (
-                    <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
-                  ) : (
-                    <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
-                  )}
-                  <span>{testFeedback.summary}</span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1 font-mono text-[11px]">
-                  <div className="p-2.5 rounded-lg bg-slate-950/70 border border-slate-800/80">
-                    <span className="text-slate-400 block mb-0.5 font-sans font-medium">Status Tuya:</span>
-                    <span className="text-slate-200">{testFeedback.tuyaMessage}</span>
-                  </div>
-                  <div className="p-2.5 rounded-lg bg-slate-950/70 border border-slate-800/80">
-                    <span className="text-slate-400 block mb-0.5 font-sans font-medium">Status EcoFlow:</span>
-                    <span className="text-slate-200">{testFeedback.ecoflowMessage}</span>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
 
           <div className="flex justify-end">
             <button
               type="submit"
               disabled={isSaving || isLoading}
-              className="py-3 px-6 rounded-xl font-semibold text-sm bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-lg shadow-emerald-950 disabled:opacity-50"
+              className="py-3 px-8 rounded-xl font-semibold text-sm bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-lg shadow-emerald-950 disabled:opacity-50 flex items-center gap-2"
             >
-              {isSaving ? "Salvando..." : "Salvar Configurações"}
+              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+              {isSaving ? "Salvando..." : "Salvar Credenciais"}
             </button>
           </div>
         </form>
+
+        {/* Painel de Validação e Teste do Acionamento AC */}
+        <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-5">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400">
+                <Power className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-100">Teste Direto do Inversor EcoFlow (ATS)</h3>
+                <p className="text-xs text-slate-400">
+                  Valide a comunicação com a API e verifique a comutação física da sua chave de transferência
+                </p>
+              </div>
+            </div>
+            {isTesting && (
+              <span className="text-xs font-semibold text-amber-400 flex items-center gap-1.5 animate-pulse">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Testando...
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <button
+              type="button"
+              disabled={isTesting || !ecoflowAccessKey || !ecoflowSerialNumber}
+              onClick={() => handleTestControl("ECOFLOW_TELEMETRY")}
+              className="py-3 px-4 rounded-xl font-semibold text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              <Activity className="w-4 h-4 text-cyan-400" />
+              Testar Telemetria (SOC)
+            </button>
+
+            <button
+              type="button"
+              disabled={isTesting || !ecoflowAccessKey || !ecoflowSerialNumber}
+              onClick={() => handleTestControl("ECOFLOW_ON")}
+              className="py-3 px-4 rounded-xl font-semibold text-xs bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-200 border border-emerald-800/60 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              <Zap className="w-4 h-4 text-emerald-400" />
+              Ligar Saída AC (ATS &rarr; Solar)
+            </button>
+
+            <button
+              type="button"
+              disabled={isTesting || !ecoflowAccessKey || !ecoflowSerialNumber}
+              onClick={() => handleTestControl("ECOFLOW_OFF")}
+              className="py-3 px-4 rounded-xl font-semibold text-xs bg-rose-950/60 hover:bg-rose-900/80 text-rose-200 border border-rose-800/60 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              <Power className="w-4 h-4 text-rose-400" />
+              Desligar Saída AC (ATS &rarr; Rede)
+            </button>
+          </div>
+
+          {testFeedback && (
+            <div
+              className={`p-4 rounded-xl border space-y-2 text-xs font-mono transition-all ${
+                testFeedback.isSuccess
+                  ? "bg-slate-950/90 border-emerald-500/40 text-emerald-300"
+                  : "bg-slate-950/90 border-rose-500/40 text-rose-300"
+              }`}
+            >
+              <div className="flex items-center gap-2 font-bold text-sm">
+                {testFeedback.isSuccess ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-rose-400" />
+                )}
+                <span>{testFeedback.summary}</span>
+              </div>
+              <div className="text-slate-300 pl-6 border-l-2 border-slate-700/60 mt-2 space-y-1">
+                <div>&bull; EcoFlow: {testFeedback.ecoflowMessage}</div>
+                {testFeedback.batteryPercentage !== undefined && (
+                  <div>&bull; Nível de Bateria: {testFeedback.batteryPercentage}%</div>
+                )}
+                {testFeedback.solarWatts !== undefined && (
+                  <div>&bull; Potência Solar: {testFeedback.solarWatts}W</div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </Layout>
   );

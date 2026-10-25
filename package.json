@@ -2,7 +2,7 @@
   "name": "wattflow",
   "version": "1.0.0",
   "private": true,
-  "description": "Orquestrador de energia inteligente EcoFlow e Tuya",
+  "description": "Orquestrador de energia inteligente EcoFlow com Chave de Transferência Automática (ATS)",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
