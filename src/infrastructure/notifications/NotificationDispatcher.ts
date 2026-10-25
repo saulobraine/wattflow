@@ -45,16 +45,14 @@ export class NotificationDispatcher {
       };
     }
 
-    const formattedMessage = this.buildFormattedMessage(payload);
-
     let telegramSuccess = false;
     let telegramError: string | undefined;
     const hasTelegram = Boolean(config.telegramBotToken?.trim() && config.telegramChatId?.trim());
     if (hasTelegram) {
-      const telegramResult = await this.sendTelegram(
+      const telegramResult = await this.dispatchTelegramOnly(
+        payload,
         config.telegramBotToken!.trim(),
-        config.telegramChatId!.trim(),
-        formattedMessage
+        config.telegramChatId!.trim()
       );
       telegramSuccess = telegramResult.isSuccess;
       telegramError = telegramResult.errorMessage;
@@ -64,11 +62,10 @@ export class NotificationDispatcher {
     let whatsappError: string | undefined;
     const hasWhatsApp = Boolean(config.whatsappPhoneNumber?.trim() && config.whatsappApiKey?.trim());
     if (hasWhatsApp) {
-      const plainText = this.buildPlainText(payload);
-      const whatsappResult = await this.sendWhatsAppCallMeBot(
+      const whatsappResult = await this.dispatchWhatsAppOnly(
+        payload,
         config.whatsappPhoneNumber!.trim(),
-        config.whatsappApiKey!.trim(),
-        plainText
+        config.whatsappApiKey!.trim()
       );
       whatsappSuccess = whatsappResult.isSuccess;
       whatsappError = whatsappResult.errorMessage;
@@ -83,6 +80,24 @@ export class NotificationDispatcher {
       whatsappError,
       summaryMessage: summary,
     };
+  }
+
+  public async dispatchTelegramOnly(
+    payload: NotificationPayload,
+    botToken: string,
+    chatId: string
+  ): Promise<{ isSuccess: boolean; errorMessage?: string }> {
+    const htmlText = this.buildFormattedMessage(payload);
+    return this.sendTelegram(botToken, chatId, htmlText);
+  }
+
+  public async dispatchWhatsAppOnly(
+    payload: NotificationPayload,
+    phone: string,
+    apiKey: string
+  ): Promise<{ isSuccess: boolean; errorMessage?: string }> {
+    const plainText = this.buildPlainText(payload);
+    return this.sendWhatsAppCallMeBot(phone, apiKey, plainText);
   }
 
   private async sendTelegram(

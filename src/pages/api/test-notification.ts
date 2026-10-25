@@ -3,11 +3,11 @@ import { prisma } from "../../infrastructure/database/prismaClient";
 import { extractUserFromRequest } from "../../infrastructure/auth/sessionHelper";
 import {
   NotificationDispatcher,
-  NotificationConfig,
-  NotificationDispatchResult,
+  NotificationPayload,
 } from "../../infrastructure/notifications/NotificationDispatcher";
 
 interface TestNotificationRequestBody {
+  channel: "TELEGRAM" | "WHATSAPP";
   telegramBotToken?: string;
   telegramChatId?: string;
   whatsappPhoneNumber?: string;
@@ -17,7 +17,8 @@ interface TestNotificationRequestBody {
 interface TestNotificationApiResponse {
   success: boolean;
   message: string;
-  data?: NotificationDispatchResult;
+  channel: "TELEGRAM" | "WHATSAPP";
+  errorDetails?: string;
 }
 
 export default async function handleTestNotification(
@@ -29,6 +30,7 @@ export default async function handleTestNotification(
     response.status(405).json({
       success: false,
       message: "Método HTTP não permitido. Utilize POST.",
+      channel: "TELEGRAM",
     });
     return;
   }
@@ -38,6 +40,7 @@ export default async function handleTestNotification(
     response.status(401).json({
       success: false,
       message: "Não autenticado. Faça login para testar as notificações.",
+      channel: "TELEGRAM",
     });
     return;
   }
@@ -48,67 +51,79 @@ export default async function handleTestNotification(
   });
 
   const body = (request.body ?? {}) as TestNotificationRequestBody;
+  const channel = body.channel === "WHATSAPP" ? "WHATSAPP" : "TELEGRAM";
 
   const savedConfiguration = await prisma.userConfiguration.findUnique({
     where: { userId: extractedUserId },
   });
 
   const isMasked = (value?: string) => !value || value.includes("••••");
+  const dispatcher = new NotificationDispatcher();
 
-  const effectiveTelegramToken = isMasked(body.telegramBotToken)
-    ? savedConfiguration?.telegramBotToken || ""
-    : body.telegramBotToken?.trim() || "";
-
-  const effectiveTelegramChatId = body.telegramChatId?.trim() || savedConfiguration?.telegramChatId || "";
-
-  const effectiveWhatsAppPhone =
-    body.whatsappPhoneNumber?.trim() || savedConfiguration?.whatsappPhoneNumber || "";
-
-  const effectiveWhatsAppKey = isMasked(body.whatsappApiKey)
-    ? savedConfiguration?.whatsappApiKey || ""
-    : body.whatsappApiKey?.trim() || "";
-
-  const config: NotificationConfig = {
-    telegramBotToken: effectiveTelegramToken,
-    telegramChatId: effectiveTelegramChatId,
-    whatsappPhoneNumber: effectiveWhatsAppPhone,
-    whatsappApiKey: effectiveWhatsAppKey,
-    isNotificationActive: true,
+  const samplePayload: NotificationPayload = {
+    title: `Teste de Notificação (${channel === "TELEGRAM" ? "Telegram" : "WhatsApp"})`,
+    message:
+      "Esta é uma mensagem de teste enviada pelo WattFlow. O canal foi validado com sucesso e está pronto para receber alertas de comutação da chave ATS e status da bateria EcoFlow!",
+    batteryPercentage: 94,
+    solarWatts: 450,
+    actionState: "SOLAR_BATTERY",
   };
 
-  const hasAnyChannel = Boolean(
-    (config.telegramBotToken && config.telegramChatId) ||
-      (config.whatsappPhoneNumber && config.whatsappApiKey)
-  );
+  if (channel === "TELEGRAM") {
+    const effectiveToken = isMasked(body.telegramBotToken)
+      ? savedConfiguration?.telegramBotToken || ""
+      : body.telegramBotToken?.trim() || "";
 
-  if (!hasAnyChannel) {
-    response.status(400).json({
-      success: false,
-      message:
-        "Preencha ao menos um canal (Token e Chat ID do Telegram, ou Telefone e Chave de API do WhatsApp).",
+    const effectiveChatId = body.telegramChatId?.trim() || savedConfiguration?.telegramChatId || "";
+
+    if (!effectiveToken || !effectiveChatId) {
+      response.status(400).json({
+        success: false,
+        message: "Preencha o Bot Token e o Chat ID do Telegram antes de realizar o teste.",
+        channel: "TELEGRAM",
+      });
+      return;
+    }
+
+    const result = await dispatcher.dispatchTelegramOnly(samplePayload, effectiveToken, effectiveChatId);
+
+    response.status(200).json({
+      success: result.isSuccess,
+      message: result.isSuccess
+        ? "Mensagem de teste enviada com sucesso no Telegram!"
+        : `Falha ao enviar mensagem no Telegram: ${result.errorMessage || "Erro desconhecido"}`,
+      channel: "TELEGRAM",
+      errorDetails: result.errorMessage,
     });
     return;
   }
 
-  const dispatcher = new NotificationDispatcher();
+  // Canal WHATSAPP
+  const effectivePhone =
+    body.whatsappPhoneNumber?.trim() || savedConfiguration?.whatsappPhoneNumber || "";
 
-  const result = await dispatcher.dispatchNotification(
-    {
-      title: "Teste de Notificação Concluído",
+  const effectiveKey = isMasked(body.whatsappApiKey)
+    ? savedConfiguration?.whatsappApiKey || ""
+    : body.whatsappApiKey?.trim() || "";
+
+  if (!effectivePhone || !effectiveKey) {
+    response.status(400).json({
+      success: false,
       message:
-        "Esta é uma mensagem de teste enviada pelo WattFlow. O canal configurado está funcionando perfeitamente para alertas de comutação da chave ATS e telemetria da EcoFlow!",
-      batteryPercentage: 95,
-      solarWatts: 420,
-      actionState: "SOLAR_BATTERY",
-    },
-    config
-  );
+        "Preencha o Número de WhatsApp (com DDI e DDD) e a API Key do CallMeBot antes de realizar o teste.",
+      channel: "WHATSAPP",
+    });
+    return;
+  }
 
-  const isOverallSuccess = result.telegramSuccess || result.whatsappSuccess;
+  const result = await dispatcher.dispatchWhatsAppOnly(samplePayload, effectivePhone, effectiveKey);
 
   response.status(200).json({
-    success: isOverallSuccess,
-    message: result.summaryMessage,
-    data: result,
+    success: result.isSuccess,
+    message: result.isSuccess
+      ? "Mensagem de teste enviada com sucesso no WhatsApp!"
+      : `Falha ao enviar mensagem no WhatsApp: ${result.errorMessage || "Erro desconhecido"}`,
+    channel: "WHATSAPP",
+    errorDetails: result.errorMessage,
   });
 }

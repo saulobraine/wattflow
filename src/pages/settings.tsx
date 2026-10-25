@@ -14,7 +14,6 @@ import {
   Bell,
   MessageSquare,
   Send,
-  HelpCircle,
 } from "lucide-react";
 
 export default function SettingsPage() {
@@ -33,7 +32,7 @@ export default function SettingsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
-  const [isTesting, setIsTesting] = useState(false);
+  const [isTestingEcoFlow, setIsTestingEcoFlow] = useState(false);
   const [testFeedback, setTestFeedback] = useState<{
     isSuccess: boolean;
     summary: string;
@@ -43,8 +42,15 @@ export default function SettingsPage() {
     isAcOutputEnabled?: boolean | null;
   } | null>(null);
 
-  const [isTestingNotification, setIsTestingNotification] = useState(false);
-  const [notificationFeedback, setNotificationFeedback] = useState<{
+  // Estados de teste separados para Telegram e WhatsApp
+  const [isTestingTelegram, setIsTestingTelegram] = useState(false);
+  const [telegramFeedback, setTelegramFeedback] = useState<{
+    isSuccess: boolean;
+    message: string;
+  } | null>(null);
+
+  const [isTestingWhatsApp, setIsTestingWhatsApp] = useState(false);
+  const [whatsappFeedback, setWhatsappFeedback] = useState<{
     isSuccess: boolean;
     message: string;
   } | null>(null);
@@ -110,7 +116,7 @@ export default function SettingsPage() {
   };
 
   const handleTestControl = async (actionTarget: "ECOFLOW_ON" | "ECOFLOW_OFF" | "ECOFLOW_TELEMETRY") => {
-    setIsTesting(true);
+    setIsTestingEcoFlow(true);
     setTestFeedback(null);
 
     try {
@@ -150,38 +156,67 @@ export default function SettingsPage() {
         ecoflowMessage: "Falha de rede local.",
       });
     } finally {
-      setIsTesting(false);
+      setIsTestingEcoFlow(false);
     }
   };
 
-  const handleTestNotification = async () => {
-    setIsTestingNotification(true);
-    setNotificationFeedback(null);
+  const handleTestTelegram = async () => {
+    setIsTestingTelegram(true);
+    setTelegramFeedback(null);
 
     try {
       const response = await fetch("/api/test-notification", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          channel: "TELEGRAM",
           telegramBotToken,
           telegramChatId,
+        }),
+      });
+
+      const json = await response.json();
+      setTelegramFeedback({
+        isSuccess: json.success,
+        message: json.message || "Resposta do teste Telegram recebida.",
+      });
+    } catch {
+      setTelegramFeedback({
+        isSuccess: false,
+        message: "Erro de rede ao disparar teste para o Telegram.",
+      });
+    } finally {
+      setIsTestingTelegram(false);
+    }
+  };
+
+  const handleTestWhatsApp = async () => {
+    setIsTestingWhatsApp(true);
+    setWhatsappFeedback(null);
+
+    try {
+      const response = await fetch("/api/test-notification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          channel: "WHATSAPP",
           whatsappPhoneNumber,
           whatsappApiKey,
         }),
       });
 
       const json = await response.json();
-      setNotificationFeedback({
+      setWhatsappFeedback({
         isSuccess: json.success,
-        message: json.message || "Resultado do teste de notificação recebido.",
+        message: json.message || "Resposta do teste WhatsApp recebida.",
       });
     } catch {
-      setNotificationFeedback({
+      setWhatsappFeedback({
         isSuccess: false,
-        message: "Erro de rede ao disparar teste de notificação.",
+        message: "Erro de rede ao disparar teste para o WhatsApp.",
       });
     } finally {
-      setIsTestingNotification(false);
+      setIsTestingWhatsApp(false);
     }
   };
 
@@ -292,7 +327,7 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* 2. Notificações Telegram & WhatsApp */}
+          {/* 2. Notificações Telegram & WhatsApp (Separados) */}
           <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
             <div className="flex items-center justify-between border-b border-slate-800 pb-4">
               <div className="flex items-center gap-3">
@@ -300,9 +335,9 @@ export default function SettingsPage() {
                   <Bell className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-slate-100">Notificações Instantâneas (Telegram / WhatsApp)</h2>
+                  <h2 className="text-lg font-bold text-slate-100">Notificações Instantâneas (Telegram &amp; WhatsApp)</h2>
                   <p className="text-xs text-slate-400">
-                    Receba alertas automáticos em tempo real sempre que a chave ATS comutar entre Solar e Rede
+                    Testes de envio independentes e alertas automáticos na comutação da chave ATS
                   </p>
                 </div>
               </div>
@@ -318,19 +353,23 @@ export default function SettingsPage() {
               </label>
             </div>
 
-            {/* Subseção Telegram */}
-            <div className="space-y-3 p-4 rounded-xl bg-slate-950 border border-slate-800/80">
+            {/* Subseção Telegram com Botão de Teste Próprio */}
+            <div className="space-y-4 p-5 rounded-xl bg-slate-950 border border-sky-900/30">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Send className="w-4 h-4 text-sky-400" />
                   <span className="text-sm font-bold text-sky-300">Telegram Bot (100% Gratuito &amp; Imediato)</span>
                 </div>
-                <span className="text-[11px] text-slate-400 font-mono">Recomendado</span>
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-sky-950 text-sky-300 border border-sky-800/60 font-mono">
+                  Canal 1
+                </span>
               </div>
-              <p className="text-xs text-slate-400">
-                Crie um bot gratuitamente conversando com o <strong>@BotFather</strong> no Telegram para obter o Token, e envie uma mensagem para o bot para obter seu Chat ID (ou via <strong>@userinfobot</strong>).
+
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Crie um bot no <strong>@BotFather</strong> para obter o Token. Envie uma mensagem para seu bot e descubra seu Chat ID com o <strong>@userinfobot</strong>.
               </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-slate-300">Telegram Bot Token</label>
                   <input
@@ -352,21 +391,62 @@ export default function SettingsPage() {
                   />
                 </div>
               </div>
+
+              {/* Botão de Teste Específico do Telegram */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-slate-800/60">
+                <span className="text-[11px] text-slate-400">
+                  Dispara uma mensagem de teste exclusiva para o seu chat no Telegram
+                </span>
+                <button
+                  type="button"
+                  disabled={isTestingTelegram || !telegramBotToken || !telegramChatId}
+                  onClick={handleTestTelegram}
+                  className="w-full sm:w-auto py-2 px-4 rounded-xl font-semibold text-xs bg-sky-950 hover:bg-sky-900/90 text-sky-200 border border-sky-700/60 transition-all flex items-center justify-center gap-2 disabled:opacity-40"
+                >
+                  {isTestingTelegram ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-sky-400" />
+                  ) : (
+                    <Send className="w-3.5 h-3.5 text-sky-400" />
+                  )}
+                  {isTestingTelegram ? "Enviando para Telegram..." : "Testar Envio Telegram"}
+                </button>
+              </div>
+
+              {telegramFeedback && (
+                <div
+                  className={`p-3 rounded-xl border text-xs font-mono flex items-center gap-2 ${
+                    telegramFeedback.isSuccess
+                      ? "bg-slate-900 border-sky-500/40 text-sky-300"
+                      : "bg-slate-900 border-rose-500/40 text-rose-300"
+                  }`}
+                >
+                  {telegramFeedback.isSuccess ? (
+                    <CheckCircle2 className="w-4 h-4 text-sky-400 shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                  )}
+                  <span>{telegramFeedback.message}</span>
+                </div>
+              )}
             </div>
 
-            {/* Subseção WhatsApp (CallMeBot) */}
-            <div className="space-y-3 p-4 rounded-xl bg-slate-950 border border-slate-800/80">
+            {/* Subseção WhatsApp com Botão de Teste Próprio */}
+            <div className="space-y-4 p-5 rounded-xl bg-slate-950 border border-emerald-900/30">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <MessageSquare className="w-4 h-4 text-emerald-400" />
                   <span className="text-sm font-bold text-emerald-300">WhatsApp (CallMeBot API Gratuita)</span>
                 </div>
-                <span className="text-[11px] text-slate-400 font-mono">Opcional</span>
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800/60 font-mono">
+                  Canal 2
+                </span>
               </div>
-              <p className="text-xs text-slate-400">
-                Envie uma mensagem WhatsApp com o texto <code>I allow callmebot to send me messages</code> para o número <strong>+34 644 51 95 23</strong> (ou acesse callmebot.com) para receber sua chave gratuita de API.
+
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Envie <code>I allow callmebot to send me messages</code> no WhatsApp para <strong>+34 644 51 95 23</strong> para receber sua API Key gratuita (ou consulte callmebot.com).
               </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-slate-300">Número de WhatsApp (DDI + DDD)</label>
                   <input
@@ -388,47 +468,44 @@ export default function SettingsPage() {
                   />
                 </div>
               </div>
-            </div>
 
-            {/* Botão de Teste de Notificação */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-slate-800/80">
-              <span className="text-xs text-slate-400">
-                Dispare uma mensagem de teste para verificar a chegada no seu celular
-              </span>
-              <button
-                type="button"
-                disabled={
-                  isTestingNotification ||
-                  (!telegramBotToken && !telegramChatId && !whatsappPhoneNumber && !whatsappApiKey)
-                }
-                onClick={handleTestNotification}
-                className="w-full sm:w-auto py-2.5 px-5 rounded-xl font-semibold text-xs bg-cyan-950/70 hover:bg-cyan-900/90 text-cyan-200 border border-cyan-800/60 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                {isTestingNotification ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Bell className="w-3.5 h-3.5 text-cyan-400" />
-                )}
-                {isTestingNotification ? "Enviando Notificação..." : "Testar Notificação Agora"}
-              </button>
-            </div>
-
-            {notificationFeedback && (
-              <div
-                className={`p-3 rounded-xl border text-xs font-mono flex items-center gap-2 ${
-                  notificationFeedback.isSuccess
-                    ? "bg-slate-950 border-cyan-500/40 text-cyan-300"
-                    : "bg-slate-950 border-rose-500/40 text-rose-300"
-                }`}
-              >
-                {notificationFeedback.isSuccess ? (
-                  <CheckCircle2 className="w-4 h-4 text-cyan-400 shrink-0" />
-                ) : (
-                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-                )}
-                <span>{notificationFeedback.message}</span>
+              {/* Botão de Teste Específico do WhatsApp */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-slate-800/60">
+                <span className="text-[11px] text-slate-400">
+                  Dispara uma mensagem de teste exclusiva para o seu número de WhatsApp
+                </span>
+                <button
+                  type="button"
+                  disabled={isTestingWhatsApp || !whatsappPhoneNumber || !whatsappApiKey}
+                  onClick={handleTestWhatsApp}
+                  className="w-full sm:w-auto py-2 px-4 rounded-xl font-semibold text-xs bg-emerald-950 hover:bg-emerald-900/90 text-emerald-200 border border-emerald-700/60 transition-all flex items-center justify-center gap-2 disabled:opacity-40"
+                >
+                  {isTestingWhatsApp ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+                  ) : (
+                    <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
+                  )}
+                  {isTestingWhatsApp ? "Enviando para WhatsApp..." : "Testar Envio WhatsApp"}
+                </button>
               </div>
-            )}
+
+              {whatsappFeedback && (
+                <div
+                  className={`p-3 rounded-xl border text-xs font-mono flex items-center gap-2 ${
+                    whatsappFeedback.isSuccess
+                      ? "bg-slate-900 border-emerald-500/40 text-emerald-300"
+                      : "bg-slate-900 border-rose-500/40 text-rose-300"
+                  }`}
+                >
+                  {whatsappFeedback.isSuccess ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                  )}
+                  <span>{whatsappFeedback.message}</span>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="flex justify-end">
@@ -457,7 +534,7 @@ export default function SettingsPage() {
                 </p>
               </div>
             </div>
-            {isTesting && (
+            {isTestingEcoFlow && (
               <span className="text-xs font-semibold text-amber-400 flex items-center gap-1.5 animate-pulse">
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 Testando...
@@ -468,7 +545,7 @@ export default function SettingsPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <button
               type="button"
-              disabled={isTesting || !ecoflowAccessKey || !ecoflowSerialNumber}
+              disabled={isTestingEcoFlow || !ecoflowAccessKey || !ecoflowSerialNumber}
               onClick={() => handleTestControl("ECOFLOW_TELEMETRY")}
               className="py-3 px-4 rounded-xl font-semibold text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
             >
@@ -478,7 +555,7 @@ export default function SettingsPage() {
 
             <button
               type="button"
-              disabled={isTesting || !ecoflowAccessKey || !ecoflowSerialNumber}
+              disabled={isTestingEcoFlow || !ecoflowAccessKey || !ecoflowSerialNumber}
               onClick={() => handleTestControl("ECOFLOW_ON")}
               className="py-3 px-4 rounded-xl font-semibold text-xs bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-200 border border-emerald-800/60 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
             >
@@ -488,7 +565,7 @@ export default function SettingsPage() {
 
             <button
               type="button"
-              disabled={isTesting || !ecoflowAccessKey || !ecoflowSerialNumber}
+              disabled={isTestingEcoFlow || !ecoflowAccessKey || !ecoflowSerialNumber}
               onClick={() => handleTestControl("ECOFLOW_OFF")}
               className="py-3 px-4 rounded-xl font-semibold text-xs bg-rose-950/60 hover:bg-rose-900/80 text-rose-200 border border-rose-800/60 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
             >
