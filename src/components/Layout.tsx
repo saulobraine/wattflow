@@ -1,4 +1,4 @@
-import React, { ReactNode } from "react";
+import React, { ReactNode, useState, useEffect } from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import { Zap, Sliders, Settings, Activity, LogOut, User, BarChart3 } from "lucide-react";
@@ -13,6 +13,16 @@ interface LayoutProps {
 export function Layout({ children, title }: LayoutProps) {
   const router = useRouter();
   const { user, isLoading, logout } = useAuth();
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 25);
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll();
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   const navItems = [
     { href: "/", label: "Dashboard", icon: Activity },
@@ -53,30 +63,53 @@ export function Layout({ children, title }: LayoutProps) {
       <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100">
         <header
           role="banner"
-          className="site-header border-b border-slate-800/90 bg-slate-900/70 backdrop-blur-md sticky top-0 z-40 transition-all duration-200"
+          className={`site-header border-b border-slate-800/90 backdrop-blur-md sticky top-0 z-40 transition-all duration-300 ease-in-out ${
+            isScrolled
+              ? "bg-slate-950/85 shadow-lg shadow-black/40 border-slate-800"
+              : "bg-slate-900/70"
+          }`}
         >
-          <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+          <div
+            className={`max-w-6xl mx-auto px-4 flex items-center justify-between transition-all duration-300 ease-in-out ${
+              isScrolled ? "h-12" : "h-16"
+            }`}
+          >
             <TransitionLink
               href="/"
               aria-label="WattFlow Início"
               className="flex items-center gap-2 group transition-transform active:scale-95 duration-150"
             >
-              <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 group-hover:scale-105 group-hover:bg-emerald-500/20 group-hover:border-emerald-500/50 transition-all duration-200 shadow-sm shadow-emerald-950">
-                <Zap className="w-5 h-5 transition-transform group-hover:rotate-6 duration-200" aria-hidden="true" />
+              <div
+                className={`rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 group-hover:scale-105 group-hover:bg-emerald-500/20 group-hover:border-emerald-500/50 transition-all duration-300 shadow-sm shadow-emerald-950 ${
+                  isScrolled ? "p-1.5" : "p-2"
+                }`}
+              >
+                <Zap
+                  className={`transition-all duration-300 group-hover:rotate-6 ${
+                    isScrolled ? "w-4 h-4" : "w-5 h-5"
+                  }`}
+                  aria-hidden="true"
+                />
               </div>
-              <div>
+              <div className="flex items-baseline">
                 <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">
                   WattFlow
                 </span>
-                <span className="text-xs text-slate-400 ml-2 font-mono">MVP</span>
+                <span
+                  className={`text-[10px] text-slate-400 ml-1.5 font-mono overflow-hidden transition-all duration-300 ${
+                    isScrolled ? "max-w-0 opacity-0" : "max-w-xs opacity-100"
+                  }`}
+                >
+                  MVP
+                </span>
               </div>
             </TransitionLink>
 
-            <div className="flex items-center gap-3 sm:gap-6">
+            <div className="flex items-center gap-2 sm:gap-4">
               <nav
                 role="navigation"
                 aria-label="Navegação Principal"
-                className="flex items-center gap-1 sm:gap-2"
+                className="flex items-center gap-1 sm:gap-1.5"
               >
                 {navItems.map((item) => {
                   const Icon = item.icon;
@@ -87,29 +120,49 @@ export function Layout({ children, title }: LayoutProps) {
                       href={item.href}
                       aria-current={isActive ? "page" : undefined}
                       aria-label={item.label}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 active:scale-95 ${
+                      title={item.label}
+                      className={`flex items-center rounded-lg font-medium transition-all duration-300 active:scale-95 ${
+                        isScrolled ? "px-2.5 py-1.5 text-xs gap-1.5" : "px-3 py-2 text-sm gap-2"
+                      } ${
                         isActive
                           ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 shadow-sm shadow-emerald-950"
                           : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 hover:border-slate-700/60 border border-transparent"
                       }`}
                     >
-                      <Icon className={`w-4 h-4 transition-transform ${isActive ? "scale-105" : "group-hover:scale-105"}`} aria-hidden="true" />
-                      <span className="hidden sm:inline">{item.label}</span>
+                      <Icon
+                        className={`transition-all duration-300 ${
+                          isScrolled ? "w-3.5 h-3.5" : "w-4 h-4"
+                        } ${isActive ? "scale-105" : "group-hover:scale-105"}`}
+                        aria-hidden="true"
+                      />
+                      <span
+                        className={`hidden sm:inline overflow-hidden whitespace-nowrap transition-all duration-300 ease-in-out ${
+                          isScrolled ? "max-w-0 opacity-0 -ml-0.5" : "max-w-[160px] opacity-100 ml-0"
+                        }`}
+                      >
+                        {item.label}
+                      </span>
                     </TransitionLink>
                   );
                 })}
               </nav>
 
               {user && (
-                <div className="flex items-center gap-3 border-l border-slate-800/80 pl-3 sm:pl-4">
+                <div className="flex items-center gap-2 sm:gap-3 border-l border-slate-800/80 pl-2 sm:pl-3">
                   <div
                     aria-label={`Usuário autenticado: ${user.fullName || user.email}`}
-                    className="hidden md:flex items-center gap-2 text-xs text-slate-300 bg-slate-900/50 px-2.5 py-1.5 rounded-lg border border-slate-800 transition-colors"
+                    className={`hidden md:flex items-center gap-1.5 text-xs text-slate-300 bg-slate-900/50 rounded-lg border border-slate-800 transition-all duration-300 ${
+                      isScrolled ? "px-2 py-1" : "px-2.5 py-1.5"
+                    }`}
                   >
-                    <div className="p-1 rounded-full bg-slate-800 border border-slate-700">
-                      <User className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
+                    <div className="p-0.5 rounded-full bg-slate-800 border border-slate-700">
+                      <User className="w-3 h-3 text-emerald-400" aria-hidden="true" />
                     </div>
-                    <span className="max-w-[140px] truncate font-medium">
+                    <span
+                      className={`truncate font-medium transition-all duration-300 ${
+                        isScrolled ? "max-w-[80px] text-[11px]" : "max-w-[140px]"
+                      }`}
+                    >
                       {user.fullName || user.email}
                     </span>
                   </div>
@@ -118,9 +171,11 @@ export function Layout({ children, title }: LayoutProps) {
                     onClick={logout}
                     title="Sair da Conta"
                     aria-label="Sair da Conta"
-                    className="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 active:scale-90 transition-all duration-150 cursor-pointer"
+                    className={`rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 active:scale-90 transition-all duration-200 cursor-pointer ${
+                      isScrolled ? "p-1.5" : "p-2"
+                    }`}
                   >
-                    <LogOut className="w-4 h-4" aria-hidden="true" />
+                    <LogOut className={isScrolled ? "w-3.5 h-3.5" : "w-4 h-4"} aria-hidden="true" />
                   </button>
                 </div>
               )}
