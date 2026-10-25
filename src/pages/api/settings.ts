@@ -8,11 +8,14 @@ interface SettingsResponseBody {
   data?: {
     ecoflowEndpointRegion: string;
     ecoflowAccessKey: string;
+    ecoflowAccessSecret?: string;
     ecoflowAccessSecretMasked: string;
     ecoflowSerialNumber: string;
+    telegramBotToken?: string;
     telegramBotTokenMasked: string;
     telegramChatId: string;
     whatsappPhoneNumber: string;
+    whatsappApiKey?: string;
     whatsappApiKeyMasked: string;
     isNotificationActive: boolean;
   };
@@ -49,23 +52,21 @@ export default async function handleSettings(
       return;
     }
 
-    const maskSecret = (secret?: string | null) => {
-      if (!secret) return "";
-      return secret.length > 6 ? `${secret.substring(0, 3)}••••••••${secret.slice(-3)}` : "••••••••";
-    };
-
     response.status(200).json({
       success: true,
       message: "Configurações carregadas com sucesso.",
       data: {
         ecoflowEndpointRegion: existing.ecoflowEndpointRegion,
         ecoflowAccessKey: existing.ecoflowAccessKey,
-        ecoflowAccessSecretMasked: maskSecret(existing.ecoflowAccessSecret),
+        ecoflowAccessSecret: existing.ecoflowAccessSecret || "",
+        ecoflowAccessSecretMasked: existing.ecoflowAccessSecret || "",
         ecoflowSerialNumber: existing.ecoflowSerialNumber,
-        telegramBotTokenMasked: maskSecret(existing.telegramBotToken),
+        telegramBotToken: existing.telegramBotToken || "",
+        telegramBotTokenMasked: existing.telegramBotToken || "",
         telegramChatId: existing.telegramChatId || "",
         whatsappPhoneNumber: existing.whatsappPhoneNumber || "",
-        whatsappApiKeyMasked: maskSecret(existing.whatsappApiKey),
+        whatsappApiKey: existing.whatsappApiKey || "",
+        whatsappApiKeyMasked: existing.whatsappApiKey || "",
         isNotificationActive: existing.isNotificationActive ?? true,
       },
     });

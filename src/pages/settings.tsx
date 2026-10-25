@@ -14,6 +14,8 @@ import {
   Bell,
   MessageSquare,
   Send,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 export default function SettingsPage() {
@@ -55,6 +57,11 @@ export default function SettingsPage() {
     message: string;
   } | null>(null);
 
+  // Estados de visualização do olho (mostrar/ocultar segredos)
+  const [showTelegramToken, setShowTelegramToken] = useState(false);
+  const [showWhatsappApiKey, setShowWhatsappApiKey] = useState(false);
+  const [showEcoflowSecret, setShowEcoflowSecret] = useState(false);
+
   useEffect(() => {
     async function loadSettings() {
       try {
@@ -63,12 +70,12 @@ export default function SettingsPage() {
         if (json.success && json.data) {
           setEcoflowEndpointRegion(json.data.ecoflowEndpointRegion || "https://api.ecoflow.com");
           setEcoflowAccessKey(json.data.ecoflowAccessKey || "");
-          setEcoflowAccessSecret(json.data.ecoflowAccessSecretMasked || "");
+          setEcoflowAccessSecret(json.data.ecoflowAccessSecret || json.data.ecoflowAccessSecretMasked || "");
           setEcoflowSerialNumber(json.data.ecoflowSerialNumber || "");
-          setTelegramBotToken(json.data.telegramBotTokenMasked || "");
+          setTelegramBotToken(json.data.telegramBotToken || json.data.telegramBotTokenMasked || "");
           setTelegramChatId(json.data.telegramChatId || "");
           setWhatsappPhoneNumber(json.data.whatsappPhoneNumber || "");
-          setWhatsappApiKey(json.data.whatsappApiKeyMasked || "");
+          setWhatsappApiKey(json.data.whatsappApiKey || json.data.whatsappApiKeyMasked || "");
           setIsNotificationActive(json.data.isNotificationActive ?? true);
         }
       } catch (err) {
@@ -298,14 +305,28 @@ export default function SettingsPage() {
 
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-slate-300">Secret Key</label>
-                <input
-                  type="password"
-                  required
-                  placeholder="Ex: sk_live_..."
-                  value={ecoflowAccessSecret}
-                  onChange={(e) => setEcoflowAccessSecret(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 font-mono"
-                />
+                <div className="relative">
+                  <input
+                    type={showEcoflowSecret ? "text" : "password"}
+                    required
+                    placeholder="Ex: sk_live_..."
+                    value={ecoflowAccessSecret}
+                    onChange={(e) => setEcoflowAccessSecret(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-4 pr-11 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowEcoflowSecret((prev) => !prev)}
+                    title={showEcoflowSecret ? "Ocultar Secret Key" : "Visualizar Secret Key"}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-slate-400 hover:text-emerald-300 hover:bg-slate-900/80 transition-colors"
+                  >
+                    {showEcoflowSecret ? (
+                      <EyeOff className="w-4 h-4 text-emerald-400" />
+                    ) : (
+                      <Eye className="w-4 h-4 text-slate-400" />
+                    )}
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-1.5 md:col-span-2">
@@ -372,13 +393,27 @@ export default function SettingsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-slate-300">Telegram Bot Token</label>
-                  <input
-                    type="password"
-                    placeholder="Ex: 123456789:ABCdefGhIJKlmNoPQRstuVWxyz"
-                    value={telegramBotToken}
-                    onChange={(e) => setTelegramBotToken(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-sky-500 font-mono"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showTelegramToken ? "text" : "password"}
+                      placeholder="Ex: 123456789:ABCdefGhIJKlmNoPQRstuVWxyz"
+                      value={telegramBotToken}
+                      onChange={(e) => setTelegramBotToken(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-4 pr-11 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-sky-500 font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowTelegramToken((prev) => !prev)}
+                      title={showTelegramToken ? "Ocultar Bot Token" : "Visualizar Bot Token salvo"}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-slate-400 hover:text-sky-300 hover:bg-slate-800/80 transition-colors"
+                    >
+                      {showTelegramToken ? (
+                        <EyeOff className="w-4 h-4 text-sky-400" />
+                      ) : (
+                        <Eye className="w-4 h-4 text-slate-400" />
+                      )}
+                    </button>
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-slate-300">Chat ID do Telegram</label>
@@ -459,13 +494,27 @@ export default function SettingsPage() {
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-slate-300">API Key CallMeBot</label>
-                  <input
-                    type="password"
-                    placeholder="Ex: 1234567"
-                    value={whatsappApiKey}
-                    onChange={(e) => setWhatsappApiKey(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-mono"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showWhatsappApiKey ? "text" : "password"}
+                      placeholder="Ex: 1234567"
+                      value={whatsappApiKey}
+                      onChange={(e) => setWhatsappApiKey(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-4 pr-11 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowWhatsappApiKey((prev) => !prev)}
+                      title={showWhatsappApiKey ? "Ocultar API Key" : "Visualizar API Key salva"}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-slate-400 hover:text-emerald-300 hover:bg-slate-800/80 transition-colors"
+                    >
+                      {showWhatsappApiKey ? (
+                        <EyeOff className="w-4 h-4 text-emerald-400" />
+                      ) : (
+                        <Eye className="w-4 h-4 text-slate-400" />
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
 
