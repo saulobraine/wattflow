@@ -60,6 +60,14 @@ export default async function handleTestNotification(
   const isMasked = (value?: string) => !value || value.includes("••••");
   const dispatcher = new NotificationDispatcher();
 
+  const dispatchTime = new Date();
+  const timeFormatted = dispatchTime.toLocaleTimeString("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+
   const samplePayload: NotificationPayload = {
     title: `Teste de Notificação (${channel === "TELEGRAM" ? "Telegram" : "WhatsApp"})`,
     message:
@@ -67,6 +75,7 @@ export default async function handleTestNotification(
     batteryPercentage: 94,
     solarWatts: 450,
     actionState: "SOLAR_BATTERY",
+    timestamp: dispatchTime,
   };
 
   if (channel === "TELEGRAM") {
@@ -90,7 +99,7 @@ export default async function handleTestNotification(
     response.status(200).json({
       success: result.isSuccess,
       message: result.isSuccess
-        ? "Mensagem de teste enviada com sucesso no Telegram!"
+        ? `Mensagem de teste enviada com sucesso no Telegram às ${timeFormatted}!`
         : `Falha ao enviar mensagem no Telegram: ${result.errorMessage || "Erro desconhecido"}`,
       channel: "TELEGRAM",
       errorDetails: result.errorMessage,
@@ -121,7 +130,7 @@ export default async function handleTestNotification(
   response.status(200).json({
     success: result.isSuccess,
     message: result.isSuccess
-      ? "Mensagem de teste enviada com sucesso no WhatsApp!"
+      ? `Mensagem de teste enfileirada com sucesso no WhatsApp às ${timeFormatted}!`
       : `Falha ao enviar mensagem no WhatsApp: ${result.errorMessage || "Erro desconhecido"}`,
     channel: "WHATSAPP",
     errorDetails: result.errorMessage,

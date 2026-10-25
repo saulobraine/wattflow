@@ -12,6 +12,7 @@ export interface NotificationPayload {
   batteryPercentage?: number;
   solarWatts?: number;
   actionState?: "SOLAR_BATTERY" | "GRID" | "ALERT" | "INFO";
+  timestamp?: Date;
 }
 
 export interface NotificationDispatchResult {
@@ -173,6 +174,7 @@ export class NotificationDispatcher {
 
   private buildFormattedMessage(payload: NotificationPayload): string {
     const { title, message, batteryPercentage, solarWatts, actionState } = payload;
+    const eventTime = this.formatReadableTimestamp(payload.timestamp);
 
     let icon = "⚡";
     if (actionState === "SOLAR_BATTERY") {
@@ -195,12 +197,14 @@ export class NotificationDispatcher {
       result += `\n☀️ <b>Geração Solar:</b> ${solarWatts} W`;
     }
 
+    result += `\n🕒 <b>Horário do Disparo:</b> ${eventTime}`;
     result += `\n\n<i>WattFlow Automation &bull; ATS Transfer</i>`;
     return result;
   }
 
   private buildPlainText(payload: NotificationPayload): string {
     const { title, message, batteryPercentage, solarWatts } = payload;
+    const eventTime = this.formatReadableTimestamp(payload.timestamp);
     let result = `⚡ [WattFlow] ${title}\n\n${message}`;
 
     if (batteryPercentage !== undefined) {
@@ -211,8 +215,22 @@ export class NotificationDispatcher {
       result += `\n☀️ Geração Solar: ${solarWatts} W`;
     }
 
+    result += `\n🕒 Horário do Disparo: ${eventTime}`;
     result += `\n\nWattFlow Automation`;
     return result;
+  }
+
+  private formatReadableTimestamp(timestamp?: Date): string {
+    const targetDate = timestamp ?? new Date();
+    return targetDate.toLocaleString("pt-BR", {
+      timeZone: "America/Sao_Paulo",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
   }
 
   private buildSummary(
