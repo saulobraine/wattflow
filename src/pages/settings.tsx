@@ -16,6 +16,8 @@ import {
   Send,
   Eye,
   EyeOff,
+  ShieldAlert,
+  X,
 } from "lucide-react";
 
 export default function SettingsPage() {
@@ -61,6 +63,67 @@ export default function SettingsPage() {
   const [showTelegramToken, setShowTelegramToken] = useState(false);
   const [showWhatsappApiKey, setShowWhatsappApiKey] = useState(false);
   const [showEcoflowSecret, setShowEcoflowSecret] = useState(false);
+
+  // Estados para o Box de Confirmação com Digitação Obrigatória
+  const [confirmationModal, setConfirmationModal] = useState<{
+    isOpen: boolean;
+    actionTarget: "ECOFLOW_ON" | "ECOFLOW_OFF" | "ECOFLOW_TELEMETRY";
+    actionTitle: string;
+    expectedWord: string;
+    warningText: string;
+    confirmButtonColor: string;
+  } | null>(null);
+  const [confirmationInput, setConfirmationInput] = useState("");
+
+  const requestConfirmation = (actionTarget: "ECOFLOW_ON" | "ECOFLOW_OFF" | "ECOFLOW_TELEMETRY") => {
+    setConfirmationInput("");
+    if (actionTarget === "ECOFLOW_ON") {
+      setConfirmationModal({
+        isOpen: true,
+        actionTarget: "ECOFLOW_ON",
+        actionTitle: "Ligar Saída AC (ATS → Solar / Bateria)",
+        expectedWord: "LIGAR",
+        warningText:
+          "Esta ação ativará a saída AC da sua estação EcoFlow. A Chave de Transferência Automática (ATS) comutará fisicamente o circuito da sua residência para a energia solar/bateria.",
+        confirmButtonColor: "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-950",
+      });
+      return;
+    }
+
+    if (actionTarget === "ECOFLOW_OFF") {
+      setConfirmationModal({
+        isOpen: true,
+        actionTarget: "ECOFLOW_OFF",
+        actionTitle: "Desligar Saída AC (ATS → Concessionária / Rede)",
+        expectedWord: "DESLIGAR",
+        warningText:
+          "Esta ação desligará a saída AC da sua estação EcoFlow. A Chave de Transferência Automática (ATS) comutará fisicamente o circuito da sua residência de volta para a rede da concessionária.",
+        confirmButtonColor: "bg-rose-600 hover:bg-rose-500 text-white shadow-rose-950",
+      });
+      return;
+    }
+
+    setConfirmationModal({
+      isOpen: true,
+      actionTarget: "ECOFLOW_TELEMETRY",
+      actionTitle: "Consultar Telemetria EcoFlow (SOC & Solar)",
+      expectedWord: "TELEMETRIA",
+      warningText:
+        "Esta ação enviará uma requisição de leitura direta à API da EcoFlow para verificar bateria, potência solar e status operacional.",
+      confirmButtonColor: "bg-cyan-600 hover:bg-cyan-500 text-white shadow-cyan-950",
+    });
+  };
+
+  const executeConfirmedAction = () => {
+    if (!confirmationModal) return;
+    const isMatch = confirmationInput.trim().toUpperCase() === confirmationModal.expectedWord;
+    if (!isMatch) return;
+
+    const target = confirmationModal.actionTarget;
+    setConfirmationModal(null);
+    setConfirmationInput("");
+    handleTestControl(target);
+  };
 
   useEffect(() => {
     async function loadSettings() {
@@ -595,7 +658,7 @@ export default function SettingsPage() {
             <button
               type="button"
               disabled={isTestingEcoFlow || !ecoflowAccessKey || !ecoflowSerialNumber}
-              onClick={() => handleTestControl("ECOFLOW_TELEMETRY")}
+              onClick={() => requestConfirmation("ECOFLOW_TELEMETRY")}
               className="py-3 px-4 rounded-xl font-semibold text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
             >
               <Activity className="w-4 h-4 text-cyan-400" />
@@ -605,7 +668,7 @@ export default function SettingsPage() {
             <button
               type="button"
               disabled={isTestingEcoFlow || !ecoflowAccessKey || !ecoflowSerialNumber}
-              onClick={() => handleTestControl("ECOFLOW_ON")}
+              onClick={() => requestConfirmation("ECOFLOW_ON")}
               className="py-3 px-4 rounded-xl font-semibold text-xs bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-200 border border-emerald-800/60 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
             >
               <Zap className="w-4 h-4 text-emerald-400" />
@@ -615,7 +678,7 @@ export default function SettingsPage() {
             <button
               type="button"
               disabled={isTestingEcoFlow || !ecoflowAccessKey || !ecoflowSerialNumber}
-              onClick={() => handleTestControl("ECOFLOW_OFF")}
+              onClick={() => requestConfirmation("ECOFLOW_OFF")}
               className="py-3 px-4 rounded-xl font-semibold text-xs bg-rose-950/60 hover:bg-rose-900/80 text-rose-200 border border-rose-800/60 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
             >
               <Power className="w-4 h-4 text-rose-400" />
@@ -652,6 +715,79 @@ export default function SettingsPage() {
           )}
         </div>
       </div>
+
+      {/* Modal de Confirmação Explícita com Digitação Obrigatória */}
+      {confirmationModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-700/80 rounded-2xl p-6 shadow-2xl shadow-black/80 space-y-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 shrink-0">
+                  <ShieldAlert className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-100">Confirmação de Segurança</h3>
+                  <p className="text-xs text-amber-400/90 font-medium">{confirmationModal.actionTitle}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setConfirmationModal(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800/80 text-xs text-slate-300 leading-relaxed">
+              <p>{confirmationModal.warningText}</p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs text-slate-300 block">
+                Para autorizar esta operação, digite exatamente{" "}
+                <span className="font-mono font-bold text-amber-300 px-1.5 py-0.5 rounded bg-amber-950/60 border border-amber-800/40">
+                  {confirmationModal.expectedWord}
+                </span>{" "}
+                abaixo:
+              </label>
+              <input
+                type="text"
+                autoFocus
+                placeholder={`Digite ${confirmationModal.expectedWord}`}
+                value={confirmationInput}
+                onChange={(e) => setConfirmationInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && confirmationInput.trim().toUpperCase() === confirmationModal.expectedWord) {
+                    e.preventDefault();
+                    executeConfirmedAction();
+                  }
+                }}
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-400 font-mono tracking-wider text-center uppercase"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmationModal(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={confirmationInput.trim().toUpperCase() !== confirmationModal.expectedWord}
+                onClick={executeConfirmedAction}
+                className={`px-5 py-2.5 rounded-xl text-xs font-semibold transition-all shadow-md flex items-center gap-2 disabled:opacity-30 disabled:cursor-not-allowed ${confirmationModal.confirmButtonColor}`}
+              >
+                <Zap className="w-4 h-4" />
+                Confirmar e Executar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }
