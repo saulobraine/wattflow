@@ -60,9 +60,22 @@ O WattFlow opera como um orquestrador de missão crítica para estações de ene
 - **Alternância de Visibilidade de Segredos:** Botões de olho para `Secret Key`, `Bot Token` e `API Key` devidamente nomeados para leitores de tela e estilizados com transição de clique ativo.
 - **Testes de Notificação Separados:** Seções independentes para Telegram Bot e WhatsApp (CallMeBot) com seus próprios botões de disparo de teste e alertas contextuais.
 
+#### Perfil e Segurança (`/profile`)
+- **Arquitetura 2-Column Responsive:** Divisão lógica dos dados em duas colunas paralelas (`grid grid-cols-1 lg:grid-cols-2 gap-8 items-start`):
+  - **Coluna 1 (Credenciais Básicas):** Dados Pessoais (Nome e E-mail com validação em tempo real) e Troca de Senha com validação estrita scryptSync.
+  - **Coluna 2 (Fatores de Autenticação Avançada):** Segundo Fator (2FA/TOTP com QR Code de alto contraste e entrada manual) e Chaves de Acesso (Passkeys/WebAuthn nativas).
+- **Consistência de Container:** Aderência estrita à largura padrão do `<Layout>` (`max-w-6xl`), eliminando containers aninhados artificiais como `max-w-4xl mx-auto`.
+
 #### Login e Registro (`/login`, `/register`)
 - **Suporte Total a Gerenciadores de Senha:** Campos enriquecidos com atributos padrão `autoComplete="email"`, `autoComplete="current-password"` e `autoComplete="new-password"`.
 - **Aparência Unificada:** Cartões com elevação sutil, feedback tátil no clique dos botões e mensagens de erro destacadas em painéis flutuantes.
+
+### 2.4. Regras Rígidas de Arquitetura de Containers (Container Guidelines)
+Para garantir coerência geométrica absoluta entre todas as telas do sistema, as seguintes regras são mandatórias:
+1. **Container Soberano no `<Layout>`:** O elemento `<main>` do [`Layout.tsx`](file:///G:/projetos/wattflow/src/components/Layout.tsx) é a única autoridade definidora de largura e respiro: `className="flex-1 max-w-6xl w-full mx-auto px-4 py-8 page-content"`.
+2. **Proibição de Sub-containers de Largura em Páginas Filhas:** Nenhuma página filha deve declarar `max-w-4xl`, `max-w-5xl` ou `mx-auto` em sua tag raiz. O elemento superior deve sempre ser `<div className="space-y-8">`, ocupando 100% da grade `max-w-6xl`.
+3. **Distribuição em Grade Responsiva (2 Colunas):** Em painéis densos ou com múltiplos formulários (como `/profile` e `/settings`), o conteúdo deve ser organizado em `grid grid-cols-1 lg:grid-cols-2 gap-8 items-start`, colapsando de forma fluida para 1 coluna em tablets e smartphones.
+4. **Alinhamento do Header com o Footer:** Toda a estrutura visual interna deve respeitar as mesmas margens dos elementos de navegação superior e do rodapé informativo, prevenindo saltos ou desalinhamentos perceptíveis nas transições de rota.
 
 ---
 
@@ -75,6 +88,7 @@ O WattFlow opera como um orquestrador de missão crítica para estações de ene
 | **Estatísticas** | 1 Coluna / Gráfico 100% | 2 Colunas / Grade | 4 KPIs + Grade completa | `scope="col"`, Seção rotulada | Barras fluidas + Tooltip |
 | **Automações** | Sliders verticais | Grade de Comportamento | Painel com histerese | `role="slider"`, IDs vinculados | Entrada de cartões |
 | **Configurações** | Formulário 1 Coluna | Grade 2 Colunas | Painel BYOK + ATS Test | `role="dialog"`, `aria-modal` | Modal in/out com backdrop |
+| **Perfil e Segurança** | 1 Coluna vertical | 1 Coluna adaptada | Grade 2 Colunas (max-w-6xl) | `role="dialog"`, QR alto contraste | Stagger 1 a 5 + Feedback vivo |
 | **Login / Registro** | Card central fluido | Card max-w-md | Card centralizado | `autoComplete`, Prevenção zoom | Fade-in + Float |
 
 ---

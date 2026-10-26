@@ -397,7 +397,7 @@ export default function ProfilePage() {
 
   return (
     <Layout title="Perfil e Segurança">
-      <div className="space-y-8 max-w-4xl mx-auto">
+      <div className="space-y-8">
         {/* Cabeçalho de Boas-vindas da Conta */}
         <div className="animate-card stagger-1 interactive-card flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/80 p-6 rounded-2xl border border-slate-800 shadow-xl backdrop-blur">
           <div className="flex items-center gap-4">
@@ -431,491 +431,496 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* 1. Card de Dados Pessoais e Troca de E-mail */}
-        <section className="animate-card stagger-2 interactive-card bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
-          <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
-            <User className="w-5 h-5 text-emerald-400" aria-hidden="true" />
-            <h3 className="font-bold text-slate-100 text-base">Dados Pessoais e E-mail</h3>
-          </div>
-
-          {profileFeedback && (
-            <div
-              role="alert"
-              aria-live="polite"
-              className={`p-3.5 rounded-xl border text-xs font-medium flex items-center gap-2 ${
-                profileFeedback.type === "success"
-                  ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300"
-                  : "bg-rose-950/60 border-rose-500/40 text-rose-300"
-              }`}
-            >
-              {profileFeedback.type === "success" ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" aria-hidden="true" />
-              ) : (
-                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" aria-hidden="true" />
-              )}
-              <span>{profileFeedback.message}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleUpdateProfile} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label htmlFor="profile-fullname" className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                  <User className="w-3.5 h-3.5 text-slate-400" aria-hidden="true" />
-                  Nome Completo
-                </label>
-                <input
-                  id="profile-fullname"
-                  type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Seu nome"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 transition-colors"
-                />
+        {/* Grade Responsiva em 2 Colunas */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+          {/* Coluna 1: Dados Pessoais & Senha */}
+          <div className="space-y-8">
+            {/* 1. Card de Dados Pessoais e Troca de E-mail */}
+            <section className="animate-card stagger-2 interactive-card bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
+              <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+                <User className="w-5 h-5 text-emerald-400" aria-hidden="true" />
+                <h3 className="font-bold text-slate-100 text-base">Dados Pessoais e E-mail</h3>
               </div>
 
-              <div className="space-y-1.5">
-                <label htmlFor="profile-email" className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                  <Mail className="w-3.5 h-3.5 text-slate-400" aria-hidden="true" />
-                  Endereço de E-mail
-                </label>
-                <input
-                  id="profile-email"
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="seu@email.com"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 transition-colors font-mono"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <button
-                type="submit"
-                disabled={isUpdatingProfile}
-                className="px-5 py-2.5 rounded-xl font-semibold text-xs bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all flex items-center gap-2 shadow-lg shadow-emerald-950/40 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isUpdatingProfile ? (
-                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-                ) : (
-                  <Save className="w-4 h-4" aria-hidden="true" />
-                )}
-                {isUpdatingProfile ? "Salvando..." : "Salvar Alterações"}
-              </button>
-            </div>
-          </form>
-        </section>
-
-        {/* 2. Card de Alteração de Senha */}
-        <section className="animate-card stagger-3 interactive-card bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
-          <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
-            <Lock className="w-5 h-5 text-amber-400" aria-hidden="true" />
-            <h3 className="font-bold text-slate-100 text-base">Segurança &amp; Alteração de Senha</h3>
-          </div>
-
-          {passwordFeedback && (
-            <div
-              role="alert"
-              aria-live="polite"
-              className={`p-3.5 rounded-xl border text-xs font-medium flex items-center gap-2 ${
-                passwordFeedback.type === "success"
-                  ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300"
-                  : "bg-rose-950/60 border-rose-500/40 text-rose-300"
-              }`}
-            >
-              {passwordFeedback.type === "success" ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" aria-hidden="true" />
-              ) : (
-                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" aria-hidden="true" />
-              )}
-              <span>{passwordFeedback.message}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleChangePassword} className="space-y-4">
-            <div className="space-y-1.5">
-              <label htmlFor="current-password-input" className="text-xs font-semibold text-slate-300">
-                Senha Atual
-              </label>
-              <div className="relative">
-                <input
-                  id="current-password-input"
-                  type={showCurrentPassword ? "text" : "password"}
-                  required
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  placeholder="Digite sua senha atual"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 pr-10 text-sm text-slate-200 focus:outline-none focus:border-amber-400 transition-colors"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowCurrentPassword((prev) => !prev)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-1"
+              {profileFeedback && (
+                <div
+                  role="alert"
+                  aria-live="polite"
+                  className={`p-3.5 rounded-xl border text-xs font-medium flex items-center gap-2 ${
+                    profileFeedback.type === "success"
+                      ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300"
+                      : "bg-rose-950/60 border-rose-500/40 text-rose-300"
+                  }`}
                 >
-                  {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
+                  {profileFeedback.type === "success" ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" aria-hidden="true" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" aria-hidden="true" />
+                  )}
+                  <span>{profileFeedback.message}</span>
+                </div>
+              )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label htmlFor="new-password-input" className="text-xs font-semibold text-slate-300">
-                  Nova Senha (Mínimo 6 caracteres)
-                </label>
-                <div className="relative">
+              <form onSubmit={handleUpdateProfile} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label htmlFor="profile-fullname" className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                    <User className="w-3.5 h-3.5 text-slate-400" aria-hidden="true" />
+                    Nome Completo
+                  </label>
                   <input
-                    id="new-password-input"
-                    type={showNewPassword ? "text" : "password"}
-                    required
-                    minLength={6}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Mínimo 6 caracteres"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 pr-10 text-sm text-slate-200 focus:outline-none focus:border-amber-400 transition-colors"
+                    id="profile-fullname"
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="Seu nome"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 transition-colors"
                   />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label htmlFor="profile-email" className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                    <Mail className="w-3.5 h-3.5 text-slate-400" aria-hidden="true" />
+                    Endereço de E-mail
+                  </label>
+                  <input
+                    id="profile-email"
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="seu@email.com"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 transition-colors font-mono"
+                  />
+                </div>
+
+                <div className="flex justify-end pt-2">
                   <button
-                    type="button"
-                    onClick={() => setShowNewPassword((prev) => !prev)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-1"
+                    type="submit"
+                    disabled={isUpdatingProfile}
+                    className="px-5 py-2.5 rounded-xl font-semibold text-xs bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all flex items-center gap-2 shadow-lg shadow-emerald-950/40 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {isUpdatingProfile ? (
+                      <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Save className="w-4 h-4" aria-hidden="true" />
+                    )}
+                    {isUpdatingProfile ? "Salvando..." : "Salvar Alterações"}
                   </button>
                 </div>
+              </form>
+            </section>
+
+            {/* 2. Card de Alteração de Senha */}
+            <section className="animate-card stagger-3 interactive-card bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
+              <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+                <Lock className="w-5 h-5 text-amber-400" aria-hidden="true" />
+                <h3 className="font-bold text-slate-100 text-base">Segurança &amp; Alteração de Senha</h3>
               </div>
 
-              <div className="space-y-1.5">
-                <label htmlFor="confirm-password-input" className="text-xs font-semibold text-slate-300">
-                  Confirmar Nova Senha
-                </label>
-                <input
-                  id="confirm-password-input"
-                  type="password"
-                  required
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Repita a nova senha"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-amber-400 transition-colors"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <button
-                type="submit"
-                disabled={isChangingPassword || !currentPassword || !newPassword}
-                className="px-5 py-2.5 rounded-xl font-semibold text-xs bg-amber-600 hover:bg-amber-500 active:scale-95 text-white transition-all flex items-center gap-2 shadow-lg shadow-amber-950/40 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isChangingPassword ? (
-                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-                ) : (
-                  <Key className="w-4 h-4" aria-hidden="true" />
-                )}
-                {isChangingPassword ? "Alterando..." : "Atualizar Senha"}
-              </button>
-            </div>
-          </form>
-        </section>
-
-        {/* 3. Card de Passkeys (Biometria / WebAuthn) */}
-        <section className="animate-card stagger-4 interactive-card bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
-            <div className="flex items-center gap-2">
-              <Fingerprint className="w-5 h-5 text-teal-400" aria-hidden="true" />
-              <h3 className="font-bold text-slate-100 text-base">Chaves de Acesso (Passkeys / Biometria)</h3>
-            </div>
-            <span className="text-xs text-slate-400">FIDO2 / WebAuthn</span>
-          </div>
-
-          <p className="text-xs text-slate-400 leading-relaxed">
-            As Passkeys substituem a digitação de senhas por biometria rápida e segura (Touch ID, Face ID, Windows Hello ou chave física USB).
-          </p>
-
-          {passkeyFeedback && (
-            <div
-              role="alert"
-              aria-live="polite"
-              className={`p-3.5 rounded-xl border text-xs font-medium flex items-center gap-2 ${
-                passkeyFeedback.type === "success"
-                  ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300"
-                  : "bg-rose-950/60 border-rose-500/40 text-rose-300"
-              }`}
-            >
-              {passkeyFeedback.type === "success" ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" aria-hidden="true" />
-              ) : (
-                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" aria-hidden="true" />
+              {passwordFeedback && (
+                <div
+                  role="alert"
+                  aria-live="polite"
+                  className={`p-3.5 rounded-xl border text-xs font-medium flex items-center gap-2 ${
+                    passwordFeedback.type === "success"
+                      ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300"
+                      : "bg-rose-950/60 border-rose-500/40 text-rose-300"
+                  }`}
+                >
+                  {passwordFeedback.type === "success" ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" aria-hidden="true" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" aria-hidden="true" />
+                  )}
+                  <span>{passwordFeedback.message}</span>
+                </div>
               )}
-              <span>{passkeyFeedback.message}</span>
-            </div>
-          )}
 
-          {/* Lista de Passkeys cadastradas */}
-          <div className="space-y-2">
-            <h4 className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-              Suas Chaves Registradas ({profileData?.passkeys?.length ?? 0})
-            </h4>
-
-            {!profileData?.passkeys || profileData.passkeys.length === 0 ? (
-              <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 text-center text-xs text-slate-500">
-                Nenhuma passkey cadastrada ainda nesta conta.
-              </div>
-            ) : (
-              <div className="divide-y divide-slate-800 rounded-xl bg-slate-950/80 border border-slate-800 overflow-hidden">
-                {profileData.passkeys.map((pk) => (
-                  <div key={pk.id} className="p-3.5 flex items-center justify-between gap-3 hover:bg-slate-800/40 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-teal-500/10 border border-teal-500/30 text-teal-400">
-                        <Fingerprint className="w-4 h-4" aria-hidden="true" />
-                      </div>
-                      <div>
-                        <div className="text-xs font-semibold text-slate-200">{pk.name}</div>
-                        <div className="text-[11px] text-slate-500 font-mono">
-                          Criada em: {new Date(pk.createdAt).toLocaleDateString("pt-BR")}
-                          {pk.lastUsedAt && ` &bull; Usada em: ${new Date(pk.lastUsedAt).toLocaleDateString("pt-BR")}`}
-                        </div>
-                      </div>
-                    </div>
-
+              <form onSubmit={handleChangePassword} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label htmlFor="current-password-input" className="text-xs font-semibold text-slate-300">
+                    Senha Atual
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="current-password-input"
+                      type={showCurrentPassword ? "text" : "password"}
+                      required
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      placeholder="Digite sua senha atual"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 pr-10 text-sm text-slate-200 focus:outline-none focus:border-amber-400 transition-colors"
+                    />
                     <button
                       type="button"
-                      disabled={deletingPasskeyId === pk.id}
-                      onClick={() => handleDeletePasskey(pk.id)}
-                      title="Excluir Passkey"
-                      aria-label={`Excluir passkey ${pk.name}`}
-                      className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer disabled:opacity-40"
+                      onClick={() => setShowCurrentPassword((prev) => !prev)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-1"
                     >
-                      {deletingPasskeyId === pk.id ? (
-                        <Loader2 className="w-4 h-4 animate-spin text-rose-400" />
-                      ) : (
-                        <Trash2 className="w-4 h-4" />
-                      )}
+                      {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
+                </div>
 
-          {/* Adicionar Nova Passkey */}
-          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800/90 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            <input
-              type="text"
-              value={passkeyName}
-              onChange={(e) => setPasskeyName(e.target.value)}
-              placeholder="Nome da chave (ex: Touch ID Mac, iPhone)"
-              className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-200 focus:outline-none focus:border-teal-500 transition-colors flex-1"
-            />
-            <button
-              type="button"
-              disabled={isCreatingPasskey || !isPasskeySupported}
-              onClick={handleCreatePasskey}
-              className="px-4 py-2.5 rounded-xl font-semibold text-xs bg-teal-600 hover:bg-teal-500 active:scale-95 text-white transition-all flex items-center justify-center gap-2 shadow-lg shadow-teal-950/40 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-            >
-              {isCreatingPasskey ? (
-                <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-              ) : (
-                <Plus className="w-4 h-4" aria-hidden="true" />
-              )}
-              {isCreatingPasskey ? "Registrando no dispositivo..." : "Criar Nova Passkey"}
-            </button>
-          </div>
-        </section>
-
-        {/* 4. Card de Autenticação em Duas Etapas (2FA / TOTP) */}
-        <section className="animate-card stagger-5 interactive-card bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
-            <div className="flex items-center gap-2">
-              <Smartphone className="w-5 h-5 text-indigo-400" aria-hidden="true" />
-              <h3 className="font-bold text-slate-100 text-base">Autenticação em Duas Etapas (2FA / TOTP)</h3>
-            </div>
-            <span
-              className={`text-xs px-2.5 py-0.5 rounded-full font-bold border ${
-                profileData?.twoFactorEnabled
-                  ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
-                  : "bg-slate-800 text-slate-400 border-slate-700"
-              }`}
-            >
-              {profileData?.twoFactorEnabled ? "ATIVADO" : "DESATIVADO"}
-            </span>
-          </div>
-
-          <p className="text-xs text-slate-400 leading-relaxed">
-            Proteja sua conta exigindo um código gerado pelo seu aplicativo autenticador (Google Authenticator, Microsoft Authenticator, 1Password ou Authy) a cada início de sessão.
-          </p>
-
-          {twoFactorFeedback && (
-            <div
-              role="alert"
-              aria-live="polite"
-              className={`p-3.5 rounded-xl border text-xs font-medium flex items-center gap-2 ${
-                twoFactorFeedback.type === "success"
-                  ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300"
-                  : "bg-rose-950/60 border-rose-500/40 text-rose-300"
-              }`}
-            >
-              {twoFactorFeedback.type === "success" ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" aria-hidden="true" />
-              ) : (
-                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" aria-hidden="true" />
-              )}
-              <span>{twoFactorFeedback.message}</span>
-            </div>
-          )}
-
-          {!profileData?.twoFactorEnabled ? (
-            <div>
-              {!isSettingUp2FA ? (
-                <button
-                  type="button"
-                  onClick={handleStart2FASetup}
-                  className="px-5 py-2.5 rounded-xl font-semibold text-xs bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white transition-all flex items-center gap-2 shadow-lg shadow-indigo-950/40 cursor-pointer"
-                >
-                  <ShieldCheck className="w-4 h-4" aria-hidden="true" />
-                  Configurar Autenticação em 2 Etapas
-                </button>
-              ) : (
-                <div className="p-6 rounded-2xl bg-slate-950/80 border border-indigo-900/40 space-y-6 animate-in fade-in-0 shadow-2xl">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                    <div className="space-y-0.5">
-                      <h4 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-                        <QrCode className="w-4 h-4 text-indigo-400" aria-hidden="true" />
-                        Configurar Aplicativo Autenticador
-                      </h4>
-                      <p className="text-xs text-slate-400">
-                        Sincronize sua conta com o Google Authenticator, Microsoft Authenticator, 1Password ou Authy.
-                      </p>
-                    </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="new-password-input" className="text-xs font-semibold text-slate-300">
+                    Nova Senha (Mínimo 6 caracteres)
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="new-password-input"
+                      type={showNewPassword ? "text" : "password"}
+                      required
+                      minLength={6}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Mínimo 6 caracteres"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 pr-10 text-sm text-slate-200 focus:outline-none focus:border-amber-400 transition-colors"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword((prev) => !prev)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-1"
+                    >
+                      {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
                   </div>
+                </div>
 
-                  {/* Bloco Central: QR Code + Entrada Manual */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-                    {/* Imagem do QR Code em Card Branco de Alto Contraste */}
-                    <div className="flex flex-col items-center justify-center p-5 bg-slate-900/90 rounded-2xl border border-slate-800 text-center gap-3">
-                      {qrCodeUrl ? (
-                        <div className="p-3 bg-white rounded-xl shadow-lg shadow-black/50 border border-slate-200">
-                          <img
-                            src={qrCodeUrl}
-                            alt="QR Code de Autenticação 2FA"
-                            width={192}
-                            height={192}
-                            className="w-44 h-44 sm:w-48 sm:h-48 block"
-                          />
-                        </div>
-                      ) : (
-                        <div className="w-48 h-48 bg-slate-800 rounded-xl flex items-center justify-center text-slate-500 text-xs">
-                          <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
-                        </div>
-                      )}
-                      <span className="text-[11px] text-slate-400 font-medium">
-                        Aponte a câmera do seu app para o QR Code
-                      </span>
-                    </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="confirm-password-input" className="text-xs font-semibold text-slate-300">
+                    Confirmar Nova Senha
+                  </label>
+                  <input
+                    id="confirm-password-input"
+                    type="password"
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Repita a nova senha"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-amber-400 transition-colors"
+                  />
+                </div>
 
-                    {/* Chave de Configuração Manual */}
-                    <div className="space-y-4">
-                      <div className="space-y-1.5">
-                        <span className="text-xs font-semibold text-slate-300 block">
-                          Ou insira a chave secreta manualmente:
-                        </span>
-                        <div className="flex items-center gap-2 bg-slate-900 p-2.5 rounded-xl border border-slate-800">
-                          <span className="font-mono text-indigo-300 font-bold tracking-widest text-xs flex-1 truncate select-all">
-                            {totpSecret}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => copyToClipboard(totpSecret)}
-                            aria-label="Copiar chave secreta"
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors cursor-pointer shrink-0"
-                          >
-                            {copiedSecret ? (
-                              <>
-                                <Check className="w-3.5 h-3.5 text-emerald-400" />
-                                <span>Copiado</span>
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="w-3.5 h-3.5" />
-                                <span>Copiar</span>
-                              </>
-                            )}
-                          </button>
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="submit"
+                    disabled={isChangingPassword || !currentPassword || !newPassword}
+                    className="px-5 py-2.5 rounded-xl font-semibold text-xs bg-amber-600 hover:bg-amber-500 active:scale-95 text-white transition-all flex items-center gap-2 shadow-lg shadow-amber-950/40 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isChangingPassword ? (
+                      <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Key className="w-4 h-4" aria-hidden="true" />
+                    )}
+                    {isChangingPassword ? "Alterando..." : "Atualizar Senha"}
+                  </button>
+                </div>
+              </form>
+            </section>
+          </div>
+
+          {/* Coluna 2: Fatores de Autenticação (2FA & Passkeys) */}
+          <div className="space-y-8">
+            {/* 3. Card de Autenticação em Duas Etapas (2FA / TOTP) */}
+            <section className="animate-card stagger-4 interactive-card bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <Smartphone className="w-5 h-5 text-indigo-400" aria-hidden="true" />
+                  <h3 className="font-bold text-slate-100 text-base">Autenticação em Duas Etapas (2FA / TOTP)</h3>
+                </div>
+                <span
+                  className={`text-xs px-2.5 py-0.5 rounded-full font-bold border ${
+                    profileData?.twoFactorEnabled
+                      ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                      : "bg-slate-800 text-slate-400 border-slate-700"
+                  }`}
+                >
+                  {profileData?.twoFactorEnabled ? "ATIVADO" : "DESATIVADO"}
+                </span>
+              </div>
+
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Proteja sua conta exigindo um código gerado pelo seu aplicativo autenticador (Google Authenticator, Microsoft Authenticator, 1Password ou Authy) a cada início de sessão.
+              </p>
+
+              {twoFactorFeedback && (
+                <div
+                  role="alert"
+                  aria-live="polite"
+                  className={`p-3.5 rounded-xl border text-xs font-medium flex items-center gap-2 ${
+                    twoFactorFeedback.type === "success"
+                      ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300"
+                      : "bg-rose-950/60 border-rose-500/40 text-rose-300"
+                  }`}
+                >
+                  {twoFactorFeedback.type === "success" ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" aria-hidden="true" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" aria-hidden="true" />
+                  )}
+                  <span>{twoFactorFeedback.message}</span>
+                </div>
+              )}
+
+              {!profileData?.twoFactorEnabled ? (
+                <div>
+                  {!isSettingUp2FA ? (
+                    <button
+                      type="button"
+                      onClick={handleStart2FASetup}
+                      className="px-5 py-2.5 rounded-xl font-semibold text-xs bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white transition-all flex items-center gap-2 shadow-lg shadow-indigo-950/40 cursor-pointer"
+                    >
+                      <ShieldCheck className="w-4 h-4" aria-hidden="true" />
+                      Configurar Autenticação em 2 Etapas
+                    </button>
+                  ) : (
+                    <div className="p-6 rounded-2xl bg-slate-950/80 border border-indigo-900/40 space-y-6 animate-in fade-in-0 shadow-2xl">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                        <div className="space-y-0.5">
+                          <h4 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                            <QrCode className="w-4 h-4 text-indigo-400" aria-hidden="true" />
+                            Configurar Aplicativo Autenticador
+                          </h4>
+                          <p className="text-xs text-slate-400">
+                            Sincronize sua conta com o Google Authenticator, Microsoft Authenticator, 1Password ou Authy.
+                          </p>
                         </div>
                       </div>
 
-                      {/* Verificação do Código de 6 dígitos */}
-                      <form onSubmit={handleVerifyAndEnable2FA} className="space-y-3 pt-3 border-t border-slate-800/80">
-                        <label htmlFor="totp-code-input" className="text-xs font-semibold text-slate-300 block">
-                          Digite o código de 6 dígitos gerado:
-                        </label>
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                          <input
-                            id="totp-code-input"
-                            type="text"
-                            inputMode="numeric"
-                            autoComplete="one-time-code"
-                            maxLength={6}
-                            required
-                            value={totpToken}
-                            onChange={(e) => setTotpToken(e.target.value.replace(/\D/g, ""))}
-                            placeholder="000000"
-                            className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-center font-mono text-lg tracking-widest text-slate-100 focus:outline-none focus:border-indigo-400 transition-colors flex-1"
-                          />
-                          <button
-                            type="submit"
-                            disabled={isVerifying2FA || totpToken.length !== 6}
-                            className="px-5 py-2.5 rounded-xl font-semibold text-xs bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
-                          >
-                            {isVerifying2FA ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <CheckCircle2 className="w-4 h-4" />
-                            )}
-                            Ativar 2FA
-                          </button>
+                      {/* Bloco Central: QR Code + Entrada Manual */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                        {/* Imagem do QR Code em Card Branco de Alto Contraste */}
+                        <div className="flex flex-col items-center justify-center p-5 bg-slate-900/90 rounded-2xl border border-slate-800 text-center gap-3">
+                          {qrCodeUrl ? (
+                            <div className="p-3 bg-white rounded-xl shadow-lg shadow-black/50 border border-slate-200">
+                              <img
+                                src={qrCodeUrl}
+                                alt="QR Code de Autenticação 2FA"
+                                width={192}
+                                height={192}
+                                className="w-44 h-44 sm:w-48 sm:h-48 block"
+                              />
+                            </div>
+                          ) : (
+                            <div className="w-48 h-48 bg-slate-800 rounded-xl flex items-center justify-center text-slate-500 text-xs">
+                              <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
+                            </div>
+                          )}
+                          <span className="text-[11px] text-slate-400 font-medium">
+                            Aponte a câmera do seu app para o QR Code
+                          </span>
                         </div>
-                        <div className="flex justify-end pt-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsSettingUp2FA(false);
-                              setQrCodeUrl("");
-                              setTotpSecret("");
-                            }}
-                            className="text-xs text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
-                          >
-                            Cancelar configuração
-                          </button>
+
+                        {/* Chave de Configuração Manual */}
+                        <div className="space-y-4">
+                          <div className="space-y-1.5">
+                            <span className="text-xs font-semibold text-slate-300 block">
+                              Ou insira a chave secreta manualmente:
+                            </span>
+                            <div className="flex items-center gap-2 bg-slate-900 p-2.5 rounded-xl border border-slate-800">
+                              <span className="font-mono text-indigo-300 font-bold tracking-widest text-xs flex-1 truncate select-all">
+                                {totpSecret}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => copyToClipboard(totpSecret)}
+                                aria-label="Copiar chave secreta"
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors cursor-pointer shrink-0"
+                              >
+                                {copiedSecret ? (
+                                  <>
+                                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                    <span>Copiado</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="w-3.5 h-3.5" />
+                                    <span>Copiar</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Verificação do Código de 6 dígitos */}
+                          <form onSubmit={handleVerifyAndEnable2FA} className="space-y-3 pt-3 border-t border-slate-800/80">
+                            <label htmlFor="totp-code-input" className="text-xs font-semibold text-slate-300 block">
+                              Digite o código de 6 dígitos gerado:
+                            </label>
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                              <input
+                                id="totp-code-input"
+                                type="text"
+                                inputMode="numeric"
+                                autoComplete="one-time-code"
+                                maxLength={6}
+                                required
+                                value={totpToken}
+                                onChange={(e) => setTotpToken(e.target.value.replace(/\D/g, ""))}
+                                placeholder="000000"
+                                className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-center font-mono text-lg tracking-widest text-slate-100 focus:outline-none focus:border-indigo-400 transition-colors flex-1"
+                              />
+                              <button
+                                type="submit"
+                                disabled={isVerifying2FA || totpToken.length !== 6}
+                                className="px-5 py-2.5 rounded-xl font-semibold text-xs bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+                              >
+                                {isVerifying2FA ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <CheckCircle2 className="w-4 h-4" />
+                                )}
+                                Ativar 2FA
+                              </button>
+                            </div>
+                            <div className="flex justify-end pt-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsSettingUp2FA(false);
+                                  setQrCodeUrl("");
+                                  setTotpSecret("");
+                                }}
+                                className="text-xs text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+                              >
+                                Cancelar configuração
+                              </button>
+                            </div>
+                          </form>
                         </div>
-                      </form>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+                      <ShieldCheck className="w-5 h-5" aria-hidden="true" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-slate-200">Sua conta está protegida por 2FA</div>
+                      <div className="text-[11px] text-slate-400">Códigos TOTP temporários são solicitados em novos logins.</div>
                     </div>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowDisableModal(true)}
+                    className="px-4 py-2 rounded-xl font-semibold text-xs text-rose-400 hover:bg-rose-500/10 border border-rose-500/30 active:scale-95 transition-all cursor-pointer"
+                  >
+                    Desativar 2FA
+                  </button>
                 </div>
               )}
-            </div>
-          ) : (
-            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
-                  <ShieldCheck className="w-5 h-5" aria-hidden="true" />
+            </section>
+
+            {/* 4. Card de Passkeys (Biometria / WebAuthn) */}
+            <section className="animate-card stagger-5 interactive-card bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <Fingerprint className="w-5 h-5 text-teal-400" aria-hidden="true" />
+                  <h3 className="font-bold text-slate-100 text-base">Chaves de Acesso (Passkeys / Biometria)</h3>
                 </div>
-                <div>
-                  <div className="text-xs font-bold text-slate-200">Sua conta está protegida por 2FA</div>
-                  <div className="text-[11px] text-slate-400">Códigos TOTP temporários são solicitados em novos logins.</div>
-                </div>
+                <span className="text-xs text-slate-400">FIDO2 / WebAuthn</span>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setShowDisableModal(true)}
-                className="px-4 py-2 rounded-xl font-semibold text-xs text-rose-400 hover:bg-rose-500/10 border border-rose-500/30 active:scale-95 transition-all cursor-pointer"
-              >
-                Desativar 2FA
-              </button>
-            </div>
-          )}
-        </section>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                As Passkeys substituem a digitação de senhas por biometria rápida e segura (Touch ID, Face ID, Windows Hello ou chave física USB).
+              </p>
+
+              {passkeyFeedback && (
+                <div
+                  role="alert"
+                  aria-live="polite"
+                  className={`p-3.5 rounded-xl border text-xs font-medium flex items-center gap-2 ${
+                    passkeyFeedback.type === "success"
+                      ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300"
+                      : "bg-rose-950/60 border-rose-500/40 text-rose-300"
+                  }`}
+                >
+                  {passkeyFeedback.type === "success" ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" aria-hidden="true" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" aria-hidden="true" />
+                  )}
+                  <span>{passkeyFeedback.message}</span>
+                </div>
+              )}
+
+              {/* Lista de Passkeys cadastradas */}
+              <div className="space-y-2">
+                <h4 className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                  Suas Chaves Registradas ({profileData?.passkeys?.length ?? 0})
+                </h4>
+
+                {!profileData?.passkeys || profileData.passkeys.length === 0 ? (
+                  <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 text-center text-xs text-slate-500">
+                    Nenhuma passkey cadastrada ainda nesta conta.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-800 rounded-xl bg-slate-950/80 border border-slate-800 overflow-hidden">
+                    {profileData.passkeys.map((pk) => (
+                      <div key={pk.id} className="p-3.5 flex items-center justify-between gap-3 hover:bg-slate-800/40 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-lg bg-teal-500/10 border border-teal-500/30 text-teal-400">
+                            <Fingerprint className="w-4 h-4" aria-hidden="true" />
+                          </div>
+                          <div>
+                            <div className="text-xs font-semibold text-slate-200">{pk.name}</div>
+                            <div className="text-[11px] text-slate-500 font-mono">
+                              Criada em: {new Date(pk.createdAt).toLocaleDateString("pt-BR")}
+                              {pk.lastUsedAt && ` &bull; Usada em: ${new Date(pk.lastUsedAt).toLocaleDateString("pt-BR")}`}
+                            </div>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          disabled={deletingPasskeyId === pk.id}
+                          onClick={() => handleDeletePasskey(pk.id)}
+                          title="Excluir Passkey"
+                          aria-label={`Excluir passkey ${pk.name}`}
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer disabled:opacity-40"
+                        >
+                          {deletingPasskeyId === pk.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-rose-400" />
+                          ) : (
+                            <Trash2 className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Adicionar Nova Passkey */}
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800/90 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <input
+                  type="text"
+                  value={passkeyName}
+                  onChange={(e) => setPasskeyName(e.target.value)}
+                  placeholder="Nome da chave (ex: Touch ID Mac, iPhone)"
+                  className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-200 focus:outline-none focus:border-teal-500 transition-colors flex-1"
+                />
+                <button
+                  type="button"
+                  disabled={isCreatingPasskey || !isPasskeySupported}
+                  onClick={handleCreatePasskey}
+                  className="px-4 py-2.5 rounded-xl font-semibold text-xs bg-teal-600 hover:bg-teal-500 active:scale-95 text-white transition-all flex items-center justify-center gap-2 shadow-lg shadow-teal-950/40 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                >
+                  {isCreatingPasskey ? (
+                    <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Plus className="w-4 h-4" aria-hidden="true" />
+                  )}
+                  {isCreatingPasskey ? "Registrando no dispositivo..." : "Criar Nova Passkey"}
+                </button>
+              </div>
+            </section>
+          </div>
+        </div>
       </div>
 
       {/* Modal de Desativação de 2FA com Confirmação de Senha */}
