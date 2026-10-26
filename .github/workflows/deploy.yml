@@ -1,0 +1,67 @@
+name: Deploy WattFlow (VPS Production)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# Evita deploys concorrentes simultâneos
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy via SSH to VPS
+    runs-on: ubuntu-latest
+    steps:
+      - name: Executar Deploy Remoto na VPS
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_SSH_PORT || 22 }}
+          script_stop: true
+          command_timeout: 15m
+          script: |
+            set -e
+            echo "🚀 [WattFlow CI/CD] Iniciando deploy da branch main..."
+
+            # 1. Navegar até o diretório do projeto na VPS
+            TARGET_DIR="${{ secrets.VPS_TARGET_DIR || '/opt/wattflow' }}"
+            if [ ! -d "$TARGET_DIR" ]; then
+              echo "❌ Diretório de deploy $TARGET_DIR não encontrado na VPS."
+              exit 1
+            fi
+            cd "$TARGET_DIR"
+
+            # 2. Atualizar repositório Git com a branch main
+            echo "📥 Atualizando código fonte com git pull origin main..."
+            git fetch origin main
+            git reset --hard origin/main
+
+            # 3. Garantir existência do arquivo .env
+            if [ ! -f .env ]; then
+              echo "⚠️ Arquivo .env não encontrado. Copiando de .env.example..."
+              cp .env.example .env
+            fi
+
+            # 4. Reconstruir e subir os contêineres isolados
+            echo "🔨 Compilando e iniciando contêineres Docker..."
+            docker compose up -d --build
+
+            # 5. Sincronizar schema do banco com Prisma
+            echo "🗄️ Sincronizando schema do PostgreSQL via Prisma..."
+            docker compose exec -T app npx prisma db push --skip-generate
+
+            # 6. Limpar imagens antigas para poupar espaço em disco da VPS
+            echo "🧹 Limpando imagens Docker órfãs..."
+            docker image prune -f
+
+            # 7. Validar saúde dos serviços
+            echo "🩺 Verificando status dos contêineres..."
+            docker compose ps
+
+            echo "✅ Deploy concluído com sucesso para wattflow.braine.dev!"
