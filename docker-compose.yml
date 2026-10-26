@@ -1,17 +1,23 @@
+name: wattflow
+
 services:
   # -------------------------------------------------------------------------
-  # 1. Banco de Dados PostgreSQL Local (Compatível com Supabase)
+  # 1. Banco de Dados PostgreSQL (100% Isolado na Rede Interna do WattFlow)
   # -------------------------------------------------------------------------
   postgres:
     image: postgres:16-alpine
     container_name: wattflow_postgres
     restart: unless-stopped
+    networks:
+      - wattflow_isolated_net
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-wattflow}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-wattflow_password}
       POSTGRES_DB: ${POSTGRES_DB:-wattflow}
-    ports:
-      - "${POSTGRES_BIND_IP:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432"
+    # Sem exposição de portas no host: o banco só aceita conexões da rede interna wattflow_isolated_net
+    # Caso precise inspecionar via tunnel SSH local, descomente a linha abaixo:
+    # ports:
+    #   - "127.0.0.1:${POSTGRES_PORT:-5435}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -19,6 +25,10 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
 
   # -------------------------------------------------------------------------
   # 2. Aplicação WattFlow (Next.js Pages Router + Prisma)
@@ -29,11 +39,14 @@ services:
       dockerfile: Dockerfile
     container_name: wattflow_app
     restart: unless-stopped
+    networks:
+      - wattflow_isolated_net
     depends_on:
       postgres:
         condition: service_healthy
     ports:
-      - "${APP_BIND_IP:-127.0.0.1}:${PORT:-3000}:3000"
+      # Expõe apenas no loopback (127.0.0.1) em porta dedicada (padrão 3050) para evitar colisão com apps na 3000
+      - "${APP_BIND_IP:-127.0.0.1}:${APP_HOST_PORT:-3050}:3000"
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-wattflow}:${POSTGRES_PASSWORD:-wattflow_password}@postgres:5432/${POSTGRES_DB:-wattflow}?schema=public
@@ -47,6 +60,10 @@ services:
       timeout: 3s
       retries: 5
       start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
 
   # -------------------------------------------------------------------------
   # 3. Agendador Automático do Cron Job (Sync Periódico de Energia)
@@ -55,6 +72,8 @@ services:
     image: alpine:latest
     container_name: wattflow_cron
     restart: unless-stopped
+    networks:
+      - wattflow_isolated_net
     depends_on:
       app:
         condition: service_healthy
@@ -72,6 +91,15 @@ services:
           wget -q -O - "http://app:3000/api/sync?token=$${CRON_SECRET_TOKEN}" || echo "Falha ao acionar rota /api/sync"
           echo ""
         done
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
+networks:
+  wattflow_isolated_net:
+    name: wattflow_isolated_net
+    driver: bridge
 
 volumes:
   postgres_data:
