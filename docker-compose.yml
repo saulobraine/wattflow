@@ -11,7 +11,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-wattflow_password}
       POSTGRES_DB: ${POSTGRES_DB:-wattflow}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_BIND_IP:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -33,7 +33,7 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "${PORT:-3000}:3000"
+      - "${APP_BIND_IP:-127.0.0.1}:${PORT:-3000}:3000"
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-wattflow}:${POSTGRES_PASSWORD:-wattflow_password}@postgres:5432/${POSTGRES_DB:-wattflow}?schema=public
@@ -54,8 +54,7 @@ services:
   cron-scheduler:
     image: alpine:latest
     container_name: wattflow_cron
-    restart: "no"
-    profiles: ["manual"]
+    restart: unless-stopped
     depends_on:
       app:
         condition: service_healthy
