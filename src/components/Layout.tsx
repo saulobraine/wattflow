@@ -41,6 +41,8 @@ export function Layout({ children, title }: LayoutProps) {
       <>
         <Head>
           <title>{browserTitle}</title>
+          <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+          <link rel="alternate icon" href="/favicon.ico" />
         </Head>
         <div
           role="status"
@@ -60,6 +62,8 @@ export function Layout({ children, title }: LayoutProps) {
     <>
       <Head>
         <title>{browserTitle}</title>
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="alternate icon" href="/favicon.ico" />
       </Head>
       <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100">
         <header
