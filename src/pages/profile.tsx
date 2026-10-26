@@ -20,6 +20,7 @@ import {
   Loader2,
   ShieldAlert,
   Save,
+  QrCode,
 } from "lucide-react";
 
 interface PasskeyItem {
@@ -64,6 +65,7 @@ export default function ProfilePage() {
   const [isSettingUp2FA, setIsSettingUp2FA] = useState(false);
   const [totpSecret, setTotpSecret] = useState("");
   const [totpToken, setTotpToken] = useState("");
+  const [qrCodeUrl, setQrCodeUrl] = useState("");
   const [copiedSecret, setCopiedSecret] = useState(false);
   const [isVerifying2FA, setIsVerifying2FA] = useState(false);
   const [twoFactorFeedback, setTwoFactorFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
@@ -180,6 +182,7 @@ export default function ProfilePage() {
       const result = await response.json();
       if (result.success && result.data?.secret) {
         setTotpSecret(result.data.secret);
+        setQrCodeUrl(result.data.qrCodeDataUrl || "");
         setIsSettingUp2FA(true);
         setTotpToken("");
       } else {
@@ -212,6 +215,7 @@ export default function ProfilePage() {
         setTwoFactorFeedback({ type: "success", message: result.message });
         setIsSettingUp2FA(false);
         setTotpSecret("");
+        setQrCodeUrl("");
         setTotpToken("");
         await fetchProfile();
       } else {
@@ -772,77 +776,121 @@ export default function ProfilePage() {
                   Configurar Autenticação em 2 Etapas
                 </button>
               ) : (
-                <div className="p-5 rounded-xl bg-slate-950 border border-indigo-900/40 space-y-4 animate-in fade-in-0">
-                  <div className="space-y-1">
-                    <h4 className="text-sm font-bold text-slate-200">1. Escaneie ou insira a chave no seu app</h4>
-                    <p className="text-xs text-slate-400">
-                      Adicione uma nova conta no seu autenticador e digite o segredo manual abaixo:
-                    </p>
-                  </div>
-
-                  {/* Exibição do Segredo Base32 */}
-                  <div className="flex items-center gap-2 bg-slate-900 p-3 rounded-xl border border-slate-800">
-                    <span className="font-mono text-indigo-300 font-bold tracking-widest text-sm flex-1 truncate">
-                      {totpSecret}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => copyToClipboard(totpSecret)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors cursor-pointer"
-                    >
-                      {copiedSecret ? (
-                        <>
-                          <Check className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>Copiado</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-3.5 h-3.5" />
-                          <span>Copiar</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-
-                  {/* Verificação do Código */}
-                  <form onSubmit={handleVerifyAndEnable2FA} className="space-y-3 pt-2 border-t border-slate-800/80">
-                    <label htmlFor="totp-code-input" className="text-xs font-semibold text-slate-300 block">
-                      2. Digite o código de 6 dígitos exibido no aplicativo
-                    </label>
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                      <input
-                        id="totp-code-input"
-                        type="text"
-                        maxLength={6}
-                        required
-                        value={totpToken}
-                        onChange={(e) => setTotpToken(e.target.value.replace(/\D/g, ""))}
-                        placeholder="000000"
-                        className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-center font-mono text-lg tracking-widest text-slate-100 focus:outline-none focus:border-indigo-400 transition-colors max-w-xs"
-                      />
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="submit"
-                          disabled={isVerifying2FA || totpToken.length !== 6}
-                          className="px-5 py-2.5 rounded-xl font-semibold text-xs bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all flex items-center gap-2 shadow-lg shadow-emerald-950/40 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                        >
-                          {isVerifying2FA ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <CheckCircle2 className="w-4 h-4" />
-                          )}
-                          Ativar 2FA
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setIsSettingUp2FA(false)}
-                          className="px-4 py-2.5 rounded-xl font-semibold text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-all cursor-pointer"
-                        >
-                          Cancelar
-                        </button>
-                      </div>
+                <div className="p-6 rounded-2xl bg-slate-950/80 border border-indigo-900/40 space-y-6 animate-in fade-in-0 shadow-2xl">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div className="space-y-0.5">
+                      <h4 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                        <QrCode className="w-4 h-4 text-indigo-400" aria-hidden="true" />
+                        Configurar Aplicativo Autenticador
+                      </h4>
+                      <p className="text-xs text-slate-400">
+                        Sincronize sua conta com o Google Authenticator, Microsoft Authenticator, 1Password ou Authy.
+                      </p>
                     </div>
-                  </form>
+                  </div>
+
+                  {/* Bloco Central: QR Code + Entrada Manual */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                    {/* Imagem do QR Code em Card Branco de Alto Contraste */}
+                    <div className="flex flex-col items-center justify-center p-5 bg-slate-900/90 rounded-2xl border border-slate-800 text-center gap-3">
+                      {qrCodeUrl ? (
+                        <div className="p-3 bg-white rounded-xl shadow-lg shadow-black/50 border border-slate-200">
+                          <img
+                            src={qrCodeUrl}
+                            alt="QR Code de Autenticação 2FA"
+                            width={192}
+                            height={192}
+                            className="w-44 h-44 sm:w-48 sm:h-48 block"
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-48 h-48 bg-slate-800 rounded-xl flex items-center justify-center text-slate-500 text-xs">
+                          <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
+                        </div>
+                      )}
+                      <span className="text-[11px] text-slate-400 font-medium">
+                        Aponte a câmera do seu app para o QR Code
+                      </span>
+                    </div>
+
+                    {/* Chave de Configuração Manual */}
+                    <div className="space-y-4">
+                      <div className="space-y-1.5">
+                        <span className="text-xs font-semibold text-slate-300 block">
+                          Ou insira a chave secreta manualmente:
+                        </span>
+                        <div className="flex items-center gap-2 bg-slate-900 p-2.5 rounded-xl border border-slate-800">
+                          <span className="font-mono text-indigo-300 font-bold tracking-widest text-xs flex-1 truncate select-all">
+                            {totpSecret}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(totpSecret)}
+                            aria-label="Copiar chave secreta"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors cursor-pointer shrink-0"
+                          >
+                            {copiedSecret ? (
+                              <>
+                                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                <span>Copiado</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3.5 h-3.5" />
+                                <span>Copiar</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Verificação do Código de 6 dígitos */}
+                      <form onSubmit={handleVerifyAndEnable2FA} className="space-y-3 pt-3 border-t border-slate-800/80">
+                        <label htmlFor="totp-code-input" className="text-xs font-semibold text-slate-300 block">
+                          Digite o código de 6 dígitos gerado:
+                        </label>
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                          <input
+                            id="totp-code-input"
+                            type="text"
+                            inputMode="numeric"
+                            autoComplete="one-time-code"
+                            maxLength={6}
+                            required
+                            value={totpToken}
+                            onChange={(e) => setTotpToken(e.target.value.replace(/\D/g, ""))}
+                            placeholder="000000"
+                            className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-center font-mono text-lg tracking-widest text-slate-100 focus:outline-none focus:border-indigo-400 transition-colors flex-1"
+                          />
+                          <button
+                            type="submit"
+                            disabled={isVerifying2FA || totpToken.length !== 6}
+                            className="px-5 py-2.5 rounded-xl font-semibold text-xs bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+                          >
+                            {isVerifying2FA ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <CheckCircle2 className="w-4 h-4" />
+                            )}
+                            Ativar 2FA
+                          </button>
+                        </div>
+                        <div className="flex justify-end pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsSettingUp2FA(false);
+                              setQrCodeUrl("");
+                              setTotpSecret("");
+                            }}
+                            className="text-xs text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+                          >
+                            Cancelar configuração
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

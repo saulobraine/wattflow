@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import QRCode from "qrcode";
 import { prisma } from "../../../infrastructure/database/prismaClient";
 import { extractUserFromRequest } from "../../../infrastructure/auth/sessionHelper";
 import {
@@ -15,6 +16,7 @@ interface TwoFactorResponseBody {
   data?: {
     secret?: string;
     otpauthUrl?: string;
+    qrCodeDataUrl?: string;
     twoFactorEnabled?: boolean;
   };
 }
@@ -64,6 +66,15 @@ export default async function handleTwoFactor(
     if (action === "SETUP") {
       const generatedSecret = generateBase32Secret(20);
       const otpauthUrl = buildOtpAuthUrl(user.email, generatedSecret);
+      const qrCodeDataUrl = await QRCode.toDataURL(otpauthUrl, {
+        errorCorrectionLevel: "M",
+        margin: 2,
+        width: 256,
+        color: {
+          dark: "#000000",
+          light: "#ffffff",
+        },
+      });
 
       response.status(200).json({
         success: true,
@@ -71,6 +82,7 @@ export default async function handleTwoFactor(
         data: {
           secret: generatedSecret,
           otpauthUrl,
+          qrCodeDataUrl,
           twoFactorEnabled: user.twoFactorEnabled,
         },
       });
