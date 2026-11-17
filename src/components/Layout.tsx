@@ -225,7 +225,7 @@ export function Layout({ children, title }: LayoutProps) {
           role="contentinfo"
           className="border-t border-slate-800/80 py-6 text-center text-xs text-slate-500"
         >
-          <p>wattflow -- desenvolvido com ♥ por Braine</p>
+          <p><strong className="font-semibold text-slate-400">wattflow</strong> - desenvolvido com ♥ por Braine</p>
         </footer>
       </div>
     </>
