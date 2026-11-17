@@ -74,7 +74,6 @@ export class ConfigurationRepository {
   public async findAllActiveConfigurations(): Promise<RetrievedConfigurationRecord[]> {
     const rawRecords = await this.databaseClient.userConfiguration.findMany({
       where: {
-        isAutomationActive: true,
         ecoflowAccessKey: { not: "" },
         ecoflowSerialNumber: { not: "" },
       },
