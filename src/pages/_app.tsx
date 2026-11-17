@@ -10,7 +10,7 @@ export default function App({ Component, pageProps }: AppProps) {
         <title>WattFlow - Orquestrador de Energia Inteligente</title>
         <meta
           name="description"
-          content="Orquestrador de energia inteligente para estações EcoFlow e atuadores Tuya Smart Life"
+          content="Orquestrador de energia inteligente para estações EcoFlow com Chave de Transferência Automática (ATS)"
         />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>

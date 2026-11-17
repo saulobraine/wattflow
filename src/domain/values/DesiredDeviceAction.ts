@@ -1,5 +1,5 @@
 /**
- * Objeto de Valor representando a ação coordenada de dispositivos.
+ * Objeto de Valor representando a ação de controle da EcoFlow para comutação da Chave de Transferência Automática (ATS).
  * Respeita Object Calisthenics:
  * - Apenas 1 variável de instância
  * - Sem a palavra-chave else
@@ -15,18 +15,20 @@ export class DesiredDeviceAction {
 
   /**
    * Bateria alta (atingiu o limite superior):
-   * Desliga a tomada Tuya (corta recarga da rede) e ativa a saída AC da EcoFlow.
+   * Ativa a saída AC da EcoFlow. A Chave de Transferência Automática (ATS)
+   * detecta a tensão do inversor e comuta automaticamente as cargas para a EcoFlow (Solar/Bateria).
    */
-  public static batteryHighDischarge(): DesiredDeviceAction {
-    return new DesiredDeviceAction("BATTERY_HIGH_DISCHARGE");
+  public static enableEcoFlowAc(): DesiredDeviceAction {
+    return new DesiredDeviceAction("ENABLE_ECOFLOW_AC");
   }
 
   /**
    * Bateria baixa (atingiu o limite inferior):
-   * Liga a tomada Tuya (inicia recarga na rede) e desativa a saída AC da EcoFlow.
+   * Desativa a saída AC da EcoFlow. A Chave de Transferência Automática (ATS)
+   * detecta a queda do inversor e comuta instantaneamente as cargas de volta para a rede da concessionária.
    */
-  public static batteryLowRecharge(): DesiredDeviceAction {
-    return new DesiredDeviceAction("BATTERY_LOW_RECHARGE");
+  public static disableEcoFlowAc(): DesiredDeviceAction {
+    return new DesiredDeviceAction("DISABLE_ECOFLOW_AC");
   }
 
   /**
@@ -37,12 +39,21 @@ export class DesiredDeviceAction {
     return new DesiredDeviceAction("HOLD_CURRENT_STATE");
   }
 
+  // Compatibilidade com logs históricos
   public isBatteryHighDischarge(): boolean {
-    return this.actionName === "BATTERY_HIGH_DISCHARGE";
+    return this.actionName === "ENABLE_ECOFLOW_AC" || this.actionName === "BATTERY_HIGH_DISCHARGE";
   }
 
   public isBatteryLowRecharge(): boolean {
-    return this.actionName === "BATTERY_LOW_RECHARGE";
+    return this.actionName === "DISABLE_ECOFLOW_AC" || this.actionName === "BATTERY_LOW_RECHARGE";
+  }
+
+  public isEnableEcoFlowAc(): boolean {
+    return this.actionName === "ENABLE_ECOFLOW_AC" || this.actionName === "BATTERY_HIGH_DISCHARGE";
+  }
+
+  public isDisableEcoFlowAc(): boolean {
+    return this.actionName === "DISABLE_ECOFLOW_AC" || this.actionName === "BATTERY_LOW_RECHARGE";
   }
 
   public requiresAction(): boolean {

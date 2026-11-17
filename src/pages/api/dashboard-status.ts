@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../infrastructure/database/prismaClient";
 import { extractUserFromRequest } from "../../infrastructure/auth/sessionHelper";
+import { LiveTelemetryService } from "../../infrastructure/services/LiveTelemetryService";
 
 interface DashboardStatusResponse {
   success: boolean;
@@ -65,6 +66,9 @@ export default async function handleDashboardStatus(
   });
 
   try {
+    const liveService = new LiveTelemetryService(prisma);
+    await liveService.syncIfStale(extractedUserId, 2000);
+
     const configuration = await prisma.userConfiguration.findUnique({
       where: { userId: extractedUserId },
       include: {
@@ -96,10 +100,9 @@ export default async function handleDashboardStatus(
 
     const latestLog = configuration.syncExecutionLogs[0];
     const isConfigured = Boolean(
-      configuration.tuyaAccessId &&
-        configuration.tuyaAccessSecret &&
-        configuration.ecoflowAccessKey &&
-        configuration.ecoflowAccessSecret
+      configuration.ecoflowAccessKey &&
+        configuration.ecoflowAccessSecret &&
+        configuration.ecoflowSerialNumber
     );
 
     response.status(200).json({
@@ -125,21 +128,10 @@ export default async function handleDashboardStatus(
       },
     });
   } catch (error) {
-    console.warn("Aviso ao carregar status do dashboard:", error);
-    response.status(200).json({
-      success: true,
-      isAuthenticated: true,
-      data: {
-        isConfigured: false,
-        isAutomationActive: false,
-        turnOnThreshold: 90,
-        turnOffThreshold: 30,
-        lastBatteryPercentage: null,
-        lastSolarWatts: null,
-        lastAction: null,
-        lastSyncTime: null,
-        logs: [],
-      },
+    console.error("Erro ao obter status do dashboard:", error);
+    response.status(500).json({
+      success: false,
+      message: "Erro interno ao processar status do painel.",
     });
   }
 }
