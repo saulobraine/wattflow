@@ -299,7 +299,7 @@ export default function StatisticsPage() {
 
                 <div className="flex items-baseline gap-2">
                   <span className="text-4xl font-extrabold tracking-tight text-amber-300 font-mono">
-                    {data?.estimatedEnergyKwh ?? 0}
+                    {data?.estimatedEnergyKwh !== undefined ? data.estimatedEnergyKwh.toFixed(3) : "0.000"}
                   </span>
                   <span className="text-slate-400 font-medium text-sm">kWh</span>
                   <span className="text-xs font-mono text-slate-500 ml-1">
@@ -328,7 +328,7 @@ export default function StatisticsPage() {
 
                 <div className="flex items-baseline gap-2">
                   <span className="text-4xl font-extrabold tracking-tight text-sky-300 font-mono">
-                    {data?.estimatedConsumedKwh ?? 0}
+                    {data?.estimatedConsumedKwh !== undefined ? data.estimatedConsumedKwh.toFixed(3) : "0.000"}
                   </span>
                   <span className="text-slate-400 font-medium text-sm">kWh</span>
                   <span className="text-xs font-mono text-slate-500 ml-1">
@@ -371,9 +371,11 @@ export default function StatisticsPage() {
                       isPeriodNetPositive ? "text-emerald-400" : "text-amber-400"
                     }`}
                   >
-                    {(data?.netEnergyKwh ?? 0) > 0
-                      ? `+${data?.netEnergyKwh}`
-                      : data?.netEnergyKwh ?? 0}
+                    {data?.netEnergyKwh !== undefined
+                      ? data.netEnergyKwh > 0
+                        ? `+${data.netEnergyKwh.toFixed(3)}`
+                        : data.netEnergyKwh.toFixed(3)
+                      : "0.000"}
                   </span>
                   <span className="text-slate-400 font-medium text-sm">kWh</span>
                   <span className="text-xs font-mono text-slate-500 ml-1">

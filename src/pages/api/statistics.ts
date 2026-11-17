@@ -152,13 +152,13 @@ export default async function handleStatistics(
     const averageWatts = collection.calculateAverageWatts();
     const averageOutputWatts = collection.calculateAverageOutputWatts();
 
-    const estimatedWattHours = collection.calculateEstimatedEnergyWattHours(60);
+    const estimatedWattHours = collection.calculateAccumulatedEnergyWattHours(0.5);
     const estimatedKwh = Number((estimatedWattHours / 1000).toFixed(3));
 
-    const estimatedConsumedWattHours = collection.calculateEstimatedConsumedWattHours(60);
+    const estimatedConsumedWattHours = collection.calculateAccumulatedConsumedWattHours(0.5);
     const estimatedConsumedKwh = Number((estimatedConsumedWattHours / 1000).toFixed(3));
 
-    const netEnergyWattHours = collection.calculateNetEnergyWattHours(60);
+    const netEnergyWattHours = collection.calculateAccumulatedNetEnergyWattHours(0.5);
     const netEnergyKwh = Number((netEnergyWattHours / 1000).toFixed(3));
 
     // Agrupamento por baldes de 5 em 5 minutos nos últimos 30 minutos
