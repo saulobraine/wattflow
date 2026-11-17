@@ -60,7 +60,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchStatus();
-    const interval = setInterval(fetchStatus, 30000);
+    const interval = setInterval(fetchStatus, 2000);
     return () => clearInterval(interval);
   }, []);
 

@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../infrastructure/database/prismaClient";
 import { extractUserFromRequest } from "../../infrastructure/auth/sessionHelper";
+import { LiveTelemetryService } from "../../infrastructure/services/LiveTelemetryService";
 
 interface DashboardStatusResponse {
   success: boolean;
@@ -65,6 +66,9 @@ export default async function handleDashboardStatus(
   });
 
   try {
+    const liveService = new LiveTelemetryService(prisma);
+    await liveService.syncIfStale(extractedUserId, 2000);
+
     const configuration = await prisma.userConfiguration.findUnique({
       where: { userId: extractedUserId },
       include: {

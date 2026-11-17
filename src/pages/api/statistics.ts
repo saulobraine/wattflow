@@ -3,6 +3,7 @@ import { prisma } from "../../infrastructure/database/prismaClient";
 import { extractUserFromRequest } from "../../infrastructure/auth/sessionHelper";
 import { SolarGenerationWatts } from "../../domain/values/SolarGenerationWatts";
 import { SolarReadingCollection, SolarTelemetryPoint } from "../../domain/models/SolarReadingCollection";
+import { LiveTelemetryService } from "../../infrastructure/services/LiveTelemetryService";
 
 interface SolarChartPoint {
   time: string;
@@ -60,6 +61,9 @@ export default async function handleStatistics(
   });
 
   try {
+    const liveService = new LiveTelemetryService(prisma);
+    await liveService.syncIfStale(extractedUserId, 2000);
+
     const configuration = await prisma.userConfiguration.findUnique({
       where: { userId: extractedUserId },
       include: {

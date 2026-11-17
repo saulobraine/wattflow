@@ -60,7 +60,7 @@ export default function StatisticsPage() {
 
   useEffect(() => {
     fetchStatistics();
-    const interval = setInterval(fetchStatistics, 30000);
+    const interval = setInterval(fetchStatistics, 2000);
     return () => clearInterval(interval);
   }, []);
 

@@ -78,7 +78,7 @@ services:
       app:
         condition: service_healthy
     environment:
-      SYNC_INTERVAL_SECONDS: ${SYNC_INTERVAL_SECONDS:-60}
+      SYNC_INTERVAL_SECONDS: ${SYNC_INTERVAL_SECONDS:-2}
       CRON_SECRET_TOKEN: ${CRON_SECRET_TOKEN:-wattflow_secret_token_123}
     command:
       - /bin/sh
@@ -86,7 +86,7 @@ services:
       - |
         echo "=== [WattFlow Cron] Agendador automatico iniciado ==="
         while true; do
-          sleep $${SYNC_INTERVAL_SECONDS:-60}
+          sleep $${SYNC_INTERVAL_SECONDS:-2}
           echo "Disparando sincronizacao de energia..."
           wget -q -O - "http://app:3000/api/sync?token=$${CRON_SECRET_TOKEN}" || echo "Falha ao acionar rota /api/sync"
           echo ""
