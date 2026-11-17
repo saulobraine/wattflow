@@ -484,7 +484,7 @@ export default function StatisticsPage() {
                 </div>
 
                 {/* 10 Slots dinâmicos com as 3 séries (Solar, Consumo, Balanço Líquido) */}
-                <div className="relative h-full w-full flex items-end gap-1.5 sm:gap-3 z-10">
+                <div className="relative h-full w-full flex items-end justify-between gap-2 sm:gap-4 z-10">
                   {data.chartPoints.map((point, index) => {
                     const solarHeightPercentage = Math.min(
                       Math.max(Math.round((point.watts / scaleMaxWatts) * 100), point.watts > 0 ? 5 : 2),
@@ -507,7 +507,7 @@ export default function StatisticsPage() {
                         key={index}
                         onMouseEnter={() => setHoveredPoint(point)}
                         onMouseLeave={() => setHoveredPoint(null)}
-                        className="flex-1 min-w-0 max-w-[56px] sm:max-w-[68px] h-full flex flex-col items-center justify-end relative group cursor-pointer"
+                        className="flex-1 min-w-0 h-full flex flex-col items-center justify-end relative group cursor-pointer"
                       >
                         {/* Tooltip flutuante suave com auto-alinhamento nas pontas */}
                         <div
@@ -537,7 +537,7 @@ export default function StatisticsPage() {
                         </div>
 
                         {/* As 3 Séries lado a lado em cada um dos 10 pontos */}
-                        <div className="w-full h-full flex items-end justify-center gap-0.5">
+                        <div className="w-full h-full flex items-end justify-center gap-1 sm:gap-2 px-1">
                           {/* 1. Barra Geração Solar */}
                           <div
                             style={{ height: `${solarHeightPercentage}%` }}
