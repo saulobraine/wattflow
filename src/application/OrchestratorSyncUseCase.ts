@@ -116,21 +116,25 @@ export class OrchestratorSyncUseCase {
         numericSolarWatts = wattsNumber;
       });
 
-      const desiredAction = thresholdPair.evaluateBattery(batteryLevel);
-      const actionResult = await this.dispatchEcoFlowAcAction(
-        desiredAction,
-        ecoflowDevice,
-        ecoflowClient,
-        telemetry.isAcOutputEnabled,
-        numericBattery,
-        numericSolarWatts,
-        notificationConfig
-      );
+      const isAutomationEnabled = configurationRecord.isAutomationActive;
+      let actionResult = "Automação pausada: telemetria registrada sem alteração da saída AC.";
+      let actionName = "MONITORAMENTO";
 
-      let actionName = "";
-      desiredAction.transferActionName((nameString: string) => {
-        actionName = nameString;
-      });
+      if (isAutomationEnabled) {
+        const desiredAction = thresholdPair.evaluateBattery(batteryLevel);
+        actionResult = await this.dispatchEcoFlowAcAction(
+          desiredAction,
+          ecoflowDevice,
+          ecoflowClient,
+          telemetry.isAcOutputEnabled,
+          numericBattery,
+          numericSolarWatts,
+          notificationConfig
+        );
+        desiredAction.transferActionName((nameString: string) => {
+          actionName = nameString;
+        });
+      }
 
       await this.repository.recordExecutionLog(
         databaseRecordId,

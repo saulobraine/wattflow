@@ -14,6 +14,7 @@ import {
   Sun,
   ArrowLeftRight,
   Inbox,
+  Activity,
 } from "lucide-react";
 
 interface SyncLogItem {
@@ -109,6 +110,14 @@ export default function DashboardPage() {
         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30 transition-all">
           <ArrowDownRight className="w-3 h-3 text-rose-400" aria-hidden="true" />
           ATS na Concessionária (Rede)
+        </span>
+      );
+    }
+    if (action === "MONITORAMENTO") {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 transition-all">
+          <Activity className="w-3 h-3 text-cyan-400" aria-hidden="true" />
+          Monitoramento (Telemetria)
         </span>
       );
     }

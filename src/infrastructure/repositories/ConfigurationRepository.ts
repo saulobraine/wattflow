@@ -14,6 +14,7 @@ import { NotificationConfig } from "../notifications/NotificationDispatcher";
 export interface RetrievedConfigurationRecord {
   databaseRecordId: string;
   ecoflowEndpointRegion: string;
+  isAutomationActive: boolean;
   notificationConfig: NotificationConfig;
   configuration: OrchestratorConfiguration;
 }
@@ -125,6 +126,7 @@ export class ConfigurationRepository {
     return {
       databaseRecordId: rawRecord.id,
       ecoflowEndpointRegion: rawRecord.ecoflowEndpointRegion,
+      isAutomationActive: rawRecord.isAutomationActive,
       notificationConfig: {
         telegramBotToken: rawRecord.telegramBotToken,
         telegramChatId: rawRecord.telegramChatId,

@@ -399,19 +399,32 @@ export class EcoFlowHttpClient {
     const candidateKeys = [
       "mppt.inWatts",
       "mppt.pvInWatts",
+      "mppt.solarInWatts",
+      "mppt.pv2InWatts",
+      "mppt.outWatts",
       "pd.pvInWatts",
+      "pd.chgPowerDc",
+      "pd.carWatts",
       "solarInWatts",
       "pvInWatts",
       "bmsMaster.inputWatts",
-      "inv.inputWatts",
     ];
 
     for (const key of candidateKeys) {
       const candidateValue = quotaData[key];
       const parsedNumber = this.parseNumericCandidate(candidateValue);
-      const isPositiveWatts = parsedNumber !== null && parsedNumber >= 0;
+      const isPositiveWatts = parsedNumber !== null && parsedNumber > 0;
       if (isPositiveWatts) {
         return Math.round(parsedNumber);
+      }
+    }
+
+    for (const key of candidateKeys) {
+      const candidateValue = quotaData[key];
+      const parsedNumber = this.parseNumericCandidate(candidateValue);
+      const isValidZero = parsedNumber !== null && parsedNumber === 0;
+      if (isValidZero) {
+        return 0;
       }
     }
 
