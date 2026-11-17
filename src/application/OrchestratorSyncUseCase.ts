@@ -13,6 +13,7 @@ export interface SyncExecutionResult {
   hasExecutedSuccessfully: boolean;
   batteryPercentage: number;
   solarWatts: number;
+  outputWatts: number;
   triggeredAction: string;
   detailMessage: string;
 }
@@ -105,6 +106,7 @@ export class OrchestratorSyncUseCase {
       const telemetry = await ecoflowClient.fetchDeviceTelemetry(ecoflowDevice);
       const batteryLevel = telemetry.batteryLevel;
       const solarWatts = telemetry.solarWatts;
+      const outputWatts = telemetry.outputWatts;
 
       let numericBattery = 0;
       batteryLevel.transferBatteryPercentage((percentageNumber: number) => {
@@ -141,13 +143,15 @@ export class OrchestratorSyncUseCase {
         numericBattery,
         actionName,
         actionResult,
-        numericSolarWatts
+        numericSolarWatts,
+        outputWatts
       );
 
       return {
         hasExecutedSuccessfully: true,
         batteryPercentage: numericBattery,
         solarWatts: numericSolarWatts,
+        outputWatts: outputWatts,
         triggeredAction: actionName,
         detailMessage: actionResult,
       };
@@ -160,6 +164,7 @@ export class OrchestratorSyncUseCase {
         0,
         "FALHA_SINCRONIZACAO",
         errorMessage,
+        0,
         0
       );
 
@@ -246,6 +251,7 @@ export class OrchestratorSyncUseCase {
       hasExecutedSuccessfully: false,
       batteryPercentage: 0,
       solarWatts: 0,
+      outputWatts: 0,
       triggeredAction: "INACTIVE_CONFIGURATION",
       detailMessage: "Nenhuma configuração ativa foi cadastrada no banco de dados.",
     };

@@ -13,6 +13,7 @@ interface EcoFlowQuotaResponseJson {
 export interface EcoFlowTelemetryResult {
   batteryLevel: BatteryLevel;
   solarWatts: SolarGenerationWatts;
+  outputWatts: number;
   isAcOutputEnabled: boolean | null;
 }
 
@@ -184,11 +185,13 @@ export class EcoFlowHttpClient {
   private assembleTelemetryResult(quotaData: Record<string, unknown>): EcoFlowTelemetryResult {
     const extractedPercentage = this.extractSocFromQuota(quotaData);
     const extractedSolarWatts = this.extractSolarWattsFromQuota(quotaData);
+    const extractedOutputWatts = this.extractOutputWattsFromQuota(quotaData);
     const extractedAcState = this.extractAcStateFromQuota(quotaData);
 
     return {
       batteryLevel: new BatteryLevel(extractedPercentage),
       solarWatts: new SolarGenerationWatts(extractedSolarWatts),
+      outputWatts: extractedOutputWatts,
       isAcOutputEnabled: extractedAcState,
     };
   }
@@ -408,6 +411,42 @@ export class EcoFlowHttpClient {
       "solarInWatts",
       "pvInWatts",
       "bmsMaster.inputWatts",
+    ];
+
+    for (const key of candidateKeys) {
+      const candidateValue = quotaData[key];
+      const parsedNumber = this.parseNumericCandidate(candidateValue);
+      const isPositiveWatts = parsedNumber !== null && parsedNumber > 0;
+      if (isPositiveWatts) {
+        return Math.round(parsedNumber);
+      }
+    }
+
+    for (const key of candidateKeys) {
+      const candidateValue = quotaData[key];
+      const parsedNumber = this.parseNumericCandidate(candidateValue);
+      const isValidZero = parsedNumber !== null && parsedNumber === 0;
+      if (isValidZero) {
+        return 0;
+      }
+    }
+
+    return 0;
+  }
+
+  private extractOutputWattsFromQuota(quotaData: Record<string, unknown>): number {
+    const candidateKeys = [
+      "pd.wattsOutSum",
+      "inv.outputWatts",
+      "inv.outWatts",
+      "pd.carWatts",
+      "pd.typec1Watts",
+      "pd.typec2Watts",
+      "pd.usb1Watts",
+      "pd.usb2Watts",
+      "bmsMaster.outputWatts",
+      "outputWatts",
+      "wattsOutSum",
     ];
 
     for (const key of candidateKeys) {

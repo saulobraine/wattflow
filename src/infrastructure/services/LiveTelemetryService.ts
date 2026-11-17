@@ -23,16 +23,15 @@ export class LiveTelemetryService {
     this.databaseClient = databaseClient;
   }
 
-  public async syncIfStale(userId: string, maxAgeMs = 2000): Promise<void> {
+  public async syncIfStale(userId: string, maxAgeMs = 2000): Promise<SyncExecutionResult | null> {
     const elapsed = Date.now() - lastSyncTimeMs;
     const isRecent = elapsed < maxAgeMs;
     if (isRecent) {
-      return;
+      return null;
     }
 
     if (inFlightSync) {
-      await inFlightSync;
-      return;
+      return await inFlightSync;
     }
 
     lastSyncTimeMs = Date.now();
@@ -45,7 +44,7 @@ export class LiveTelemetryService {
     });
 
     try {
-      await inFlightSync;
+      return await inFlightSync;
     } finally {
       inFlightSync = null;
     }

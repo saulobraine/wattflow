@@ -8,6 +8,8 @@ import { LiveTelemetryService } from "../../infrastructure/services/LiveTelemetr
 interface SolarChartPoint {
   time: string;
   watts: number;
+  outputWatts: number;
+  netWatts: number;
   battery: number;
 }
 
@@ -16,16 +18,24 @@ interface StatisticsResponseData {
   message?: string;
   data?: {
     currentWatts: number;
+    currentOutputWatts: number;
+    netWatts: number;
     peakWatts: number;
     averageWatts: number;
+    averageOutputWatts: number;
     estimatedEnergyWattHours: number;
     estimatedEnergyKwh: number;
+    estimatedConsumedWattHours: number;
+    estimatedConsumedKwh: number;
+    netEnergyWattHours: number;
+    netEnergyKwh: number;
     totalReadingsCount: number;
     chartPoints: SolarChartPoint[];
     recentLogs: Array<{
       id: string;
       batteryPercentage: number;
       solarInputWatts: number;
+      outputWatts: number;
       actionTriggered: string;
       executionDetails: string | null;
       executedAt: string;
@@ -69,7 +79,7 @@ export default async function handleStatistics(
       include: {
         syncExecutionLogs: {
           orderBy: { executedAt: "desc" },
-          take: 100,
+          take: 25,
         },
       },
     });
@@ -79,10 +89,17 @@ export default async function handleStatistics(
         success: true,
         data: {
           currentWatts: 0,
+          currentOutputWatts: 0,
+          netWatts: 0,
           peakWatts: 0,
           averageWatts: 0,
+          averageOutputWatts: 0,
           estimatedEnergyWattHours: 0,
           estimatedEnergyKwh: 0,
+          estimatedConsumedWattHours: 0,
+          estimatedConsumedKwh: 0,
+          netEnergyWattHours: 0,
+          netEnergyKwh: 0,
           totalReadingsCount: 0,
           chartPoints: [],
           recentLogs: [],
@@ -94,6 +111,7 @@ export default async function handleStatistics(
     const rawLogs = configuration.syncExecutionLogs;
     const telemetryPoints: SolarTelemetryPoint[] = rawLogs.map((log) => ({
       watts: new SolarGenerationWatts(log.solarInputWatts),
+      outputWatts: log.outputWatts ?? 0,
       batteryPercentage: log.batteryPercentage,
       timestamp: log.executedAt,
     }));
@@ -106,30 +124,47 @@ export default async function handleStatistics(
     });
 
     const averageWatts = collection.calculateAverageWatts();
+    const averageOutputWatts = collection.calculateAverageOutputWatts();
+
     // Considera intervalo padrão de 60 segundos entre amostras do cron
     const estimatedWattHours = collection.calculateEstimatedEnergyWattHours(60);
     const estimatedKwh = Number((estimatedWattHours / 1000).toFixed(3));
 
+    const estimatedConsumedWattHours = collection.calculateEstimatedConsumedWattHours(60);
+    const estimatedConsumedKwh = Number((estimatedConsumedWattHours / 1000).toFixed(3));
+
+    const netEnergyWattHours = collection.calculateNetEnergyWattHours(60);
+    const netEnergyKwh = Number((netEnergyWattHours / 1000).toFixed(3));
+
     const latestLog = rawLogs[0];
     const currentWatts = latestLog ? latestLog.solarInputWatts : 0;
+    const currentOutputWatts = latestLog ? (latestLog.outputWatts ?? 0) : 0;
+    const netWatts = currentWatts - currentOutputWatts;
 
-    // Converte os pontos para ordem cronológica (mais antigo para mais recente) para o gráfico
+    // Converte os pontos para ordem cronológica (mais antigo para mais recente) para o gráfico (25 pontos)
     const chartPoints: SolarChartPoint[] = [...rawLogs]
       .reverse()
-      .map((log) => ({
-        time: new Date(log.executedAt).toLocaleTimeString("pt-BR", {
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-        }),
-        watts: log.solarInputWatts,
-        battery: log.batteryPercentage,
-      }));
+      .map((log) => {
+        const generationWatts = log.solarInputWatts;
+        const consumptionWatts = log.outputWatts ?? 0;
+        return {
+          time: new Date(log.executedAt).toLocaleTimeString("pt-BR", {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          }),
+          watts: generationWatts,
+          outputWatts: consumptionWatts,
+          netWatts: generationWatts - consumptionWatts,
+          battery: log.batteryPercentage,
+        };
+      });
 
-    const recentLogs = rawLogs.slice(0, 20).map((log) => ({
+    const recentLogs = rawLogs.slice(0, 25).map((log) => ({
       id: log.id,
       batteryPercentage: log.batteryPercentage,
       solarInputWatts: log.solarInputWatts,
+      outputWatts: log.outputWatts ?? 0,
       actionTriggered: log.actionTriggered,
       executionDetails: log.executionDetails,
       executedAt: log.executedAt.toISOString(),
@@ -139,10 +174,17 @@ export default async function handleStatistics(
       success: true,
       data: {
         currentWatts,
+        currentOutputWatts,
+        netWatts,
         peakWatts: numericPeakWatts,
         averageWatts,
+        averageOutputWatts,
         estimatedEnergyWattHours: estimatedWattHours,
         estimatedEnergyKwh: estimatedKwh,
+        estimatedConsumedWattHours: estimatedConsumedWattHours,
+        estimatedConsumedKwh: estimatedConsumedKwh,
+        netEnergyWattHours: netEnergyWattHours,
+        netEnergyKwh: netEnergyKwh,
         totalReadingsCount: rawLogs.length,
         chartPoints,
         recentLogs,

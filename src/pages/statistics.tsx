@@ -4,6 +4,7 @@ import {
   Sun,
   Zap,
   TrendingUp,
+  TrendingDown,
   BatteryCharging,
   RefreshCw,
   Clock,
@@ -11,26 +12,39 @@ import {
   ArrowDownRight,
   BarChart3,
   Calendar,
+  Activity,
+  Gauge,
+  Scale,
 } from "lucide-react";
 
 interface SolarChartPoint {
   time: string;
   watts: number;
+  outputWatts: number;
+  netWatts: number;
   battery: number;
 }
 
 interface StatisticsData {
   currentWatts: number;
+  currentOutputWatts: number;
+  netWatts: number;
   peakWatts: number;
   averageWatts: number;
+  averageOutputWatts: number;
   estimatedEnergyWattHours: number;
   estimatedEnergyKwh: number;
+  estimatedConsumedWattHours: number;
+  estimatedConsumedKwh: number;
+  netEnergyWattHours: number;
+  netEnergyKwh: number;
   totalReadingsCount: number;
   chartPoints: SolarChartPoint[];
   recentLogs: Array<{
     id: string;
     batteryPercentage: number;
     solarInputWatts: number;
+    outputWatts: number;
     actionTriggered: string;
     executionDetails: string | null;
     executedAt: string;
@@ -69,10 +83,22 @@ export default function StatisticsPage() {
     fetchStatistics();
   };
 
-  const rawMaxWatts = Math.max(
+  const rawMaxGen = Math.max(
     ...(data?.chartPoints.map((point) => point.watts) || [0]),
+    data?.currentWatts ?? 0,
     0
   );
+  const rawMaxOut = Math.max(
+    ...(data?.chartPoints.map((point) => point.outputWatts) || [0]),
+    data?.currentOutputWatts ?? 0,
+    0
+  );
+  const rawMaxNet = Math.max(
+    ...(data?.chartPoints.map((point) => Math.abs(point.netWatts)) || [0]),
+    Math.abs(data?.netWatts ?? 0),
+    0
+  );
+  const rawMaxWatts = Math.max(rawMaxGen, rawMaxOut, rawMaxNet);
 
   const calculateScaleMax = (maxVal: number) => {
     if (maxVal <= 0) return 100;
@@ -90,8 +116,11 @@ export default function StatisticsPage() {
   const scaleMaxWatts = calculateScaleMax(rawMaxWatts);
   const scaleMidWatts = Math.round(scaleMaxWatts / 2);
 
+  const isInstantNetPositive = (data?.netWatts ?? 0) >= 0;
+  const isPeriodNetPositive = (data?.netEnergyKwh ?? 0) >= 0;
+
   return (
-    <Layout title="Estatísticas de Geração Solar">
+    <Layout title="Estatísticas de Geração e Consumo">
       <div className="space-y-8 max-w-6xl mx-auto">
         {/* Cabeçalho da Seção */}
         <div className="animate-card stagger-1 interactive-card flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/60 p-6 rounded-2xl border border-slate-800 backdrop-blur shadow-xl">
@@ -99,11 +128,11 @@ export default function StatisticsPage() {
             <div className="flex items-center gap-2">
               <Sun className="w-5 h-5 text-amber-400 animate-float" />
               <h2 className="text-xl font-bold text-slate-100">
-                Telemetria Solar EcoFlow (PV Input)
+                Balanço Energético EcoFlow (Últimas 25 Leituras)
               </h2>
             </div>
             <p className="text-sm text-slate-400">
-              Coleta contínua da entrada fotovoltaica conectada à estação e histórico de geração limpa.
+              Histórico em tempo real comparando geração fotovoltaica, consumo e saldo líquido energético acumulado.
             </p>
           </div>
 
@@ -117,154 +146,308 @@ export default function StatisticsPage() {
           </button>
         </div>
 
-        {/* Métricas Principais (KPIs) com Animação Escalonada */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          {/* 1. Potência Solar Atual */}
-          <div className="animate-card stagger-2 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl relative overflow-hidden flex flex-col justify-between group">
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Sun className="w-4 h-4 text-amber-400 transition-transform group-hover:rotate-45 duration-300" />
-                  Geração Atual
-                </span>
-                <span
-                  className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold border transition-all ${
-                    (data?.currentWatts ?? 0) > 0
-                      ? "bg-amber-500/20 text-amber-300 border-amber-500/30 animate-pulse-glow"
-                      : "bg-slate-800 text-slate-400 border-slate-700"
-                  }`}
-                >
-                  {(data?.currentWatts ?? 0) > 0 ? "ATIVO" : "STANDBY"}
-                </span>
-              </div>
-
-              <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-extrabold tracking-tight text-slate-100 font-mono">
-                  {data?.currentWatts ?? 0}
-                </span>
-                <span className="text-slate-400 font-medium text-sm">W</span>
-              </div>
-            </div>
-
-            <p className="text-xs text-slate-400 mt-3 pt-2 border-t border-slate-800/80">
-              {(data?.currentWatts ?? 0) > 0
-                ? "Painéis fotovoltaicos gerando em tempo real."
-                : "Sem radiação direta captada no momento."}
-            </p>
+        {/* 1. Potência Instantânea em Tempo Real (3 Cards) */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-xs font-mono text-slate-400 uppercase tracking-wider">
+            <Activity className="w-3.5 h-3.5 text-amber-400" />
+            <span>Potência Instantânea (Ao Vivo)</span>
           </div>
 
-          {/* 2. Pico Máximo de Geração */}
-          <div className="animate-card stagger-3 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl flex flex-col justify-between group">
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <TrendingUp className="w-4 h-4 text-emerald-400 transition-transform group-hover:scale-110 duration-200" />
-                  Pico Solar
-                </span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
-                  MAX
-                </span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {/* Geração Solar Instantânea */}
+            <div className="animate-card stagger-2 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl relative overflow-hidden flex flex-col justify-between group">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Sun className="w-4 h-4 text-amber-400 transition-transform group-hover:rotate-45 duration-300" />
+                    Geração Solar
+                  </span>
+                  <span
+                    className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold border transition-all ${
+                      (data?.currentWatts ?? 0) > 0
+                        ? "bg-amber-500/20 text-amber-300 border-amber-500/30 animate-pulse-glow"
+                        : "bg-slate-800 text-slate-400 border-slate-700"
+                    }`}
+                  >
+                    {(data?.currentWatts ?? 0) > 0 ? "GERANDO" : "STANDBY"}
+                  </span>
+                </div>
+
+                <div className="flex items-baseline gap-2">
+                  <span className="text-4xl font-extrabold tracking-tight text-slate-100 font-mono">
+                    {data?.currentWatts ?? 0}
+                  </span>
+                  <span className="text-slate-400 font-medium text-sm">W</span>
+                </div>
               </div>
 
-              <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-extrabold tracking-tight text-emerald-400 font-mono">
-                  {data?.peakWatts ?? 0}
-                </span>
-                <span className="text-slate-400 font-medium text-sm">W</span>
-              </div>
+              <p className="text-xs text-slate-400 mt-3 pt-2 border-t border-slate-800/80">
+                {(data?.currentWatts ?? 0) > 0
+                  ? "Entrada solar fotovoltaica captando energia ao vivo."
+                  : "Sem radiação solar direta no momento."}
+              </p>
             </div>
 
-            <p className="text-xs text-slate-400 mt-3 pt-2 border-t border-slate-800/80">
-              Maior potência solar captada entre as amostras.
-            </p>
-          </div>
+            {/* Consumo Instantâneo */}
+            <div className="animate-card stagger-3 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl relative overflow-hidden flex flex-col justify-between group">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Zap className="w-4 h-4 text-sky-400 transition-transform group-hover:scale-110 duration-200" />
+                    Consumo em Tempo Real
+                  </span>
+                  <span
+                    className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold border transition-all ${
+                      (data?.currentOutputWatts ?? 0) > 0
+                        ? "bg-sky-500/20 text-sky-300 border-sky-500/30"
+                        : "bg-slate-800 text-slate-400 border-slate-700"
+                    }`}
+                  >
+                    {(data?.currentOutputWatts ?? 0) > 0 ? "EM CARGA" : "SEM CARGA"}
+                  </span>
+                </div>
 
-          {/* 3. Média de Geração Solar */}
-          <div className="animate-card stagger-4 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl flex flex-col justify-between group">
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Zap className="w-4 h-4 text-teal-400 transition-transform group-hover:scale-110 duration-200" />
-                  Média de Potência
-                </span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
-                  AVG
-                </span>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-4xl font-extrabold tracking-tight text-sky-300 font-mono">
+                    {data?.currentOutputWatts ?? 0}
+                  </span>
+                  <span className="text-slate-400 font-medium text-sm">W</span>
+                </div>
               </div>
 
-              <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-extrabold tracking-tight text-teal-300 font-mono">
-                  {data?.averageWatts ?? 0}
-                </span>
-                <span className="text-slate-400 font-medium text-sm">W</span>
-              </div>
+              <p className="text-xs text-slate-400 mt-3 pt-2 border-t border-slate-800/80">
+                Potência entregue pelas saídas AC e DC em tempo real.
+              </p>
             </div>
 
-            <p className="text-xs text-slate-400 mt-3 pt-2 border-t border-slate-800/80">
-              Média calculada sobre o histórico de telemetria.
-            </p>
-          </div>
+            {/* Balanço Instantâneo (Diferença) */}
+            <div className="animate-card stagger-4 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl relative overflow-hidden flex flex-col justify-between group">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    {isInstantNetPositive ? (
+                      <TrendingUp className="w-4 h-4 text-emerald-400 transition-transform group-hover:scale-110 duration-200" />
+                    ) : (
+                      <TrendingDown className="w-4 h-4 text-amber-400 transition-transform group-hover:scale-110 duration-200" />
+                    )}
+                    Balanço Instantâneo
+                  </span>
+                  <span
+                    className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold border transition-all ${
+                      (data?.netWatts ?? 0) > 0
+                        ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                        : (data?.netWatts ?? 0) < 0
+                        ? "bg-amber-500/20 text-amber-300 border-amber-500/30"
+                        : "bg-slate-800 text-slate-400 border-slate-700"
+                    }`}
+                  >
+                    {(data?.netWatts ?? 0) > 0
+                      ? "SUPERÁVIT"
+                      : (data?.netWatts ?? 0) < 0
+                      ? "DÉFICIT"
+                      : "EQUILÍBRIO"}
+                  </span>
+                </div>
 
-          {/* 4. Total Estimado de Energia */}
-          <div className="animate-card stagger-5 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl flex flex-col justify-between group">
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <BatteryCharging className="w-4 h-4 text-indigo-400 transition-transform group-hover:scale-110 duration-200" />
-                  Energia Estimada
-                </span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
-                  kWh
-                </span>
+                <div className="flex items-baseline gap-2">
+                  <span
+                    className={`text-4xl font-extrabold tracking-tight font-mono ${
+                      isInstantNetPositive ? "text-emerald-400" : "text-amber-400"
+                    }`}
+                  >
+                    {(data?.netWatts ?? 0) > 0
+                      ? `+${data?.netWatts}`
+                      : data?.netWatts ?? 0}
+                  </span>
+                  <span className="text-slate-400 font-medium text-sm">W</span>
+                </div>
               </div>
 
-              <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-extrabold tracking-tight text-indigo-300 font-mono">
-                  {data?.estimatedEnergyKwh ?? 0}
-                </span>
-                <span className="text-slate-400 font-medium text-sm">kWh</span>
-              </div>
+              <p className="text-xs text-slate-400 mt-3 pt-2 border-t border-slate-800/80">
+                {(data?.netWatts ?? 0) > 0
+                  ? "Geração supera o consumo. Bateria absorvendo excedente."
+                  : (data?.netWatts ?? 0) < 0
+                  ? "Consumo maior que geração solar. Bateria fornecendo energia."
+                  : "Geração e consumo em equilíbrio."}
+              </p>
             </div>
-
-            <p className="text-xs text-slate-400 mt-3 pt-2 border-t border-slate-800/80">
-              Total acumulado em {data?.totalReadingsCount ?? 0} ciclos de coleta.
-            </p>
           </div>
         </div>
 
-        {/* Gráfico da Curva de Potência Solar */}
+        {/* 2. Energia Acumulada do Período - 25 Leituras (3 Cards) */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-xs font-mono text-slate-400 uppercase tracking-wider">
+            <Scale className="w-3.5 h-3.5 text-indigo-400" />
+            <span>Gasto & Balanço Energético Acumulado (Últimas 25 Leituras)</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {/* Energia Solar Gerada */}
+            <div className="animate-card stagger-4 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl flex flex-col justify-between group">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Sun className="w-4 h-4 text-amber-400 transition-transform group-hover:scale-110 duration-200" />
+                    Energia Solar Gerada
+                  </span>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-amber-300 border border-slate-700">
+                    GERAÇÃO
+                  </span>
+                </div>
+
+                <div className="flex items-baseline gap-2">
+                  <span className="text-4xl font-extrabold tracking-tight text-amber-300 font-mono">
+                    {data?.estimatedEnergyKwh ?? 0}
+                  </span>
+                  <span className="text-slate-400 font-medium text-sm">kWh</span>
+                  <span className="text-xs font-mono text-slate-500 ml-1">
+                    ({data?.estimatedEnergyWattHours ?? 0} Wh)
+                  </span>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-400 mt-3 pt-2 border-t border-slate-800/80">
+                Energia limpa total gerada no período monitorado.
+              </p>
+            </div>
+
+            {/* Gasto Energético Acumulado (Energia Consumida) */}
+            <div className="animate-card stagger-5 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl flex flex-col justify-between group">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Zap className="w-4 h-4 text-sky-400 transition-transform group-hover:scale-110 duration-200" />
+                    Energia Consumida
+                  </span>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-sky-300 border border-slate-700">
+                    CONSUMO
+                  </span>
+                </div>
+
+                <div className="flex items-baseline gap-2">
+                  <span className="text-4xl font-extrabold tracking-tight text-sky-300 font-mono">
+                    {data?.estimatedConsumedKwh ?? 0}
+                  </span>
+                  <span className="text-slate-400 font-medium text-sm">kWh</span>
+                  <span className="text-xs font-mono text-slate-500 ml-1">
+                    ({data?.estimatedConsumedWattHours ?? 0} Wh)
+                  </span>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-400 mt-3 pt-2 border-t border-slate-800/80">
+                Gasto energético acumulado pelas saídas no período.
+              </p>
+            </div>
+
+            {/* Saldo Energético Líquido do Período */}
+            <div className="animate-card stagger-6 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl flex flex-col justify-between group">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    {isPeriodNetPositive ? (
+                      <TrendingUp className="w-4 h-4 text-emerald-400 transition-transform group-hover:scale-110 duration-200" />
+                    ) : (
+                      <TrendingDown className="w-4 h-4 text-amber-400 transition-transform group-hover:scale-110 duration-200" />
+                    )}
+                    Saldo Líquido do Período
+                  </span>
+                  <span
+                    className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold border ${
+                      isPeriodNetPositive
+                        ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                        : "bg-amber-500/20 text-amber-300 border-amber-500/30"
+                    }`}
+                  >
+                    {isPeriodNetPositive ? "SUPERÁVIT" : "DÉFICIT"}
+                  </span>
+                </div>
+
+                <div className="flex items-baseline gap-2">
+                  <span
+                    className={`text-4xl font-extrabold tracking-tight font-mono ${
+                      isPeriodNetPositive ? "text-emerald-400" : "text-amber-400"
+                    }`}
+                  >
+                    {(data?.netEnergyKwh ?? 0) > 0
+                      ? `+${data?.netEnergyKwh}`
+                      : data?.netEnergyKwh ?? 0}
+                  </span>
+                  <span className="text-slate-400 font-medium text-sm">kWh</span>
+                  <span className="text-xs font-mono text-slate-500 ml-1">
+                    ({(data?.netEnergyWattHours ?? 0) > 0 ? `+${data?.netEnergyWattHours}` : data?.netEnergyWattHours ?? 0} Wh)
+                  </span>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-400 mt-3 pt-2 border-t border-slate-800/80">
+                {isPeriodNetPositive
+                  ? "Balanço positivo: a residência gerou mais energia do que consumiu."
+                  : "Balanço deficitário: o consumo superou a captação solar no período."}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* 3. Gráfico das 25 Leituras com as 3 Séries */}
         <section
-          aria-label="Gráfico de Curva de Geração Solar Recente"
+          aria-label="Gráfico das 25 Leituras de Telemetria com 3 Séries"
           className="animate-card stagger-5 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4"
         >
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <BarChart3 className="w-5 h-5 text-amber-400" aria-hidden="true" />
-              <h3 className="font-bold text-slate-100">Curva de Geração Solar Recente</h3>
+              <h3 className="font-bold text-slate-100">
+                Histórico das Últimas 25 Leituras (Geração vs Consumo vs Balanço Líquido)
+              </h3>
             </div>
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-slate-400 font-mono">
-                Escala máx: <strong className="text-amber-400 font-semibold">{scaleMaxWatts} W</strong>
+            
+            {/* Legenda visual com as 3 séries */}
+            <div className="flex flex-wrap items-center gap-4 text-xs font-mono">
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-sm bg-gradient-to-t from-amber-600 to-amber-300 shadow-sm shadow-amber-500/30" />
+                <span className="text-slate-300">Geração Solar</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-sm bg-gradient-to-t from-sky-600 to-sky-300 shadow-sm shadow-sky-500/30" />
+                <span className="text-slate-300">Consumo</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-sm bg-gradient-to-t from-emerald-600 to-emerald-400 shadow-sm shadow-emerald-500/30" />
+                <span className="text-slate-300">Balanço Líquido</span>
+              </div>
+              <span className="text-slate-500 font-mono">
+                Escala: <strong className="text-slate-200">{scaleMaxWatts} W</strong>
               </span>
             </div>
           </div>
 
           {!data?.chartPoints || data.chartPoints.length === 0 ? (
             <div className="py-16 text-center text-slate-500 text-sm">
-              Nenhuma leitura solar registrada ainda. Aguardando ciclos de coleta do Cron.
+              Nenhuma leitura registrada ainda. Aguardando ciclos de coleta da EcoFlow.
             </div>
           ) : (
             <div className="space-y-3">
-              {/* Barra de Inspeção Ativa de Telemetria (sempre visível ao passar o mouse) */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono bg-slate-950/70 border border-slate-800/90 px-3.5 py-2 rounded-xl text-slate-300">
-                <div className="flex items-center gap-2">
+              {/* Barra de Inspeção Ativa de Telemetria */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono bg-slate-950/70 border border-slate-800/90 px-3.5 py-2.5 rounded-xl text-slate-300">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="text-slate-400">Ponto Selecionado:</span>
                   {hoveredPoint ? (
-                    <span className="flex items-center gap-2">
-                      <span className="text-amber-400 font-bold">{hoveredPoint.watts} W</span>
-                      <span className="text-slate-500">•</span>
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="text-amber-400 font-bold">Geração: {hoveredPoint.watts}W</span>
+                      <span className="text-slate-600">•</span>
+                      <span className="text-sky-300 font-bold">Consumo: {hoveredPoint.outputWatts}W</span>
+                      <span className="text-slate-600">•</span>
+                      <span
+                        className={`font-bold ${
+                          hoveredPoint.netWatts >= 0 ? "text-emerald-400" : "text-amber-400"
+                        }`}
+                      >
+                        Balanço: {hoveredPoint.netWatts > 0 ? `+${hoveredPoint.netWatts}` : hoveredPoint.netWatts}W
+                      </span>
+                      <span className="text-slate-600">•</span>
                       <span className="text-emerald-400 font-semibold">{hoveredPoint.battery}% Bat</span>
-                      <span className="text-slate-500">•</span>
+                      <span className="text-slate-600">•</span>
                       <span className="text-slate-300">{hoveredPoint.time}</span>
                     </span>
                   ) : (
@@ -272,12 +455,12 @@ export default function StatisticsPage() {
                   )}
                 </div>
                 <div className="text-slate-400">
-                  Pico no período: <strong className="text-amber-400 font-bold">{rawMaxWatts} W</strong>
+                  Total de Amostras: <strong className="text-slate-200 font-bold">{data.chartPoints.length}</strong>
                 </div>
               </div>
 
-              {/* Área do Gráfico - 100% da largura, zero overflow vertical e horizontal */}
-              <div className="relative h-56 w-full pt-8 pb-3 px-1">
+              {/* Área do Gráfico com 25 colunas e 3 barras em cada */}
+              <div className="relative h-64 w-full pt-8 pb-3 px-1">
                 {/* Linhas de Grade de Escala (Eixo Y com marcadores) */}
                 <div className="absolute inset-x-1 inset-y-0 pt-8 pb-3 pointer-events-none flex flex-col justify-between">
                   {/* Topo: Escala Máxima */}
@@ -300,13 +483,23 @@ export default function StatisticsPage() {
                   </div>
                 </div>
 
-                {/* Barras dinâmicas ocupando 100% do espaço disponível sem scrollbar */}
-                <div className="relative h-full w-full flex items-end gap-1 sm:gap-1.5 z-10">
+                {/* 25 Slots dinâmicos com as 3 séries (Solar, Consumo, Balanço Líquido) */}
+                <div className="relative h-full w-full flex items-end gap-1 sm:gap-2 z-10">
                   {data.chartPoints.map((point, index) => {
-                    const barHeightPercentage = Math.min(
+                    const solarHeightPercentage = Math.min(
                       Math.max(Math.round((point.watts / scaleMaxWatts) * 100), point.watts > 0 ? 5 : 2),
                       100
                     );
+                    const outputHeightPercentage = Math.min(
+                      Math.max(Math.round((point.outputWatts / scaleMaxWatts) * 100), point.outputWatts > 0 ? 5 : 2),
+                      100
+                    );
+                    const absNet = Math.abs(point.netWatts);
+                    const netHeightPercentage = Math.min(
+                      Math.max(Math.round((absNet / scaleMaxWatts) * 100), absNet > 0 ? 5 : 2),
+                      100
+                    );
+                    const isNetPositive = point.netWatts >= 0;
                     const isHovered = hoveredPoint === point;
 
                     return (
@@ -314,38 +507,77 @@ export default function StatisticsPage() {
                         key={index}
                         onMouseEnter={() => setHoveredPoint(point)}
                         onMouseLeave={() => setHoveredPoint(null)}
-                        className="flex-1 min-w-0 max-w-[32px] h-full flex flex-col items-center justify-end relative group cursor-pointer"
+                        className="flex-1 min-w-0 max-w-[42px] h-full flex flex-col items-center justify-end relative group cursor-pointer"
                       >
                         {/* Tooltip flutuante suave com auto-alinhamento nas pontas */}
                         <div
-                          className={`opacity-0 group-hover:opacity-100 transition-all duration-150 pointer-events-none absolute -top-10 z-30 bg-slate-950/95 border border-amber-500/40 text-slate-100 px-2.5 py-1 rounded-lg text-[11px] whitespace-nowrap shadow-2xl backdrop-blur-md flex items-center gap-1.5 ${
-                            index < 2
+                          className={`opacity-0 group-hover:opacity-100 transition-all duration-150 pointer-events-none absolute -top-12 z-30 bg-slate-950/95 border border-slate-700 text-slate-100 px-3 py-1.5 rounded-lg text-[11px] whitespace-nowrap shadow-2xl backdrop-blur-md flex items-center gap-2 ${
+                            index < 3
                               ? "left-0"
-                              : index > data.chartPoints.length - 3
+                              : index > data.chartPoints.length - 4
                               ? "right-0"
                               : "left-1/2 -translate-x-1/2"
                           }`}
                         >
-                          <span className="font-bold text-amber-400 font-mono">{point.watts} W</span>
-                          <span className="text-slate-500">•</span>
+                          <span className="font-bold text-amber-400 font-mono">Sol: {point.watts}W</span>
+                          <span className="text-slate-600">•</span>
+                          <span className="font-bold text-sky-300 font-mono">Uso: {point.outputWatts}W</span>
+                          <span className="text-slate-600">•</span>
+                          <span
+                            className={`font-bold font-mono ${
+                              isNetPositive ? "text-emerald-400" : "text-amber-400"
+                            }`}
+                          >
+                            Bal: {point.netWatts > 0 ? `+${point.netWatts}` : point.netWatts}W
+                          </span>
+                          <span className="text-slate-600">•</span>
                           <span className="text-emerald-400 font-mono">{point.battery}%</span>
-                          <span className="text-slate-500">•</span>
+                          <span className="text-slate-600">•</span>
                           <span className="text-slate-300 font-mono text-[10px]">{point.time}</span>
                         </div>
 
-                        {/* Barra de Watts Solar com Transição Fluida */}
-                        <div
-                          style={{ height: `${barHeightPercentage}%` }}
-                          className={`w-full rounded-t transition-all duration-300 origin-bottom ${
-                            point.watts > 0
-                              ? isHovered
-                                ? "bg-gradient-to-t from-amber-500 to-amber-300 shadow-lg shadow-amber-500/30 brightness-110"
-                                : "bg-gradient-to-t from-amber-600/80 to-amber-400/90 group-hover:brightness-110"
-                              : isHovered
-                              ? "bg-slate-700/80"
-                              : "bg-slate-800/50 group-hover:bg-slate-700/60"
-                          }`}
-                        />
+                        {/* As 3 Séries lado a lado em cada um dos 25 pontos */}
+                        <div className="w-full h-full flex items-end justify-center gap-0.5">
+                          {/* 1. Barra Geração Solar */}
+                          <div
+                            style={{ height: `${solarHeightPercentage}%` }}
+                            className={`flex-1 rounded-t transition-all duration-300 origin-bottom ${
+                              point.watts > 0
+                                ? isHovered
+                                  ? "bg-gradient-to-t from-amber-500 to-amber-300 shadow-md shadow-amber-500/30 brightness-110"
+                                  : "bg-gradient-to-t from-amber-600/85 to-amber-400/90 group-hover:brightness-110"
+                                : isHovered
+                                ? "bg-slate-700/80"
+                                : "bg-slate-800/40 group-hover:bg-slate-700/60"
+                            }`}
+                          />
+                          {/* 2. Barra Consumo */}
+                          <div
+                            style={{ height: `${outputHeightPercentage}%` }}
+                            className={`flex-1 rounded-t transition-all duration-300 origin-bottom ${
+                              point.outputWatts > 0
+                                ? isHovered
+                                  ? "bg-gradient-to-t from-sky-500 to-sky-300 shadow-md shadow-sky-500/30 brightness-110"
+                                  : "bg-gradient-to-t from-sky-600/85 to-sky-400/90 group-hover:brightness-110"
+                                : isHovered
+                                ? "bg-slate-700/80"
+                                : "bg-slate-800/40 group-hover:bg-slate-700/60"
+                            }`}
+                          />
+                          {/* 3. Barra Balanço Líquido */}
+                          <div
+                            style={{ height: `${netHeightPercentage}%` }}
+                            className={`flex-1 rounded-t transition-all duration-300 origin-bottom ${
+                              isNetPositive
+                                ? isHovered
+                                  ? "bg-gradient-to-t from-emerald-500 to-emerald-300 shadow-md shadow-emerald-500/30 brightness-110"
+                                  : "bg-gradient-to-t from-emerald-600/85 to-emerald-400/90 group-hover:brightness-110"
+                                : isHovered
+                                ? "bg-gradient-to-t from-amber-600 to-amber-400 shadow-md shadow-amber-500/30 brightness-110"
+                                : "bg-gradient-to-t from-amber-700/85 to-amber-500/90 group-hover:brightness-110"
+                            }`}
+                          />
+                        </div>
                       </div>
                     );
                   })}
@@ -355,21 +587,26 @@ export default function StatisticsPage() {
               {/* Rótulos dos extremos de horário */}
               <div className="flex justify-between text-[11px] text-slate-500 font-mono px-1 pt-1">
                 <span>{data.chartPoints[0]?.time || "--"}</span>
-                <span>Últimas leituras coletadas</span>
+                <span className="text-slate-400 font-semibold">25 amostras mais recentes</span>
                 <span>{data.chartPoints[data.chartPoints.length - 1]?.time || "--"}</span>
               </div>
             </div>
           )}
         </section>
 
-        {/* Tabela de Telemetria Detalhada */}
+        {/* 4. Tabela com as 25 Leituras Detalhadas */}
         <section
           aria-label="Tabela de Amostras de Telemetria"
           className="animate-card stagger-6 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4"
         >
-          <div className="flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-emerald-400" aria-hidden="true" />
-            <h3 className="font-bold text-slate-100">Histórico de Amostras de Telemetria</h3>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-emerald-400" aria-hidden="true" />
+              <h3 className="font-bold text-slate-100">Últimas 25 Leituras Registradas</h3>
+            </div>
+            <span className="text-xs font-mono text-slate-400">
+              Exibindo {data?.recentLogs.length ?? 0} registros
+            </span>
           </div>
 
           {!data?.recentLogs || data.recentLogs.length === 0 ? (
@@ -383,6 +620,8 @@ export default function StatisticsPage() {
                   <tr>
                     <th scope="col" className="py-3 px-4">Horário</th>
                     <th scope="col" className="py-3 px-4">Entrada Solar (PV)</th>
+                    <th scope="col" className="py-3 px-4">Saída / Consumo</th>
+                    <th scope="col" className="py-3 px-4">Saldo Líquido</th>
                     <th scope="col" className="py-3 px-4">Bateria (SOC)</th>
                     <th scope="col" className="py-3 px-4">Decisão de Automação</th>
                     <th scope="col" className="py-3 px-4">Status dos Dispositivos</th>
@@ -391,13 +630,16 @@ export default function StatisticsPage() {
                 <tbody className="divide-y divide-slate-800/60">
                   {data.recentLogs.map((log) => {
                     const hasSolar = log.solarInputWatts > 0;
+                    const hasOutput = (log.outputWatts ?? 0) > 0;
+                    const net = log.solarInputWatts - (log.outputWatts ?? 0);
+                    const isNetPositive = net >= 0;
 
                     return (
                       <tr key={log.id} className="hover:bg-slate-800/40 transition-colors duration-150">
-                        <td className="py-3 px-4 text-xs font-mono text-slate-400">
+                        <td className="py-3 px-4 text-xs font-mono text-slate-400 whitespace-nowrap">
                           {new Date(log.executedAt).toLocaleString("pt-BR")}
                         </td>
-                        <td className="py-3 px-4">
+                        <td className="py-3 px-4 whitespace-nowrap">
                           <span
                             className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-bold transition-all ${
                               hasSolar
@@ -409,10 +651,34 @@ export default function StatisticsPage() {
                             {log.solarInputWatts} W
                           </span>
                         </td>
-                        <td className="py-3 px-4 font-mono font-semibold">
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-bold transition-all ${
+                              hasOutput
+                                ? "bg-sky-500/15 text-sky-300 border border-sky-500/30"
+                                : "bg-slate-800 text-slate-400"
+                            }`}
+                          >
+                            <Zap className="w-3 h-3 text-sky-400" aria-hidden="true" />
+                            {log.outputWatts ?? 0} W
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-bold border transition-all ${
+                              isNetPositive
+                                ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
+                                : "bg-amber-500/15 text-amber-300 border-amber-500/30"
+                            }`}
+                          >
+                            {isNetPositive ? "+" : ""}
+                            {net} W
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 font-mono font-semibold whitespace-nowrap">
                           {log.batteryPercentage}%
                         </td>
-                        <td className="py-3 px-4 text-xs">
+                        <td className="py-3 px-4 text-xs whitespace-nowrap">
                           {log.actionTriggered === "BATTERY_HIGH_DISCHARGE" && (
                             <span className="text-emerald-400 font-semibold inline-flex items-center gap-1">
                               <ArrowUpRight className="w-3 h-3" aria-hidden="true" />

@@ -92,13 +92,15 @@ export class ConfigurationRepository {
     batteryPercentage: number,
     actionTriggered: string,
     executionDetails: string,
-    solarInputWatts = 0
+    solarInputWatts = 0,
+    outputWatts = 0
   ): Promise<void> {
     await this.databaseClient.syncExecutionLog.create({
       data: {
         userConfigurationId: configurationId,
         batteryPercentage: batteryPercentage,
         solarInputWatts: solarInputWatts,
+        outputWatts: outputWatts,
         actionTriggered: actionTriggered,
         executionDetails: executionDetails,
       },

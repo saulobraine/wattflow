@@ -71,6 +71,7 @@ model SyncExecutionLog {
   userConfigurationId String
   batteryPercentage   Int
   solarInputWatts     Int               @default(0)
+  outputWatts         Int               @default(0)
   actionTriggered     String
   executionDetails    String?
   executedAt          DateTime          @default(now())

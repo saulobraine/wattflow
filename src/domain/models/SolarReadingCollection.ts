@@ -2,6 +2,7 @@ import { SolarGenerationWatts } from "../values/SolarGenerationWatts";
 
 export interface SolarTelemetryPoint {
   watts: SolarGenerationWatts;
+  outputWatts?: number;
   batteryPercentage: number;
   timestamp: Date;
 }
@@ -60,6 +61,36 @@ export class SolarReadingCollection {
 
     const hoursPerInterval = intervalSeconds / 3600;
     return Math.round(sumWatts * hoursPerInterval);
+  }
+
+  public calculateAverageOutputWatts(): number {
+    const totalCount = this.readings.length;
+    if (totalCount === 0) {
+      return 0;
+    }
+
+    let sum = 0;
+    for (const point of this.readings) {
+      sum += point.outputWatts ?? 0;
+    }
+
+    return Math.round(sum / totalCount);
+  }
+
+  public calculateEstimatedConsumedWattHours(intervalSeconds: number): number {
+    let sumWatts = 0;
+    for (const point of this.readings) {
+      sumWatts += point.outputWatts ?? 0;
+    }
+
+    const hoursPerInterval = intervalSeconds / 3600;
+    return Math.round(sumWatts * hoursPerInterval);
+  }
+
+  public calculateNetEnergyWattHours(intervalSeconds: number): number {
+    const generated = this.calculateEstimatedEnergyWattHours(intervalSeconds);
+    const consumed = this.calculateEstimatedConsumedWattHours(intervalSeconds);
+    return generated - consumed;
   }
 
   public transferReadings(receiver: (items: SolarTelemetryPoint[]) => void): void {
