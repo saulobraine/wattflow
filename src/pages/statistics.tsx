@@ -396,24 +396,24 @@ export default function StatisticsPage() {
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-amber-400" aria-hidden="true" />
+              <Activity className="w-5 h-5 text-amber-400" aria-hidden="true" />
               <h3 className="font-bold text-slate-100">
-                Histórico das Últimas 10 Leituras (Geração vs Consumo vs Balanço Líquido)
+                Histórico das Últimas 10 Leituras (Gráfico de Linhas Contínuas)
               </h3>
             </div>
             
-            {/* Legenda visual com as 3 séries */}
+            {/* Legenda visual com as 3 séries em linhas horizontais */}
             <div className="flex flex-wrap items-center gap-4 text-xs font-mono">
               <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-sm bg-gradient-to-t from-amber-600 to-amber-300 shadow-sm shadow-amber-500/30" />
+                <span className="w-4 h-0.5 bg-amber-400 rounded-full shadow-sm shadow-amber-500/50" />
                 <span className="text-slate-300">Geração Solar</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-sm bg-gradient-to-t from-sky-600 to-sky-300 shadow-sm shadow-sky-500/30" />
+                <span className="w-4 h-0.5 bg-sky-400 rounded-full shadow-sm shadow-sky-500/50" />
                 <span className="text-slate-300">Consumo</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-sm bg-gradient-to-t from-emerald-600 to-emerald-400 shadow-sm shadow-emerald-500/30" />
+                <span className="w-4 h-0.5 bg-emerald-400 rounded-full shadow-sm shadow-emerald-500/50" />
                 <span className="text-slate-300">Balanço Líquido</span>
               </div>
               <span className="text-slate-500 font-mono">
@@ -451,7 +451,7 @@ export default function StatisticsPage() {
                       <span className="text-slate-300">{hoveredPoint.time}</span>
                     </span>
                   ) : (
-                    <span className="text-slate-500 italic">Passe o mouse sobre as barras para inspecionar</span>
+                    <span className="text-slate-500 italic">Passe o mouse sobre as linhas para inspecionar</span>
                   )}
                 </div>
                 <div className="text-slate-400">
@@ -459,135 +459,230 @@ export default function StatisticsPage() {
                 </div>
               </div>
 
-              {/* Área do Gráfico com 10 colunas e 3 barras em cada */}
-              <div className="relative h-64 w-full pt-8 pb-3 px-1">
-                {/* Linhas de Grade de Escala (Eixo Y com marcadores) */}
-                <div className="absolute inset-x-1 inset-y-0 pt-8 pb-3 pointer-events-none flex flex-col justify-between">
-                  {/* Topo: Escala Máxima */}
-                  <div className="w-full flex items-center justify-between border-b border-dashed border-slate-800/70">
-                    <span className="text-[10px] font-mono text-slate-500 select-none -translate-y-2">
-                      {scaleMaxWatts} W
-                    </span>
-                  </div>
-                  {/* Meio: 50% da Escala */}
-                  <div className="w-full flex items-center justify-between border-b border-dashed border-slate-800/40">
-                    <span className="text-[10px] font-mono text-slate-500 select-none -translate-y-2">
-                      {scaleMidWatts} W
-                    </span>
-                  </div>
-                  {/* Base: 0W */}
-                  <div className="w-full flex items-center justify-between border-b border-slate-800/90">
-                    <span className="text-[10px] font-mono text-slate-500 select-none -translate-y-2">
-                      0 W
-                    </span>
-                  </div>
-                </div>
+              {/* Área do Gráfico de Linhas Contínuas (SVG Vetorial 100% da Largura) */}
+              {(() => {
+                const points = data.chartPoints;
+                const pointCount = points.length;
+                const svgW = 1000;
+                const svgH = 220;
+                const padX = 25;
+                const padTop = 20;
+                const padBottom = 25;
+                const chartW = svgW - padX * 2;
+                const chartH = svgH - padTop - padBottom;
+                const yZero = svgH - padBottom;
 
-                {/* 10 Slots dinâmicos com as 3 séries (Solar, Consumo, Balanço Líquido) */}
-                <div className="relative h-full w-full flex items-end justify-between gap-2 sm:gap-4 z-10">
-                  {data.chartPoints.map((point, index) => {
-                    const solarHeightPercentage = Math.min(
-                      Math.max(Math.round((point.watts / scaleMaxWatts) * 100), point.watts > 0 ? 5 : 2),
-                      100
-                    );
-                    const outputHeightPercentage = Math.min(
-                      Math.max(Math.round((point.outputWatts / scaleMaxWatts) * 100), point.outputWatts > 0 ? 5 : 2),
-                      100
-                    );
-                    const absNet = Math.abs(point.netWatts);
-                    const netHeightPercentage = Math.min(
-                      Math.max(Math.round((absNet / scaleMaxWatts) * 100), absNet > 0 ? 5 : 2),
-                      100
-                    );
-                    const isNetPositive = point.netWatts >= 0;
-                    const isHovered = hoveredPoint === point;
+                const getX = (i: number) => padX + (pointCount > 1 ? (i / (pointCount - 1)) * chartW : chartW / 2);
+                const getY = (watts: number) => {
+                  const clamped = Math.max(0, Math.min(watts, scaleMaxWatts));
+                  return yZero - (clamped / scaleMaxWatts) * chartH;
+                };
 
-                    return (
-                      <div
-                        key={index}
-                        onMouseEnter={() => setHoveredPoint(point)}
-                        onMouseLeave={() => setHoveredPoint(null)}
-                        className="flex-1 min-w-0 h-full flex flex-col items-center justify-end relative group cursor-pointer"
-                      >
-                        {/* Tooltip flutuante suave com auto-alinhamento nas pontas */}
-                        <div
-                          className={`opacity-0 group-hover:opacity-100 transition-all duration-150 pointer-events-none absolute -top-12 z-30 bg-slate-950/95 border border-slate-700 text-slate-100 px-3 py-1.5 rounded-lg text-[11px] whitespace-nowrap shadow-2xl backdrop-blur-md flex items-center gap-2 ${
-                            index < 2
-                              ? "left-0"
-                              : index > data.chartPoints.length - 3
-                              ? "right-0"
-                              : "left-1/2 -translate-x-1/2"
-                          }`}
-                        >
-                          <span className="font-bold text-amber-400 font-mono">Sol: {point.watts}W</span>
-                          <span className="text-slate-600">•</span>
-                          <span className="font-bold text-sky-300 font-mono">Uso: {point.outputWatts}W</span>
-                          <span className="text-slate-600">•</span>
-                          <span
-                            className={`font-bold font-mono ${
-                              isNetPositive ? "text-emerald-400" : "text-amber-400"
-                            }`}
-                          >
-                            Bal: {point.netWatts > 0 ? `+${point.netWatts}` : point.netWatts}W
-                          </span>
-                          <span className="text-slate-600">•</span>
-                          <span className="text-emerald-400 font-mono">{point.battery}%</span>
-                          <span className="text-slate-600">•</span>
-                          <span className="text-slate-300 font-mono text-[10px]">{point.time}</span>
-                        </div>
+                const solarPath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${getX(i).toFixed(1)} ${getY(p.watts).toFixed(1)}`).join(" ");
+                const solarArea = points.length > 0
+                  ? `${solarPath} L ${getX(pointCount - 1).toFixed(1)} ${yZero} L ${getX(0).toFixed(1)} ${yZero} Z`
+                  : "";
 
-                        {/* As 3 Séries lado a lado em cada um dos 10 pontos */}
-                        <div className="w-full h-full flex items-end justify-center gap-1 sm:gap-2 px-1">
-                          {/* 1. Barra Geração Solar */}
-                          <div
-                            style={{ height: `${solarHeightPercentage}%` }}
-                            className={`flex-1 rounded-t transition-all duration-300 origin-bottom ${
-                              point.watts > 0
-                                ? isHovered
-                                  ? "bg-gradient-to-t from-amber-500 to-amber-300 shadow-md shadow-amber-500/30 brightness-110"
-                                  : "bg-gradient-to-t from-amber-600/85 to-amber-400/90 group-hover:brightness-110"
-                                : isHovered
-                                ? "bg-slate-700/80"
-                                : "bg-slate-800/40 group-hover:bg-slate-700/60"
-                            }`}
-                          />
-                          {/* 2. Barra Consumo */}
-                          <div
-                            style={{ height: `${outputHeightPercentage}%` }}
-                            className={`flex-1 rounded-t transition-all duration-300 origin-bottom ${
-                              point.outputWatts > 0
-                                ? isHovered
-                                  ? "bg-gradient-to-t from-sky-500 to-sky-300 shadow-md shadow-sky-500/30 brightness-110"
-                                  : "bg-gradient-to-t from-sky-600/85 to-sky-400/90 group-hover:brightness-110"
-                                : isHovered
-                                ? "bg-slate-700/80"
-                                : "bg-slate-800/40 group-hover:bg-slate-700/60"
-                            }`}
-                          />
-                          {/* 3. Barra Balanço Líquido */}
-                          <div
-                            style={{ height: `${netHeightPercentage}%` }}
-                            className={`flex-1 rounded-t transition-all duration-300 origin-bottom ${
-                              isNetPositive
-                                ? isHovered
-                                  ? "bg-gradient-to-t from-emerald-500 to-emerald-300 shadow-md shadow-emerald-500/30 brightness-110"
-                                  : "bg-gradient-to-t from-emerald-600/85 to-emerald-400/90 group-hover:brightness-110"
-                                : isHovered
-                                ? "bg-gradient-to-t from-amber-600 to-amber-400 shadow-md shadow-amber-500/30 brightness-110"
-                                : "bg-gradient-to-t from-amber-700/85 to-amber-500/90 group-hover:brightness-110"
-                            }`}
-                          />
-                        </div>
+                const outputPath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${getX(i).toFixed(1)} ${getY(p.outputWatts).toFixed(1)}`).join(" ");
+                const outputArea = points.length > 0
+                  ? `${outputPath} L ${getX(pointCount - 1).toFixed(1)} ${yZero} L ${getX(0).toFixed(1)} ${yZero} Z`
+                  : "";
+
+                const netPath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${getX(i).toFixed(1)} ${getY(Math.max(0, p.netWatts)).toFixed(1)}`).join(" ");
+                const netArea = points.length > 0
+                  ? `${netPath} L ${getX(pointCount - 1).toFixed(1)} ${yZero} L ${getX(0).toFixed(1)} ${yZero} Z`
+                  : "";
+
+                return (
+                  <div className="relative h-64 w-full pt-6 pb-2 px-1">
+                    {/* Linhas de Grade de Escala (Eixo Y com marcadores) */}
+                    <div className="absolute inset-x-1 inset-y-0 pt-6 pb-6 pointer-events-none flex flex-col justify-between z-0">
+                      {/* Topo: Escala Máxima */}
+                      <div className="w-full flex items-center justify-between border-b border-dashed border-slate-800/70">
+                        <span className="text-[10px] font-mono text-slate-500 select-none -translate-y-2">
+                          {scaleMaxWatts} W
+                        </span>
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
+                      {/* Meio: 50% da Escala */}
+                      <div className="w-full flex items-center justify-between border-b border-dashed border-slate-800/40">
+                        <span className="text-[10px] font-mono text-slate-500 select-none -translate-y-2">
+                          {scaleMidWatts} W
+                        </span>
+                      </div>
+                      {/* Base: 0W */}
+                      <div className="w-full flex items-center justify-between border-b border-slate-800/90">
+                        <span className="text-[10px] font-mono text-slate-500 select-none -translate-y-2">
+                          0 W
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Canvas Vetorial em SVG ocupando 100% da largura do card */}
+                    <svg
+                      viewBox={`0 0 ${svgW} ${svgH}`}
+                      preserveAspectRatio="none"
+                      className="w-full h-full relative z-10 overflow-visible"
+                    >
+                      <defs>
+                        <linearGradient id="solarLineGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.30" />
+                          <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.0" />
+                        </linearGradient>
+                        <linearGradient id="outputLineGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.22" />
+                          <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.0" />
+                        </linearGradient>
+                        <linearGradient id="netLineGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#10b981" stopOpacity="0.18" />
+                          <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
+                        </linearGradient>
+                      </defs>
+
+                      {/* Áreas sombreadas sob as curvas */}
+                      <path d={solarArea} fill="url(#solarLineGrad)" />
+                      <path d={outputArea} fill="url(#outputLineGrad)" />
+                      <path d={netArea} fill="url(#netLineGrad)" />
+
+                      {/* Linha vertical tracejada do ponto selecionado via hover */}
+                      {hoveredPoint && (
+                        <line
+                          x1={getX(points.indexOf(hoveredPoint))}
+                          y1={padTop}
+                          x2={getX(points.indexOf(hoveredPoint))}
+                          y2={yZero}
+                          stroke="#64748b"
+                          strokeWidth="1.5"
+                          strokeDasharray="4 4"
+                          vectorEffect="non-scaling-stroke"
+                        />
+                      )}
+
+                      {/* Linha 1: Geração Solar (Âmbar) */}
+                      <path
+                        d={solarPath}
+                        fill="none"
+                        stroke="#f59e0b"
+                        strokeWidth="2.5"
+                        vectorEffect="non-scaling-stroke"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+
+                      {/* Linha 2: Consumo / Saída (Azul Claro) */}
+                      <path
+                        d={outputPath}
+                        fill="none"
+                        stroke="#38bdf8"
+                        strokeWidth="2.5"
+                        vectorEffect="non-scaling-stroke"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+
+                      {/* Linha 3: Balanço Líquido (Verde Esmeralda) */}
+                      <path
+                        d={netPath}
+                        fill="none"
+                        stroke="#10b981"
+                        strokeWidth="2"
+                        strokeDasharray="5 3"
+                        vectorEffect="non-scaling-stroke"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+
+                      {/* Marcadores circulares em cada ponto */}
+                      {points.map((point, i) => {
+                        const isHovered = hoveredPoint === point;
+                        const x = getX(i);
+                        const ySol = getY(point.watts);
+                        const yOut = getY(point.outputWatts);
+                        const yNet = getY(Math.max(0, point.netWatts));
+
+                        return (
+                          <g key={i}>
+                            <circle
+                              cx={x}
+                              cy={ySol}
+                              r={isHovered ? 5.5 : 3.5}
+                              fill="#f59e0b"
+                              stroke="#0f172a"
+                              strokeWidth="1.5"
+                              vectorEffect="non-scaling-stroke"
+                            />
+                            <circle
+                              cx={x}
+                              cy={yOut}
+                              r={isHovered ? 5.5 : 3.5}
+                              fill="#38bdf8"
+                              stroke="#0f172a"
+                              strokeWidth="1.5"
+                              vectorEffect="non-scaling-stroke"
+                            />
+                            <circle
+                              cx={x}
+                              cy={yNet}
+                              r={isHovered ? 4.5 : 2.5}
+                              fill="#10b981"
+                              stroke="#0f172a"
+                              strokeWidth="1.5"
+                              vectorEffect="non-scaling-stroke"
+                            />
+                          </g>
+                        );
+                      })}
+                    </svg>
+
+                    {/* Fatias transparentes para captura de hover e exibição de tooltip */}
+                    <div className="absolute inset-0 pt-6 pb-6 px-1 flex items-stretch justify-between z-20">
+                      {points.map((point, index) => {
+                        const isNetPositive = point.netWatts >= 0;
+
+                        return (
+                          <div
+                            key={index}
+                            onMouseEnter={() => setHoveredPoint(point)}
+                            onMouseLeave={() => setHoveredPoint(null)}
+                            className="flex-1 h-full relative cursor-pointer group flex items-start justify-center"
+                          >
+                            {/* Tooltip flutuante suave com auto-alinhamento nas pontas */}
+                            <div
+                              className={`opacity-0 group-hover:opacity-100 transition-all duration-150 pointer-events-none absolute -top-10 z-30 bg-slate-950/95 border border-slate-700 text-slate-100 px-3 py-1.5 rounded-lg text-[11px] whitespace-nowrap shadow-2xl backdrop-blur-md flex items-center gap-2 ${
+                                index < 2
+                                  ? "left-0"
+                                  : index > pointCount - 3
+                                  ? "right-0"
+                                  : "left-1/2 -translate-x-1/2"
+                              }`}
+                            >
+                              <span className="font-bold text-amber-400 font-mono">Sol: {point.watts}W</span>
+                              <span className="text-slate-600">•</span>
+                              <span className="font-bold text-sky-300 font-mono">Uso: {point.outputWatts}W</span>
+                              <span className="text-slate-600">•</span>
+                              <span
+                                className={`font-bold font-mono ${
+                                  isNetPositive ? "text-emerald-400" : "text-amber-400"
+                                }`}
+                              >
+                                Bal: {point.netWatts > 0 ? `+${point.netWatts}` : point.netWatts}W
+                              </span>
+                              <span className="text-slate-600">•</span>
+                              <span className="text-emerald-400 font-mono">{point.battery}%</span>
+                              <span className="text-slate-600">•</span>
+                              <span className="text-slate-300 font-mono text-[10px]">{point.time}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Rótulos dos extremos de horário */}
               <div className="flex justify-between text-[11px] text-slate-500 font-mono px-1 pt-1">
                 <span>{data.chartPoints[0]?.time || "--"}</span>
-                <span className="text-slate-400 font-semibold">10 amostras mais recentes</span>
+                <span className="text-slate-400 font-semibold">10 amostras contínuas no tempo</span>
                 <span>{data.chartPoints[data.chartPoints.length - 1]?.time || "--"}</span>
               </div>
             </div>
