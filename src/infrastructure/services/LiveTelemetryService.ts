@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { ConfigurationRepository } from "../repositories/ConfigurationRepository";
 import { OrchestratorSyncUseCase, SyncExecutionResult } from "../../application/OrchestratorSyncUseCase";
+import { EcoFlowMqttStreamService } from "./EcoFlowMqttStreamService";
 
 let lastSyncTimeMs = 0;
 let inFlightSync: Promise<SyncExecutionResult | null> | null = null;
@@ -24,6 +25,14 @@ export class LiveTelemetryService {
   }
 
   public async syncIfStale(userId: string, maxAgeMs = 2000): Promise<SyncExecutionResult | null> {
+    const streamService = EcoFlowMqttStreamService.getInstance();
+    const isStreamDisconnected = !streamService.isStreamConnected();
+    if (isStreamDisconnected) {
+      streamService.startWithActiveConfiguration(this.databaseClient).catch((streamError) => {
+        console.warn("[LiveTelemetryService] Tentativa de inicialização do stream MQTT:", streamError);
+      });
+    }
+
     const elapsed = Date.now() - lastSyncTimeMs;
     const isRecent = elapsed < maxAgeMs;
     if (isRecent) {
