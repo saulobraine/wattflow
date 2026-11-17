@@ -130,11 +130,11 @@ export default function StatisticsPage() {
             <div className="flex items-center gap-2">
               <Sun className="w-5 h-5 text-amber-400 animate-float" />
               <h2 className="text-xl font-bold text-slate-100">
-                Balanço Energético EcoFlow (Últimas 10 Leituras)
+                Balanço Energético EcoFlow (Últimos 30 Minutos)
               </h2>
             </div>
             <p className="text-sm text-slate-400">
-              Histórico em tempo real comparando geração fotovoltaica, consumo e saldo líquido energético acumulado.
+              Histórico dos últimos 30 minutos agrupados pela média de 5 em 5 minutos, comparando geração fotovoltaica, consumo e saldo líquido.
             </p>
           </div>
 
@@ -276,11 +276,11 @@ export default function StatisticsPage() {
           </div>
         </div>
 
-        {/* 2. Energia Acumulada do Período - 10 Leituras (3 Cards) */}
+        {/* 2. Energia Acumulada do Período - Últimos 30 Minutos (3 Cards) */}
         <div className="space-y-3">
           <div className="flex items-center gap-2 text-xs font-mono text-slate-400 uppercase tracking-wider">
             <Scale className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Gasto & Balanço Energético Acumulado (Últimas 10 Leituras)</span>
+            <span>Gasto & Balanço Energético Acumulado (Últimos 30 Minutos)</span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -309,7 +309,7 @@ export default function StatisticsPage() {
               </div>
 
               <p className="text-xs text-slate-400 mt-3 pt-2 border-t border-slate-800/80">
-                Energia limpa total gerada no período monitorado.
+                Energia solar limpa captada nos últimos 30 minutos.
               </p>
             </div>
 
@@ -338,7 +338,7 @@ export default function StatisticsPage() {
               </div>
 
               <p className="text-xs text-slate-400 mt-3 pt-2 border-t border-slate-800/80">
-                Gasto energético acumulado pelas saídas no período.
+                Gasto energético total das cargas nos últimos 30 minutos.
               </p>
             </div>
 
@@ -352,7 +352,7 @@ export default function StatisticsPage() {
                     ) : (
                       <TrendingDown className="w-4 h-4 text-amber-400 transition-transform group-hover:scale-110 duration-200" />
                     )}
-                    Saldo Líquido do Período
+                    Saldo Líquido (30 min)
                   </span>
                   <span
                     className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold border ${
@@ -384,23 +384,23 @@ export default function StatisticsPage() {
 
               <p className="text-xs text-slate-400 mt-3 pt-2 border-t border-slate-800/80">
                 {isPeriodNetPositive
-                  ? "Balanço positivo: a residência gerou mais energia do que consumiu."
-                  : "Balanço deficitário: o consumo superou a captação solar no período."}
+                  ? "Balanço positivo: geração solar superou o consumo nas últimas leituras."
+                  : "Balanço deficitário: a residência demandou mais energia do que a captação solar."}
               </p>
             </div>
           </div>
         </div>
 
-        {/* 3. Gráfico das 10 Leituras com as 3 Séries */}
+        {/* 3. Gráfico SVG de Linhas dos Últimos 30 Minutos (Média de 5 em 5 min) */}
         <section
-          aria-label="Gráfico das 10 Leituras de Telemetria com 3 Séries"
+          aria-label="Gráfico dos Últimos 30 Minutos com Média de 5 em 5 min"
           className="animate-card stagger-5 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4"
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <Activity className="w-5 h-5 text-amber-400" aria-hidden="true" />
               <h3 className="font-bold text-slate-100">
-                Histórico das Últimas 10 Leituras (Gráfico de Linhas Contínuas)
+                Histórico dos Últimos 30 Minutos (Média de 5 em 5 min)
               </h3>
             </div>
             
@@ -408,15 +408,15 @@ export default function StatisticsPage() {
             <div className="flex flex-wrap items-center gap-4 text-xs font-mono">
               <div className="flex items-center gap-1.5">
                 <span className="w-4 h-0.5 bg-amber-400 rounded-full shadow-sm shadow-amber-500/50" />
-                <span className="text-slate-300">Geração Solar</span>
+                <span className="text-slate-300">Geração Solar (Média W)</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="w-4 h-0.5 bg-sky-400 rounded-full shadow-sm shadow-sky-500/50" />
-                <span className="text-slate-300">Consumo</span>
+                <span className="text-slate-300">Consumo (Média W)</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="w-4 h-0.5 bg-emerald-400 rounded-full shadow-sm shadow-emerald-500/50" />
-                <span className="text-slate-300">Balanço Líquido</span>
+                <span className="text-slate-300">Balanço Líquido (Média W)</span>
               </div>
               <span className="text-slate-500 font-mono">
                 Escala: <strong className="text-slate-200">{scaleMaxWatts} W</strong>
@@ -426,26 +426,26 @@ export default function StatisticsPage() {
 
           {!data?.chartPoints || data.chartPoints.length === 0 ? (
             <div className="py-16 text-center text-slate-500 text-sm">
-              Nenhuma leitura registrada ainda. Aguardando ciclos de coleta da EcoFlow.
+              Nenhuma leitura registrada nos últimos 30 minutos. Aguardando novos ciclos de coleta.
             </div>
           ) : (
             <div className="space-y-3">
               {/* Barra de Inspeção Ativa de Telemetria */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono bg-slate-950/70 border border-slate-800/90 px-3.5 py-2.5 rounded-xl text-slate-300">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-slate-400">Ponto Selecionado:</span>
+                  <span className="text-slate-400">Intervalo Selecionado (Média 5 min):</span>
                   {hoveredPoint ? (
                     <span className="flex flex-wrap items-center gap-2">
-                      <span className="text-amber-400 font-bold">Geração: {hoveredPoint.watts}W</span>
+                      <span className="text-amber-400 font-bold">Geração Média: {hoveredPoint.watts}W</span>
                       <span className="text-slate-600">•</span>
-                      <span className="text-sky-300 font-bold">Consumo: {hoveredPoint.outputWatts}W</span>
+                      <span className="text-sky-300 font-bold">Consumo Médio: {hoveredPoint.outputWatts}W</span>
                       <span className="text-slate-600">•</span>
                       <span
                         className={`font-bold ${
                           hoveredPoint.netWatts >= 0 ? "text-emerald-400" : "text-amber-400"
                         }`}
                       >
-                        Balanço: {hoveredPoint.netWatts > 0 ? `+${hoveredPoint.netWatts}` : hoveredPoint.netWatts}W
+                        Balanço Médio: {hoveredPoint.netWatts > 0 ? `+${hoveredPoint.netWatts}` : hoveredPoint.netWatts}W
                       </span>
                       <span className="text-slate-600">•</span>
                       <span className="text-emerald-400 font-semibold">{hoveredPoint.battery}% Bat</span>
@@ -453,11 +453,11 @@ export default function StatisticsPage() {
                       <span className="text-slate-300">{hoveredPoint.time}</span>
                     </span>
                   ) : (
-                    <span className="text-slate-500 italic">Passe o mouse sobre as linhas para inspecionar</span>
+                    <span className="text-slate-500 italic">Passe o mouse sobre os pontos para inspecionar</span>
                   )}
                 </div>
                 <div className="text-slate-400">
-                  Total de Amostras: <strong className="text-slate-200 font-bold">{data.chartPoints.length}</strong>
+                  Intervalos com dados: <strong className="text-slate-200 font-bold">{data.chartPoints.length} de 6</strong>
                 </div>
               </div>
 
@@ -467,7 +467,7 @@ export default function StatisticsPage() {
                 const pointCount = points.length;
                 const svgW = 1000;
                 const svgH = 220;
-                const padX = 25;
+                const padX = 35;
                 const padTop = 20;
                 const padBottom = 25;
                 const chartW = svgW - padX * 2;
@@ -593,7 +593,7 @@ export default function StatisticsPage() {
                         strokeLinejoin="round"
                       />
 
-                      {/* Marcadores circulares em cada ponto */}
+                      {/* Marcadores circulares em cada ponto médio */}
                       {points.map((point, i) => {
                         const isHovered = hoveredPoint === point;
                         const x = getX(i);
@@ -606,28 +606,28 @@ export default function StatisticsPage() {
                             <circle
                               cx={x}
                               cy={ySol}
-                              r={isHovered ? 5.5 : 3.5}
+                              r={isHovered ? 6 : 4}
                               fill="#f59e0b"
                               stroke="#0f172a"
-                              strokeWidth="1.5"
+                              strokeWidth="2"
                               vectorEffect="non-scaling-stroke"
                             />
                             <circle
                               cx={x}
                               cy={yOut}
-                              r={isHovered ? 5.5 : 3.5}
+                              r={isHovered ? 6 : 4}
                               fill="#38bdf8"
                               stroke="#0f172a"
-                              strokeWidth="1.5"
+                              strokeWidth="2"
                               vectorEffect="non-scaling-stroke"
                             />
                             <circle
                               cx={x}
                               cy={yNet}
-                              r={isHovered ? 4.5 : 2.5}
+                              r={isHovered ? 5 : 3}
                               fill="#10b981"
                               stroke="#0f172a"
-                              strokeWidth="1.5"
+                              strokeWidth="2"
                               vectorEffect="non-scaling-stroke"
                             />
                           </g>
@@ -647,9 +647,9 @@ export default function StatisticsPage() {
                             onMouseLeave={() => setHoveredPoint(null)}
                             className="flex-1 h-full relative cursor-pointer group flex items-start justify-center"
                           >
-                            {/* Tooltip flutuante suave com auto-alinhamento nas pontas */}
+                            {/* Tooltip flutuante indicando a média do intervalo de 5 minutos */}
                             <div
-                              className={`opacity-0 group-hover:opacity-100 transition-all duration-150 pointer-events-none absolute -top-10 z-30 bg-slate-950/95 border border-slate-700 text-slate-100 px-3 py-1.5 rounded-lg text-[11px] whitespace-nowrap shadow-2xl backdrop-blur-md flex items-center gap-2 ${
+                              className={`opacity-0 group-hover:opacity-100 transition-all duration-150 pointer-events-none absolute -top-12 z-30 bg-slate-950/95 border border-slate-700 text-slate-100 px-3 py-1.5 rounded-lg text-[11px] whitespace-nowrap shadow-2xl backdrop-blur-md flex items-center gap-2 ${
                                 index < 2
                                   ? "left-0"
                                   : index > pointCount - 3
@@ -657,21 +657,20 @@ export default function StatisticsPage() {
                                   : "left-1/2 -translate-x-1/2"
                               }`}
                             >
-                              <span className="font-bold text-amber-400 font-mono">Sol: {point.watts}W</span>
+                              <span className="text-slate-400 font-mono">Média 5 min ({point.time}):</span>
+                              <span className="font-bold text-amber-400 font-mono">{point.watts}W Sol</span>
                               <span className="text-slate-600">•</span>
-                              <span className="font-bold text-sky-300 font-mono">Uso: {point.outputWatts}W</span>
+                              <span className="font-bold text-sky-300 font-mono">{point.outputWatts}W Uso</span>
                               <span className="text-slate-600">•</span>
                               <span
                                 className={`font-bold font-mono ${
                                   isNetPositive ? "text-emerald-400" : "text-amber-400"
                                 }`}
                               >
-                                Bal: {point.netWatts > 0 ? `+${point.netWatts}` : point.netWatts}W
+                                {point.netWatts > 0 ? `+${point.netWatts}` : point.netWatts}W Bal
                               </span>
                               <span className="text-slate-600">•</span>
                               <span className="text-emerald-400 font-mono">{point.battery}%</span>
-                              <span className="text-slate-600">•</span>
-                              <span className="text-slate-300 font-mono text-[10px]">{point.time}</span>
                             </div>
                           </div>
                         );
@@ -681,17 +680,29 @@ export default function StatisticsPage() {
                 );
               })()}
 
-              {/* Rótulos dos extremos de horário */}
-              <div className="flex justify-between text-[11px] text-slate-500 font-mono px-1 pt-1">
-                <span>{data.chartPoints[0]?.time || "--"}</span>
-                <span className="text-slate-400 font-semibold">10 amostras contínuas no tempo</span>
-                <span>{data.chartPoints[data.chartPoints.length - 1]?.time || "--"}</span>
+              {/* Rótulos dos eixos X marcando o início (-30 min) e o fim (agora) */}
+              <div className="flex justify-between items-center text-[11px] text-slate-400 font-mono px-3 pt-2 border-t border-slate-800/80">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-500">Início</span>
+                  <span className="text-slate-200 font-semibold">(-30 min)</span>
+                  <span className="text-slate-600">•</span>
+                  <span className="text-slate-400">{data.chartPoints[0]?.time || "--"}</span>
+                </div>
+                <div className="text-slate-500 font-sans text-xs hidden sm:block">
+                  Média calculada em blocos de 5 minutos
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-400">{data.chartPoints[data.chartPoints.length - 1]?.time || "--"}</span>
+                  <span className="text-slate-600">•</span>
+                  <span className="text-slate-500">Fim</span>
+                  <span className="text-slate-200 font-semibold">(Agora)</span>
+                </div>
               </div>
             </div>
           )}
         </section>
 
-        {/* 4. Tabela com as 10 Leituras Detalhadas */}
+        {/* 4. Tabela com as Amostras Detalhadas da Janela */}
         <section
           aria-label="Tabela de Amostras de Telemetria"
           className="animate-card stagger-6 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4"
@@ -699,10 +710,10 @@ export default function StatisticsPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Calendar className="w-5 h-5 text-emerald-400" aria-hidden="true" />
-              <h3 className="font-bold text-slate-100">Últimas 10 Leituras Registradas</h3>
+              <h3 className="font-bold text-slate-100">Amostras Detalhadas da Janela (Últimos 30 Minutos)</h3>
             </div>
             <span className="text-xs font-mono text-slate-400">
-              Exibindo {data?.recentLogs.length ?? 0} registros
+              Exibindo {data?.recentLogs.length ?? 0} amostras
             </span>
           </div>
 
