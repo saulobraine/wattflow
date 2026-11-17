@@ -17,6 +17,14 @@ export interface EcoFlowTelemetryResult {
   isAcOutputEnabled: boolean | null;
 }
 
+export interface EcoFlowMqttCertification {
+  url: string;
+  port: number;
+  certificateAccount: string;
+  certificatePassword: string;
+  protocol?: string;
+}
+
 interface TelemetryHttpAttempt {
   isSuccessful: boolean;
   quotaData?: Record<string, unknown>;
@@ -78,6 +86,80 @@ export class EcoFlowHttpClient {
   public async fetchBatteryLevel(serialNumber: DeviceSerialNumber): Promise<BatteryLevel> {
     const telemetry = await this.fetchDeviceTelemetry(serialNumber);
     return telemetry.batteryLevel;
+  }
+
+  /**
+   * Obtém as credenciais de certificação MQTT da EcoFlow Developer Open API.
+   * Endpoint oficial: GET /iot-open/sign/certification
+   */
+  public async fetchMqttCertification(): Promise<EcoFlowMqttCertification> {
+    const timestampString = Date.now().toString();
+    const nonceString = Math.floor(100000 + Math.random() * 900000).toString();
+    const queryParameters: Record<string, unknown> = {};
+
+    const calculator = new EcoFlowSignatureCalculator();
+    const { signatureDigest, rawAccessKey } = calculator.calculateSignature(
+      this.credentials,
+      queryParameters,
+      nonceString,
+      timestampString
+    );
+
+    let signatureHex = "";
+    signatureDigest.transferDigest((digestString: string) => {
+      signatureHex = digestString;
+    });
+
+    const requestUrl = `${this.baseApiUrl}/iot-open/sign/certification`;
+
+    let httpResponse: Response;
+    try {
+      httpResponse = await fetch(requestUrl, {
+        method: "GET",
+        headers: {
+          accessKey: rawAccessKey,
+          nonce: nonceString,
+          timestamp: timestampString,
+          sign: signatureHex,
+        },
+      });
+    } catch (networkError) {
+      const detail = networkError instanceof Error ? networkError.message : "falha de conexão";
+      throw new Error(`[EcoFlow] Erro ao obter certificação MQTT (${this.baseApiUrl}): ${detail}`);
+    }
+
+    if (!httpResponse.ok) {
+      throw new Error(`[EcoFlow] Falha HTTP ao obter certificação MQTT: ${httpResponse.status} em ${this.baseApiUrl}`);
+    }
+
+    const responseJson = (await httpResponse.json()) as {
+      code: string;
+      message?: string;
+      data?: {
+        url?: string;
+        port?: number | string;
+        protocol?: string;
+        certificateAccount?: string;
+        certificatePassword?: string;
+      };
+    };
+
+    if (responseJson.code !== "0" || !responseJson.data) {
+      throw new Error(`[EcoFlow] Resposta inválida na certificação MQTT: ${responseJson.message ?? responseJson.code}`);
+    }
+
+    const data = responseJson.data;
+    const rawPort = data.port;
+    const parsedPort = typeof rawPort === "string" ? parseInt(rawPort, 10) : (rawPort ?? 8883);
+    const resolvedPort = isNaN(parsedPort) ? 8883 : parsedPort;
+
+    return {
+      url: data.url ?? "mqtt.ecoflow.com",
+      port: resolvedPort,
+      certificateAccount: data.certificateAccount ?? "",
+      certificatePassword: data.certificatePassword ?? "",
+      protocol: data.protocol ?? "mqtts",
+    };
   }
 
   /**
