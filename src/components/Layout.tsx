@@ -225,7 +225,7 @@ export function Layout({ children, title }: LayoutProps) {
           role="contentinfo"
           className="border-t border-slate-800/80 py-6 text-center text-xs text-slate-500"
         >
-          <p>WattFlow &bull; EcoFlow Open API + Chave de Transferência Automática (ATS) &bull; Object Calisthenics</p>
+          <p>wattflow -- desenvolvido com ♥ por Braine</p>
         </footer>
       </div>
     </>

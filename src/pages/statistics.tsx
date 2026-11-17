@@ -128,7 +128,7 @@ export default function StatisticsPage() {
             <div className="flex items-center gap-2">
               <Sun className="w-5 h-5 text-amber-400 animate-float" />
               <h2 className="text-xl font-bold text-slate-100">
-                Balanço Energético EcoFlow (Últimas 25 Leituras)
+                Balanço Energético EcoFlow (Últimas 10 Leituras)
               </h2>
             </div>
             <p className="text-sm text-slate-400">
@@ -274,11 +274,11 @@ export default function StatisticsPage() {
           </div>
         </div>
 
-        {/* 2. Energia Acumulada do Período - 25 Leituras (3 Cards) */}
+        {/* 2. Energia Acumulada do Período - 10 Leituras (3 Cards) */}
         <div className="space-y-3">
           <div className="flex items-center gap-2 text-xs font-mono text-slate-400 uppercase tracking-wider">
             <Scale className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Gasto & Balanço Energético Acumulado (Últimas 25 Leituras)</span>
+            <span>Gasto & Balanço Energético Acumulado (Últimas 10 Leituras)</span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -389,16 +389,16 @@ export default function StatisticsPage() {
           </div>
         </div>
 
-        {/* 3. Gráfico das 25 Leituras com as 3 Séries */}
+        {/* 3. Gráfico das 10 Leituras com as 3 Séries */}
         <section
-          aria-label="Gráfico das 25 Leituras de Telemetria com 3 Séries"
+          aria-label="Gráfico das 10 Leituras de Telemetria com 3 Séries"
           className="animate-card stagger-5 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4"
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <BarChart3 className="w-5 h-5 text-amber-400" aria-hidden="true" />
               <h3 className="font-bold text-slate-100">
-                Histórico das Últimas 25 Leituras (Geração vs Consumo vs Balanço Líquido)
+                Histórico das Últimas 10 Leituras (Geração vs Consumo vs Balanço Líquido)
               </h3>
             </div>
             
@@ -459,7 +459,7 @@ export default function StatisticsPage() {
                 </div>
               </div>
 
-              {/* Área do Gráfico com 25 colunas e 3 barras em cada */}
+              {/* Área do Gráfico com 10 colunas e 3 barras em cada */}
               <div className="relative h-64 w-full pt-8 pb-3 px-1">
                 {/* Linhas de Grade de Escala (Eixo Y com marcadores) */}
                 <div className="absolute inset-x-1 inset-y-0 pt-8 pb-3 pointer-events-none flex flex-col justify-between">
@@ -483,8 +483,8 @@ export default function StatisticsPage() {
                   </div>
                 </div>
 
-                {/* 25 Slots dinâmicos com as 3 séries (Solar, Consumo, Balanço Líquido) */}
-                <div className="relative h-full w-full flex items-end gap-1 sm:gap-2 z-10">
+                {/* 10 Slots dinâmicos com as 3 séries (Solar, Consumo, Balanço Líquido) */}
+                <div className="relative h-full w-full flex items-end gap-1.5 sm:gap-3 z-10">
                   {data.chartPoints.map((point, index) => {
                     const solarHeightPercentage = Math.min(
                       Math.max(Math.round((point.watts / scaleMaxWatts) * 100), point.watts > 0 ? 5 : 2),
@@ -507,14 +507,14 @@ export default function StatisticsPage() {
                         key={index}
                         onMouseEnter={() => setHoveredPoint(point)}
                         onMouseLeave={() => setHoveredPoint(null)}
-                        className="flex-1 min-w-0 max-w-[42px] h-full flex flex-col items-center justify-end relative group cursor-pointer"
+                        className="flex-1 min-w-0 max-w-[56px] sm:max-w-[68px] h-full flex flex-col items-center justify-end relative group cursor-pointer"
                       >
                         {/* Tooltip flutuante suave com auto-alinhamento nas pontas */}
                         <div
                           className={`opacity-0 group-hover:opacity-100 transition-all duration-150 pointer-events-none absolute -top-12 z-30 bg-slate-950/95 border border-slate-700 text-slate-100 px-3 py-1.5 rounded-lg text-[11px] whitespace-nowrap shadow-2xl backdrop-blur-md flex items-center gap-2 ${
-                            index < 3
+                            index < 2
                               ? "left-0"
-                              : index > data.chartPoints.length - 4
+                              : index > data.chartPoints.length - 3
                               ? "right-0"
                               : "left-1/2 -translate-x-1/2"
                           }`}
@@ -536,7 +536,7 @@ export default function StatisticsPage() {
                           <span className="text-slate-300 font-mono text-[10px]">{point.time}</span>
                         </div>
 
-                        {/* As 3 Séries lado a lado em cada um dos 25 pontos */}
+                        {/* As 3 Séries lado a lado em cada um dos 10 pontos */}
                         <div className="w-full h-full flex items-end justify-center gap-0.5">
                           {/* 1. Barra Geração Solar */}
                           <div
@@ -587,14 +587,14 @@ export default function StatisticsPage() {
               {/* Rótulos dos extremos de horário */}
               <div className="flex justify-between text-[11px] text-slate-500 font-mono px-1 pt-1">
                 <span>{data.chartPoints[0]?.time || "--"}</span>
-                <span className="text-slate-400 font-semibold">25 amostras mais recentes</span>
+                <span className="text-slate-400 font-semibold">10 amostras mais recentes</span>
                 <span>{data.chartPoints[data.chartPoints.length - 1]?.time || "--"}</span>
               </div>
             </div>
           )}
         </section>
 
-        {/* 4. Tabela com as 25 Leituras Detalhadas */}
+        {/* 4. Tabela com as 10 Leituras Detalhadas */}
         <section
           aria-label="Tabela de Amostras de Telemetria"
           className="animate-card stagger-6 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4"
@@ -602,7 +602,7 @@ export default function StatisticsPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Calendar className="w-5 h-5 text-emerald-400" aria-hidden="true" />
-              <h3 className="font-bold text-slate-100">Últimas 25 Leituras Registradas</h3>
+              <h3 className="font-bold text-slate-100">Últimas 10 Leituras Registradas</h3>
             </div>
             <span className="text-xs font-mono text-slate-400">
               Exibindo {data?.recentLogs.length ?? 0} registros

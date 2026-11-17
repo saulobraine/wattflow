@@ -79,7 +79,7 @@ export default async function handleStatistics(
       include: {
         syncExecutionLogs: {
           orderBy: { executedAt: "desc" },
-          take: 25,
+          take: 10,
         },
       },
     });
@@ -141,7 +141,7 @@ export default async function handleStatistics(
     const currentOutputWatts = latestLog ? (latestLog.outputWatts ?? 0) : 0;
     const netWatts = currentWatts - currentOutputWatts;
 
-    // Converte os pontos para ordem cronológica (mais antigo para mais recente) para o gráfico (25 pontos)
+    // Converte os pontos para ordem cronológica (mais antigo para mais recente) para o gráfico (10 pontos)
     const chartPoints: SolarChartPoint[] = [...rawLogs]
       .reverse()
       .map((log) => {
@@ -160,7 +160,7 @@ export default async function handleStatistics(
         };
       });
 
-    const recentLogs = rawLogs.slice(0, 25).map((log) => ({
+    const recentLogs = rawLogs.slice(0, 10).map((log) => ({
       id: log.id,
       batteryPercentage: log.batteryPercentage,
       solarInputWatts: log.solarInputWatts,
