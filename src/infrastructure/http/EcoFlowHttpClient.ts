@@ -435,39 +435,43 @@ export class EcoFlowHttpClient {
   }
 
   private extractOutputWattsFromQuota(quotaData: Record<string, unknown>): number {
-    const candidateKeys = [
-      "pd.wattsOutSum",
-      "inv.outputWatts",
-      "inv.outWatts",
+    const primaryCandidate = quotaData["pd.wattsOutSum"] ?? quotaData["wattsOutSum"];
+    const parsedPrimary = this.parseNumericCandidate(primaryCandidate);
+    if (parsedPrimary !== null && parsedPrimary >= 0) {
+      return Math.round(parsedPrimary);
+    }
+
+    const isAcEnabled = this.extractAcStateFromQuota(quotaData);
+    let inverterWatts = 0;
+
+    const isAcExplicitlyOff = isAcEnabled === false;
+    if (!isAcExplicitlyOff) {
+      const candidateAcKeys = ["inv.outputWatts", "inv.outWatts", "outputWatts"];
+      for (const key of candidateAcKeys) {
+        const parsedAc = this.parseNumericCandidate(quotaData[key]);
+        if (parsedAc !== null && parsedAc >= 0) {
+          inverterWatts = parsedAc;
+          break;
+        }
+      }
+    }
+
+    let dcWattsSum = 0;
+    const dcKeys = [
       "pd.carWatts",
       "pd.typec1Watts",
       "pd.typec2Watts",
       "pd.usb1Watts",
       "pd.usb2Watts",
-      "bmsMaster.outputWatts",
-      "outputWatts",
-      "wattsOutSum",
     ];
-
-    for (const key of candidateKeys) {
-      const candidateValue = quotaData[key];
-      const parsedNumber = this.parseNumericCandidate(candidateValue);
-      const isPositiveWatts = parsedNumber !== null && parsedNumber > 0;
-      if (isPositiveWatts) {
-        return Math.round(parsedNumber);
+    for (const key of dcKeys) {
+      const parsedDc = this.parseNumericCandidate(quotaData[key]);
+      if (parsedDc !== null && parsedDc > 0) {
+        dcWattsSum += parsedDc;
       }
     }
 
-    for (const key of candidateKeys) {
-      const candidateValue = quotaData[key];
-      const parsedNumber = this.parseNumericCandidate(candidateValue);
-      const isValidZero = parsedNumber !== null && parsedNumber === 0;
-      if (isValidZero) {
-        return 0;
-      }
-    }
-
-    return 0;
+    return Math.round(inverterWatts + dcWattsSum);
   }
 
   private extractAcStateFromQuota(quotaData: Record<string, unknown>): boolean | null {

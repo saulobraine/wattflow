@@ -59,7 +59,9 @@ export default function StatisticsPage() {
 
   const fetchStatistics = async () => {
     try {
-      const response = await fetch("/api/statistics");
+      const response = await fetch(`/api/statistics?t=${Date.now()}`, {
+        cache: "no-store",
+      });
       const json = await response.json();
       if (json.success && json.data) {
         setData(json.data);

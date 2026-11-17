@@ -56,6 +56,10 @@ export default async function handleStatistics(
     return;
   }
 
+  response.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  response.setHeader("Pragma", "no-cache");
+  response.setHeader("Expires", "0");
+
   const sessionUser = extractUserFromRequest(request);
   if (!sessionUser) {
     response.status(401).json({
