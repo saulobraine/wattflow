@@ -67,7 +67,7 @@ export class SolarReadingCollection {
     return Math.round(sum / totalCount);
   }
 
-  public calculateElapsedTimeHours(maxWindowHours = 0.5): number {
+  public calculateElapsedTimeHours(maxWindowHours = 24): number {
     const totalCount = this.readings.length;
     if (totalCount < 2) {
       return 0;
@@ -82,33 +82,33 @@ export class SolarReadingCollection {
     return Math.min(Math.max(0, elapsedHours), maxWindowHours);
   }
 
-  public calculateAccumulatedEnergyWattHours(maxWindowHours = 0.5): number {
+  public calculateAccumulatedEnergyWattHours(maxWindowHours = 24): number {
     const averageWatts = this.calculateAverageWatts();
     const elapsedHours = this.calculateElapsedTimeHours(maxWindowHours);
     return Math.round(averageWatts * elapsedHours);
   }
 
-  public calculateAccumulatedConsumedWattHours(maxWindowHours = 0.5): number {
+  public calculateAccumulatedConsumedWattHours(maxWindowHours = 24): number {
     const averageOutputWatts = this.calculateAverageOutputWatts();
     const elapsedHours = this.calculateElapsedTimeHours(maxWindowHours);
     return Math.round(averageOutputWatts * elapsedHours);
   }
 
-  public calculateAccumulatedNetEnergyWattHours(maxWindowHours = 0.5): number {
+  public calculateAccumulatedNetEnergyWattHours(maxWindowHours = 24): number {
     const generated = this.calculateAccumulatedEnergyWattHours(maxWindowHours);
     const consumed = this.calculateAccumulatedConsumedWattHours(maxWindowHours);
     return generated - consumed;
   }
 
-  public calculateEstimatedEnergyWattHours(maxWindowHours = 0.5): number {
+  public calculateEstimatedEnergyWattHours(maxWindowHours = 24): number {
     return this.calculateAccumulatedEnergyWattHours(maxWindowHours);
   }
 
-  public calculateEstimatedConsumedWattHours(maxWindowHours = 0.5): number {
+  public calculateEstimatedConsumedWattHours(maxWindowHours = 24): number {
     return this.calculateAccumulatedConsumedWattHours(maxWindowHours);
   }
 
-  public calculateNetEnergyWattHours(maxWindowHours = 0.5): number {
+  public calculateNetEnergyWattHours(maxWindowHours = 24): number {
     return this.calculateAccumulatedNetEnergyWattHours(maxWindowHours);
   }
 

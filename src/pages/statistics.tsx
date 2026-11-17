@@ -276,24 +276,24 @@ export default function StatisticsPage() {
           </div>
         </div>
 
-        {/* 2. Energia Acumulada do Período - Últimos 30 Minutos (3 Cards) */}
+        {/* 2. Energia Acumulada do Período - Últimas 24 Horas (3 Cards) */}
         <div className="space-y-3">
           <div className="flex items-center gap-2 text-xs font-mono text-slate-400 uppercase tracking-wider">
             <Scale className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Gasto & Balanço Energético Acumulado (Últimos 30 Minutos)</span>
+            <span>Gasto & Balanço Energético Acumulado (Últimas 24 Horas)</span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {/* Energia Solar Gerada */}
+            {/* Energia Solar Gerada (24h) */}
             <div className="animate-card stagger-4 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl flex flex-col justify-between group">
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                     <Sun className="w-4 h-4 text-amber-400 transition-transform group-hover:scale-110 duration-200" />
-                    Energia Solar Gerada
+                    Energia Solar Gerada (24h)
                   </span>
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-amber-300 border border-slate-700">
-                    GERAÇÃO
+                    GERAÇÃO 24H
                   </span>
                 </div>
 
@@ -309,20 +309,20 @@ export default function StatisticsPage() {
               </div>
 
               <p className="text-xs text-slate-400 mt-3 pt-2 border-t border-slate-800/80">
-                Energia solar limpa captada nos últimos 30 minutos.
+                Energia solar limpa captada nas últimas 24 horas.
               </p>
             </div>
 
-            {/* Gasto Energético Acumulado (Energia Consumida) */}
+            {/* Gasto Energético Acumulado (Energia Consumida 24h) */}
             <div className="animate-card stagger-5 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl flex flex-col justify-between group">
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                     <Zap className="w-4 h-4 text-sky-400 transition-transform group-hover:scale-110 duration-200" />
-                    Energia Consumida
+                    Energia Consumida (24h)
                   </span>
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-sky-300 border border-slate-700">
-                    CONSUMO
+                    CONSUMO 24H
                   </span>
                 </div>
 
@@ -338,11 +338,11 @@ export default function StatisticsPage() {
               </div>
 
               <p className="text-xs text-slate-400 mt-3 pt-2 border-t border-slate-800/80">
-                Gasto energético total das cargas nos últimos 30 minutos.
+                Gasto energético total das cargas nas últimas 24 horas.
               </p>
             </div>
 
-            {/* Saldo Energético Líquido do Período */}
+            {/* Saldo Energético Líquido do Período (24h) */}
             <div className="animate-card stagger-6 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl flex flex-col justify-between group">
               <div>
                 <div className="flex items-center justify-between mb-3">
@@ -352,7 +352,7 @@ export default function StatisticsPage() {
                     ) : (
                       <TrendingDown className="w-4 h-4 text-amber-400 transition-transform group-hover:scale-110 duration-200" />
                     )}
-                    Saldo Líquido (30 min)
+                    Saldo Líquido (24h)
                   </span>
                   <span
                     className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold border ${
@@ -386,8 +386,8 @@ export default function StatisticsPage() {
 
               <p className="text-xs text-slate-400 mt-3 pt-2 border-t border-slate-800/80">
                 {isPeriodNetPositive
-                  ? "Balanço positivo: geração solar superou o consumo nas últimas leituras."
-                  : "Balanço deficitário: a residência demandou mais energia do que a captação solar."}
+                  ? "Balanço positivo: a geração solar superou o consumo total nas últimas 24 horas."
+                  : "Balanço deficitário: a residência demandou mais energia do que a captação solar nas 24h."}
               </p>
             </div>
           </div>

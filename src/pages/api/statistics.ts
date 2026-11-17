@@ -79,32 +79,34 @@ export default async function handleStatistics(
     await liveService.syncIfStale(extractedUserId, 2000);
 
     const nowTimestamp = Date.now();
+    const twentyFourHoursAgo = new Date(nowTimestamp - 24 * 60 * 60 * 1000);
     const thirtyMinutesAgo = new Date(nowTimestamp - 30 * 60 * 1000);
 
+    // Busca as leituras das últimas 24 horas para o cálculo de energia acumulada do dia
     const configuration = await prisma.userConfiguration.findUnique({
       where: { userId: extractedUserId },
       include: {
         syncExecutionLogs: {
           where: {
-            executedAt: { gte: thirtyMinutesAgo },
+            executedAt: { gte: twentyFourHoursAgo },
           },
           orderBy: { executedAt: "desc" },
         },
       },
     });
 
-    let rawLogs = configuration?.syncExecutionLogs ?? [];
+    let rawLogs24h = configuration?.syncExecutionLogs ?? [];
 
-    // Fallback: caso o sistema tenha sido iniciado recentemente ou não haja logs nos últimos 30 min
-    if (rawLogs.length === 0 && configuration) {
-      rawLogs = await prisma.syncExecutionLog.findMany({
+    // Fallback: se houver poucos registros na janela de 24h, busca as amostras mais recentes disponíveis
+    if (rawLogs24h.length === 0 && configuration) {
+      rawLogs24h = await prisma.syncExecutionLog.findMany({
         where: { userConfigurationId: configuration.id },
         orderBy: { executedAt: "desc" },
-        take: 30,
+        take: 100,
       });
     }
 
-    if (!configuration || rawLogs.length === 0) {
+    if (!configuration || rawLogs24h.length === 0) {
       response.status(200).json({
         success: true,
         data: {
@@ -129,41 +131,49 @@ export default async function handleStatistics(
     }
 
     // Leitura instantânea mais recente
-    const latestLog = rawLogs[0];
+    const latestLog = rawLogs24h[0];
     const currentWatts = latestLog ? latestLog.solarInputWatts : 0;
     const currentOutputWatts = latestLog ? (latestLog.outputWatts ?? 0) : 0;
     const netWatts = currentWatts - currentOutputWatts;
 
-    // Métricas de energia acumulada da janela dos 30 minutos
-    const telemetryPoints: SolarTelemetryPoint[] = rawLogs.map((log) => ({
+    // Métricas de energia acumulada da janela das últimas 24 horas (maxWindowHours = 24)
+    const telemetryPoints24h: SolarTelemetryPoint[] = rawLogs24h.map((log) => ({
       watts: new SolarGenerationWatts(log.solarInputWatts),
       outputWatts: log.outputWatts ?? 0,
       batteryPercentage: log.batteryPercentage,
       timestamp: log.executedAt,
     }));
 
-    const collection = new SolarReadingCollection(telemetryPoints);
-    const peakWattsObject = collection.calculatePeakWatts();
+    const collection24h = new SolarReadingCollection(telemetryPoints24h);
+    const peakWattsObject = collection24h.calculatePeakWatts();
     let numericPeakWatts = 0;
     peakWattsObject.transferNumericWatts((value) => {
       numericPeakWatts = value;
     });
 
-    const averageWatts = collection.calculateAverageWatts();
-    const averageOutputWatts = collection.calculateAverageOutputWatts();
+    const averageWatts24h = collection24h.calculateAverageWatts();
+    const averageOutputWatts24h = collection24h.calculateAverageOutputWatts();
 
-    const estimatedWattHours = collection.calculateAccumulatedEnergyWattHours(0.5);
-    const estimatedKwh = Number((estimatedWattHours / 1000).toFixed(3));
+    const estimatedEnergyWattHours = collection24h.calculateAccumulatedEnergyWattHours(24);
+    const estimatedEnergyKwh = Number((estimatedEnergyWattHours / 1000).toFixed(3));
 
-    const estimatedConsumedWattHours = collection.calculateAccumulatedConsumedWattHours(0.5);
+    const estimatedConsumedWattHours = collection24h.calculateAccumulatedConsumedWattHours(24);
     const estimatedConsumedKwh = Number((estimatedConsumedWattHours / 1000).toFixed(3));
 
-    const netEnergyWattHours = collection.calculateAccumulatedNetEnergyWattHours(0.5);
+    const netEnergyWattHours = collection24h.calculateAccumulatedNetEnergyWattHours(24);
     const netEnergyKwh = Number((netEnergyWattHours / 1000).toFixed(3));
 
-    // Agrupamento por baldes de 5 em 5 minutos nos últimos 30 minutos
+    // Filtra especificamente a janela dos últimos 30 minutos para compor os 6 baldes médios do gráfico horizontal
+    let rawLogs30m = rawLogs24h.filter(
+      (log) => log.executedAt.getTime() >= thirtyMinutesAgo.getTime()
+    );
+
+    if (rawLogs30m.length === 0) {
+      rawLogs30m = rawLogs24h.slice(0, 30);
+    }
+
     const bucketDurationMs = 5 * 60 * 1000;
-    const newestLogTime = rawLogs[0].executedAt.getTime();
+    const newestLogTime = rawLogs30m[0].executedAt.getTime();
     const isWithinRecentWindow = newestLogTime >= (nowTimestamp - 30 * 60 * 1000);
     const windowEndTime = isWithinRecentWindow ? nowTimestamp : newestLogTime;
     const windowStartTime = windowEndTime - 30 * 60 * 1000;
@@ -175,7 +185,7 @@ export default async function handleStatistics(
       const bucketStart = windowStartTime + i * bucketDurationMs;
       const bucketEnd = bucketStart + bucketDurationMs;
 
-      const bucketLogs = rawLogs.filter((log) => {
+      const bucketLogs = rawLogs30m.filter((log) => {
         const logTime = log.executedAt.getTime();
         return logTime >= bucketStart && logTime <= bucketEnd;
       });
@@ -200,9 +210,9 @@ export default async function handleStatistics(
       }
     }
 
-    // Se nenhum balde foi capturado pela janela estrita (ex: logs isolados no fallback), cria baldes baseados no range real
-    if (chartPoints.length === 0 && rawLogs.length > 0) {
-      const sortedLogs = [...rawLogs].sort((a, b) => a.executedAt.getTime() - b.executedAt.getTime());
+    // Se nenhum balde foi capturado pela janela estrita de 30m, cria baldes proporcionais a partir das amostras disponíveis
+    if (chartPoints.length === 0 && rawLogs30m.length > 0) {
+      const sortedLogs = [...rawLogs30m].sort((a, b) => a.executedAt.getTime() - b.executedAt.getTime());
       const minLogTime = sortedLogs[0].executedAt.getTime();
       const maxLogTime = sortedLogs[sortedLogs.length - 1].executedAt.getTime();
       const spanMs = Math.max(maxLogTime - minLogTime, bucketDurationMs);
@@ -237,7 +247,7 @@ export default async function handleStatistics(
       }
     }
 
-    const recentLogs = rawLogs.slice(0, 30).map((log) => ({
+    const recentLogs = rawLogs24h.slice(0, 30).map((log) => ({
       id: log.id,
       batteryPercentage: log.batteryPercentage,
       solarInputWatts: log.solarInputWatts,
@@ -254,15 +264,15 @@ export default async function handleStatistics(
         currentOutputWatts,
         netWatts,
         peakWatts: numericPeakWatts,
-        averageWatts,
-        averageOutputWatts,
-        estimatedEnergyWattHours: estimatedWattHours,
-        estimatedEnergyKwh: estimatedKwh,
-        estimatedConsumedWattHours: estimatedConsumedWattHours,
-        estimatedConsumedKwh: estimatedConsumedKwh,
-        netEnergyWattHours: netEnergyWattHours,
-        netEnergyKwh: netEnergyKwh,
-        totalReadingsCount: rawLogs.length,
+        averageWatts: averageWatts24h,
+        averageOutputWatts: averageOutputWatts24h,
+        estimatedEnergyWattHours,
+        estimatedEnergyKwh,
+        estimatedConsumedWattHours,
+        estimatedConsumedKwh,
+        netEnergyWattHours,
+        netEnergyKwh,
+        totalReadingsCount: rawLogs24h.length,
         chartPoints,
         recentLogs,
       },
