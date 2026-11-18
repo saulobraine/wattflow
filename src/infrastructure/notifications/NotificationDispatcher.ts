@@ -23,6 +23,20 @@ export interface NotificationDispatchResult {
   summaryMessage: string;
 }
 
+const EXTERNAL_HTTP_TIMEOUT_MS = 8000;
+
+/**
+ * Escapa caracteres especiais HTML para evitar injeção ou quebra de marcação no parse_mode="HTML" do Telegram (SEC-11).
+ */
+export function escapeHtml(rawText: string): string {
+  return rawText
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 /**
  * Despachante resiliente de notificações para Telegram e WhatsApp (CallMeBot).
  *
@@ -48,12 +62,14 @@ export class NotificationDispatcher {
 
     let telegramSuccess = false;
     let telegramError: string | undefined;
-    const hasTelegram = Boolean(config.telegramBotToken?.trim() && config.telegramChatId?.trim());
+    const trimmedTelegramToken = config.telegramBotToken?.trim() ?? "";
+    const trimmedTelegramChat = config.telegramChatId?.trim() ?? "";
+    const hasTelegram = trimmedTelegramToken.length > 0 && trimmedTelegramChat.length > 0;
     if (hasTelegram) {
       const telegramResult = await this.dispatchTelegramOnly(
         payload,
-        config.telegramBotToken!.trim(),
-        config.telegramChatId!.trim()
+        trimmedTelegramToken,
+        trimmedTelegramChat
       );
       telegramSuccess = telegramResult.isSuccess;
       telegramError = telegramResult.errorMessage;
@@ -61,12 +77,14 @@ export class NotificationDispatcher {
 
     let whatsappSuccess = false;
     let whatsappError: string | undefined;
-    const hasWhatsApp = Boolean(config.whatsappPhoneNumber?.trim() && config.whatsappApiKey?.trim());
+    const trimmedWhatsappPhone = config.whatsappPhoneNumber?.trim() ?? "";
+    const trimmedWhatsappKey = config.whatsappApiKey?.trim() ?? "";
+    const hasWhatsApp = trimmedWhatsappPhone.length > 0 && trimmedWhatsappKey.length > 0;
     if (hasWhatsApp) {
       const whatsappResult = await this.dispatchWhatsAppOnly(
         payload,
-        config.whatsappPhoneNumber!.trim(),
-        config.whatsappApiKey!.trim()
+        trimmedWhatsappPhone,
+        trimmedWhatsappKey
       );
       whatsappSuccess = whatsappResult.isSuccess;
       whatsappError = whatsappResult.errorMessage;
@@ -121,6 +139,7 @@ export class NotificationDispatcher {
           text: htmlText,
           parse_mode: "HTML",
         }),
+        signal: AbortSignal.timeout(EXTERNAL_HTTP_TIMEOUT_MS),
       });
 
       const responseJson = (await response.json()) as { ok?: boolean; description?: string };
@@ -146,11 +165,15 @@ export class NotificationDispatcher {
     try {
       const cleanPhone = phone.replace(/[^0-9]/g, "");
       const callMeBotUrl = new URL("https://api.callmebot.com/whatsapp.php");
-      callMeBotUrl.searchParams.set("phone", cleanPhone);
-      callMeBotUrl.searchParams.set("text", plainText);
-      callMeBotUrl.searchParams.set("apikey", apiKey.trim());
+      const searchParams = callMeBotUrl.searchParams;
+      searchParams.set("phone", cleanPhone);
+      searchParams.set("text", plainText);
+      searchParams.set("apikey", apiKey.trim());
 
-      const response = await fetch(callMeBotUrl.toString(), { method: "GET" });
+      const response = await fetch(callMeBotUrl.toString(), {
+        method: "GET",
+        signal: AbortSignal.timeout(EXTERNAL_HTTP_TIMEOUT_MS),
+      });
       const textResponse = await response.text();
 
       const isSuccessful =
@@ -160,11 +183,9 @@ export class NotificationDispatcher {
           textResponse.includes("success"));
 
       if (!isSuccessful) {
-        const cleanErrorMessage = textResponse
-          .replace(/<[^>]*>/g, " ")
-          .replace(/\s+/g, " ")
-          .trim()
-          .slice(0, 160);
+        const strippedTags = textResponse.replace(/<[^>]*>/g, " ");
+        const normalizedWhitespace = strippedTags.replace(/\s+/g, " ");
+        const cleanErrorMessage = normalizedWhitespace.trim().slice(0, 160);
 
         return {
           isSuccess: false,
@@ -181,7 +202,9 @@ export class NotificationDispatcher {
 
   private buildFormattedMessage(payload: NotificationPayload): string {
     const { title, message, batteryPercentage, solarWatts, actionState } = payload;
-    const eventTime = this.formatReadableTimestamp(payload.timestamp);
+    const safeTitle = escapeHtml(String(title));
+    const safeMessage = escapeHtml(String(message));
+    const eventTime = escapeHtml(this.formatReadableTimestamp(payload.timestamp));
 
     let icon = "⚡";
     if (actionState === "SOLAR_BATTERY") {
@@ -194,14 +217,16 @@ export class NotificationDispatcher {
       icon = "🔴";
     }
 
-    let result = `<b>${icon} [WattFlow] ${title}</b>\n\n${message}\n`;
+    let result = `<b>${icon} [WattFlow] ${safeTitle}</b>\n\n${safeMessage}\n`;
 
     if (batteryPercentage !== undefined) {
-      result += `\n🔋 <b>Bateria EcoFlow:</b> ${batteryPercentage}%`;
+      const safeBattery = escapeHtml(String(batteryPercentage));
+      result += `\n🔋 <b>Bateria EcoFlow:</b> ${safeBattery}%`;
     }
 
     if (solarWatts !== undefined) {
-      result += `\n☀️ <b>Geração Solar:</b> ${solarWatts} W`;
+      const safeSolar = escapeHtml(String(solarWatts));
+      result += `\n☀️ <b>Geração Solar:</b> ${safeSolar} W`;
     }
 
     result += `\n🕒 <b>Horário do Disparo:</b> ${eventTime}`;
@@ -252,12 +277,11 @@ export class NotificationDispatcher {
 
     const parts: string[] = [];
     if (hasTelegram) {
-      parts.push(`Telegram: ${telegramOk ? "Enviado com sucesso" : "Falha no envio"}`);
+      parts.push(telegramOk ? "Telegram: enviado" : "Telegram: falhou");
     }
     if (hasWhatsApp) {
-      parts.push(`WhatsApp: ${whatsappOk ? "Enviado com sucesso" : "Falha no envio"}`);
+      parts.push(whatsappOk ? "WhatsApp: enviado" : "WhatsApp: falhou");
     }
-
     return parts.join(" | ");
   }
 }

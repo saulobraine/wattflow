@@ -1,10 +1,15 @@
 import mqtt, { MqttClient } from "mqtt";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, UserConfiguration as PrismaUserConfiguration } from "@prisma/client";
 import { EcoFlowHttpClient } from "../http/EcoFlowHttpClient";
 import { EcoFlowCredentials } from "../../domain/models/EcoFlowCredentials";
 import { DeviceSerialNumber } from "../../domain/values/DeviceSerialNumber";
 import { AccessKey } from "../../domain/values/AccessKey";
 import { AccessSecret } from "../../domain/values/AccessSecret";
+import {
+  resolveEcoFlowEndpointRegion,
+  validateEcoFlowMqttBroker,
+} from "../security/ecoflowAllowlist";
+import { decryptAndMigrateConfigurationSecrets } from "../security/secretMigrationHelper";
 
 export interface LiveTelemetrySnapshot {
   batteryPercentage: number;
@@ -15,6 +20,7 @@ export interface LiveTelemetrySnapshot {
 }
 
 export interface MqttStreamConfig {
+  userId: string;
   credentials: EcoFlowCredentials;
   serialNumber: DeviceSerialNumber;
   baseApiUrl: string;
@@ -22,44 +28,66 @@ export interface MqttStreamConfig {
   userConfigurationId?: string;
 }
 
+interface UserMqttStreamState {
+  client: MqttClient | null;
+  latestTelemetry: LiveTelemetrySnapshot | null;
+  subscribedTopic: string | null;
+  lastPersistTimeMs: number;
+  isConnecting: boolean;
+}
+
 /**
- * Serviço Singleton que gerencia a conexão MQTT nativa com o broker oficial da EcoFlow.
- * 
- * Mantém uma sessão persistente com keep-alive de 60 segundos:
- * - Autentica usando certificado gerado dinamicamente via GET /iot-open/sign/certification.
- * - Inscreve-se no tópico de cotas /open/{certificateAccount}/{serialNumber}/quota.
- * - Simula a sessão de um app móvel conectado, forçando a estação EcoFlow a transmitir
- *   telemetria em alta frequência (1-2s) sem entrar em sleep mode.
- * - Persiste a telemetria recebida no banco com controle de taxa (máx 1 gravação a cada 2s).
- * 
- * Respeita Object Calisthenics:
- * - Apenas 1 nível de indentação por método
- * - Sem uso da palavra-chave else
- * - Nomes descritivos e sem abreviações
+ * Serviço Singleton multi-tenant que gerencia conexões MQTT nativas com o broker oficial da EcoFlow,
+ * isolando estritamente cliente MQTT, tópico, throttling e cache de telemetria por userId (Map<string, UserMqttStreamState>)
+ * e exigindo validação estrita de certificado TLS (rejectUnauthorized: true).
  */
 export class EcoFlowMqttStreamService {
   private static instance: EcoFlowMqttStreamService | null = null;
 
-  private client: MqttClient | null = null;
-  private latestTelemetry: LiveTelemetrySnapshot | null = null;
-  private currentSubscribedTopic: string | null = null;
-  private lastPersistTimeMs = 0;
-  private isConnecting = false;
+  private readonly streamsByUser = new Map<string, UserMqttStreamState>();
 
   private constructor() {}
 
   public static getInstance(): EcoFlowMqttStreamService {
-    const isAlreadyInstantiated = EcoFlowMqttStreamService.instance !== null;
-    if (isAlreadyInstantiated) {
-      return EcoFlowMqttStreamService.instance as EcoFlowMqttStreamService;
+    if (EcoFlowMqttStreamService.instance !== null) {
+      return EcoFlowMqttStreamService.instance;
     }
 
     EcoFlowMqttStreamService.instance = new EcoFlowMqttStreamService();
     return EcoFlowMqttStreamService.instance;
   }
 
-  public async startWithActiveConfiguration(databaseClient: PrismaClient): Promise<void> {
-    const activeConfiguration = await databaseClient.userConfiguration.findFirst({
+  public async startForUser(databaseClient: PrismaClient, userId: string): Promise<void> {
+    if (!userId || userId.trim().length === 0) {
+      return;
+    }
+
+    const configuration = await databaseClient.userConfiguration.findUnique({
+      where: { userId: userId.trim() },
+    });
+
+    if (
+      !configuration ||
+      !configuration.ecoflowAccessKey.trim() ||
+      !configuration.ecoflowAccessSecret.trim() ||
+      !configuration.ecoflowSerialNumber.trim()
+    ) {
+      return;
+    }
+
+    await this.startStreamFromRecord(databaseClient, configuration);
+  }
+
+  public async startWithActiveConfiguration(
+    databaseClient: PrismaClient,
+    userId?: string
+  ): Promise<void> {
+    if (userId && userId.trim().length > 0) {
+      await this.startForUser(databaseClient, userId.trim());
+      return;
+    }
+
+    const activeConfigurations = await databaseClient.userConfiguration.findMany({
       where: {
         ecoflowAccessKey: { not: "" },
         ecoflowAccessSecret: { not: "" },
@@ -67,39 +95,46 @@ export class EcoFlowMqttStreamService {
       },
     });
 
-    if (!activeConfiguration) {
+    if (activeConfigurations.length === 0) {
       console.warn("[EcoFlow MQTT] Nenhuma configuração com credenciais EcoFlow cadastrada para iniciar stream.");
       return;
     }
 
-    const accessKey = new AccessKey(activeConfiguration.ecoflowAccessKey);
-    const accessSecret = new AccessSecret(activeConfiguration.ecoflowAccessSecret);
-    const credentials = new EcoFlowCredentials(accessKey, accessSecret);
-    const serialNumber = new DeviceSerialNumber(activeConfiguration.ecoflowSerialNumber);
-    const baseApiUrl = activeConfiguration.ecoflowEndpointRegion || "https://api.ecoflow.com";
+    let firstError: unknown = null;
+    for (const configRecord of activeConfigurations) {
+      try {
+        await this.startStreamFromRecord(databaseClient, configRecord);
+      } catch (err: unknown) {
+        if (!firstError) {
+          firstError = err;
+        }
+      }
+    }
 
-    await this.startStream({
-      credentials,
-      serialNumber,
-      baseApiUrl,
-      databaseClient,
-      userConfigurationId: activeConfiguration.id,
-    });
+    if (firstError && this.getConnectedStreamsCount() === 0 && activeConfigurations.length === 1) {
+      throw firstError;
+    }
   }
 
   public async startStream(streamConfig: MqttStreamConfig): Promise<void> {
-    const isAlreadyConnected = this.client !== null && this.client.connected;
-    if (isAlreadyConnected) {
-      console.log("[EcoFlow MQTT] Conexão MQTT já ativa e operante.");
+    const normalizedUserId = streamConfig.userId?.trim();
+    if (!normalizedUserId) {
+      throw new Error("[EcoFlow MQTT] userId é obrigatório para isolar o stream MQTT.");
+    }
+
+    const userState = this.getOrCreateUserState(normalizedUserId);
+    if (
+      userState.client !== null &&
+      (userState.client.connected || Boolean(userState.client.reconnecting))
+    ) {
       return;
     }
 
-    if (this.isConnecting) {
-      console.log("[EcoFlow MQTT] Conexão já em andamento.");
+    if (userState.isConnecting) {
       return;
     }
 
-    this.isConnecting = true;
+    userState.isConnecting = true;
 
     try {
       let rawSerialNumber = "";
@@ -107,100 +142,180 @@ export class EcoFlowMqttStreamService {
         rawSerialNumber = serialString;
       });
 
-      const httpClient = new EcoFlowHttpClient(streamConfig.credentials, streamConfig.baseApiUrl);
+      const validatedApiUrl = resolveEcoFlowEndpointRegion(streamConfig.baseApiUrl);
+      const httpClient = new EcoFlowHttpClient(streamConfig.credentials, validatedApiUrl);
       const certification = await httpClient.fetchMqttCertification();
 
-      const brokerProtocol = certification.protocol || "mqtts";
-      const brokerPort = certification.port || 8883;
-      const brokerHost = certification.url || "mqtt.ecoflow.com";
-      const brokerUrl = `${brokerProtocol}://${brokerHost}:${brokerPort}`;
+      const validatedBroker = validateEcoFlowMqttBroker(certification);
+      const brokerUrl = `${validatedBroker.protocol}://${validatedBroker.host}:${validatedBroker.port}`;
 
       const targetTopic = `/open/${certification.certificateAccount}/${rawSerialNumber}/quota`;
-      this.currentSubscribedTopic = targetTopic;
+      userState.subscribedTopic = targetTopic;
 
       const randomSuffix = Math.random().toString(16).slice(2, 10);
       const clientId = `WATTFLOW_${certification.certificateAccount}_${randomSuffix}`;
 
-      console.log(`[EcoFlow MQTT] Conectando ao broker oficial ${brokerUrl}...`);
+      console.log(`[EcoFlow MQTT] Conectando ao broker oficial ${brokerUrl} (user=${normalizedUserId})...`);
 
-      this.client = mqtt.connect(brokerUrl, {
+      const mqttClient = mqtt.connect(brokerUrl, {
         username: certification.certificateAccount,
         password: certification.certificatePassword,
         clientId,
         keepalive: 60,
         clean: true,
         reconnectPeriod: 5000,
-        rejectUnauthorized: false,
+        rejectUnauthorized: true,
       });
 
-      this.setupEventHandlers(streamConfig, targetTopic);
+      this.disposeUserClient(userState);
+      userState.client = mqttClient;
+      this.setupEventHandlers(normalizedUserId, userState, streamConfig, targetTopic);
     } catch (connectionError) {
-      this.isConnecting = false;
+      userState.isConnecting = false;
       const detail = connectionError instanceof Error ? connectionError.message : "falha desconhecida";
       console.error("[EcoFlow MQTT] Falha ao inicializar stream:", detail);
+      throw connectionError;
     }
   }
 
-  public stopStream(): void {
-    if (!this.client) {
+  public stopStream(userId?: string): void {
+    if (userId !== undefined) {
+      const normalized = userId.trim();
+      const state = this.streamsByUser.get(normalized);
+      if (!state) {
+        return;
+      }
+      this.disposeUserClient(state);
+      this.streamsByUser.delete(normalized);
       return;
     }
 
-    console.log("[EcoFlow MQTT] Encerrando stream de telemetria.");
-    this.client.end(true);
-    this.client = null;
-    this.currentSubscribedTopic = null;
-    this.isConnecting = false;
+    for (const [, state] of this.streamsByUser.entries()) {
+      this.disposeUserClient(state);
+    }
+    this.streamsByUser.clear();
   }
 
-  public getLatestTelemetry(): LiveTelemetrySnapshot | null {
-    if (!this.latestTelemetry) {
+  private disposeUserClient(state: UserMqttStreamState): void {
+    if (!state.client) {
+      return;
+    }
+    const previousClient = state.client;
+    state.client = null;
+    if (typeof previousClient.removeAllListeners === "function") {
+      previousClient.removeAllListeners();
+    }
+    previousClient.end(true);
+  }
+
+  public getLatestTelemetry(userId?: string): LiveTelemetrySnapshot | null {
+    if (!userId || userId.trim().length === 0) {
       return null;
     }
 
-    const elapsedMs = Date.now() - this.latestTelemetry.updatedAt.getTime();
-    const isStale = elapsedMs > 15000;
-    if (isStale) {
+    const state = this.streamsByUser.get(userId.trim());
+    if (!state || !state.latestTelemetry) {
       return null;
     }
 
-    return this.latestTelemetry;
-  }
-
-  public isStreamConnected(): boolean {
-    if (!this.client) {
-      return false;
+    const elapsedMs = Date.now() - state.latestTelemetry.updatedAt.getTime();
+    if (elapsedMs > 15000) {
+      return null;
     }
-    return this.client.connected;
+
+    return state.latestTelemetry;
   }
 
-  private setupEventHandlers(streamConfig: MqttStreamConfig, targetTopic: string): void {
-    if (!this.client) {
+  public isStreamConnected(userId?: string): boolean {
+    if (userId !== undefined) {
+      const state = this.streamsByUser.get(userId.trim());
+      return Boolean(state?.client?.connected);
+    }
+
+    return this.getConnectedStreamsCount() > 0;
+  }
+
+  public getConnectedStreamsCount(): number {
+    let connectedCount = 0;
+    for (const state of this.streamsByUser.values()) {
+      if (state.client?.connected) {
+        connectedCount += 1;
+      }
+    }
+    return connectedCount;
+  }
+
+  private getOrCreateUserState(userId: string): UserMqttStreamState {
+    const existing = this.streamsByUser.get(userId);
+    if (existing) {
+      return existing;
+    }
+
+    const created: UserMqttStreamState = {
+      client: null,
+      latestTelemetry: null,
+      subscribedTopic: null,
+      lastPersistTimeMs: 0,
+      isConnecting: false,
+    };
+    this.streamsByUser.set(userId, created);
+    return created;
+  }
+
+  private async startStreamFromRecord(
+    databaseClient: PrismaClient,
+    record: PrismaUserConfiguration
+  ): Promise<void> {
+    const decryptedSecrets = await decryptAndMigrateConfigurationSecrets(databaseClient, record);
+    const accessKey = new AccessKey(record.ecoflowAccessKey);
+    const accessSecret = new AccessSecret(decryptedSecrets.ecoflowAccessSecret);
+    const credentials = new EcoFlowCredentials(accessKey, accessSecret);
+    const serialNumber = new DeviceSerialNumber(record.ecoflowSerialNumber);
+    const baseApiUrl = resolveEcoFlowEndpointRegion(record.ecoflowEndpointRegion);
+
+    await this.startStream({
+      userId: record.userId,
+      credentials,
+      serialNumber,
+      baseApiUrl,
+      databaseClient,
+      userConfigurationId: record.id,
+    });
+  }
+
+  private setupEventHandlers(
+    userId: string,
+    userState: UserMqttStreamState,
+    streamConfig: MqttStreamConfig,
+    targetTopic: string
+  ): void {
+    const client = userState.client;
+    if (!client) {
       return;
     }
 
-    this.client.on("connect", () => {
-      this.isConnecting = false;
-      console.log(`[EcoFlow MQTT] Conectado com sucesso. Inscrevendo no tópico: ${targetTopic}`);
-      this.client?.subscribe(targetTopic, (subscribeError) => {
+    client.on("connect", () => {
+      userState.isConnecting = false;
+      console.log(`[EcoFlow MQTT] Conectado com sucesso (user=${userId}). Inscrevendo em ${targetTopic}`);
+      client.subscribe(targetTopic, (subscribeError) => {
         this.handleSubscriptionResult(subscribeError, targetTopic);
       });
     });
 
-    this.client.on("message", (topic: string, messageBuffer: Buffer) => {
-      this.handleIncomingMessage(topic, messageBuffer, streamConfig);
+    client.on("message", (_topic: string, messageBuffer: Buffer) => {
+      this.handleIncomingMessage(userState, messageBuffer, streamConfig);
     });
 
-    this.client.on("error", (mqttError: Error) => {
-      console.warn("[EcoFlow MQTT] Alerta na conexão MQTT:", mqttError.message);
+    client.on("error", (mqttError: Error) => {
+      console.warn(`[EcoFlow MQTT] Alerta na conexão MQTT (user=${userId}):`, mqttError.message);
     });
 
-    this.client.on("reconnect", () => {
-      console.log("[EcoFlow MQTT] Reconectando automaticamente ao broker EcoFlow...");
+    client.on("reconnect", () => {
+      console.log(`[EcoFlow MQTT] Reconectando automaticamente ao broker EcoFlow (user=${userId})...`);
     });
 
-    this.client.on("close", () => {
-      this.isConnecting = false;
+    client.on("close", () => {
+      userState.isConnecting = false;
     });
   }
 
@@ -214,7 +329,7 @@ export class EcoFlowMqttStreamService {
   }
 
   private handleIncomingMessage(
-    topic: string,
+    userState: UserMqttStreamState,
     messageBuffer: Buffer,
     streamConfig: MqttStreamConfig
   ): void {
@@ -223,11 +338,12 @@ export class EcoFlowMqttStreamService {
       const parsedJson = JSON.parse(rawText) as Record<string, unknown>;
 
       const quotaData = this.resolveQuotaPayload(parsedJson);
-      this.updateLatestSnapshot(quotaData);
+      this.updateUserSnapshot(userState, quotaData);
 
       const hasDatabaseContext = streamConfig.databaseClient && streamConfig.userConfigurationId;
       if (hasDatabaseContext) {
         this.persistTelemetryThrottled(
+          userState,
           streamConfig.databaseClient as PrismaClient,
           streamConfig.userConfigurationId as string
         );
@@ -247,7 +363,10 @@ export class EcoFlowMqttStreamService {
     return parsedJson;
   }
 
-  private updateLatestSnapshot(quotaData: Record<string, unknown>): void {
+  private updateUserSnapshot(
+    userState: UserMqttStreamState,
+    quotaData: Record<string, unknown>
+  ): void {
     const extractedBattery = this.extractNumberFromCandidates(quotaData, [
       "bmsMaster.soc",
       "bmsMaster.f32ShowSoc",
@@ -274,14 +393,18 @@ export class EcoFlowMqttStreamService {
     const extractedOutputWatts = this.extractOutputWatts(quotaData);
     const extractedAcState = this.extractAcState(quotaData);
 
-    const previousSnapshot = this.latestTelemetry;
+    const previousSnapshot = userState.latestTelemetry;
 
-    const resolvedBattery = extractedBattery !== null ? extractedBattery : (previousSnapshot?.batteryPercentage ?? 0);
-    const resolvedSolar = extractedSolarWatts !== null ? extractedSolarWatts : (previousSnapshot?.solarInputWatts ?? 0);
-    const resolvedOutput = extractedOutputWatts !== null ? extractedOutputWatts : (previousSnapshot?.outputWatts ?? 0);
-    const resolvedAcState = extractedAcState !== null ? extractedAcState : (previousSnapshot?.isAcOutputEnabled ?? null);
+    const resolvedBattery =
+      extractedBattery !== null ? extractedBattery : (previousSnapshot?.batteryPercentage ?? 0);
+    const resolvedSolar =
+      extractedSolarWatts !== null ? extractedSolarWatts : (previousSnapshot?.solarInputWatts ?? 0);
+    const resolvedOutput =
+      extractedOutputWatts !== null ? extractedOutputWatts : (previousSnapshot?.outputWatts ?? 0);
+    const resolvedAcState =
+      extractedAcState !== null ? extractedAcState : (previousSnapshot?.isAcOutputEnabled ?? null);
 
-    this.latestTelemetry = {
+    userState.latestTelemetry = {
       batteryPercentage: resolvedBattery,
       solarInputWatts: resolvedSolar,
       outputWatts: resolvedOutput,
@@ -291,22 +414,22 @@ export class EcoFlowMqttStreamService {
   }
 
   private persistTelemetryThrottled(
+    userState: UserMqttStreamState,
     databaseClient: PrismaClient,
     userConfigurationId: string
   ): void {
-    if (!this.latestTelemetry) {
+    if (!userState.latestTelemetry) {
       return;
     }
 
     const now = Date.now();
-    const elapsedSinceLastPersist = now - this.lastPersistTimeMs;
-    const isThrottled = elapsedSinceLastPersist < 2000;
-    if (isThrottled) {
+    const elapsedSinceLastPersist = now - userState.lastPersistTimeMs;
+    if (elapsedSinceLastPersist < 2000) {
       return;
     }
 
-    this.lastPersistTimeMs = now;
-    const currentSnapshot = this.latestTelemetry;
+    userState.lastPersistTimeMs = now;
+    const currentSnapshot = userState.latestTelemetry;
 
     databaseClient.syncExecutionLog
       .create({
@@ -316,7 +439,8 @@ export class EcoFlowMqttStreamService {
           solarInputWatts: currentSnapshot.solarInputWatts,
           outputWatts: currentSnapshot.outputWatts,
           actionTriggered: "MQTT_STREAM",
-          executionDetails: "Telemetria recebida em tempo real via stream MQTT oficial EcoFlow (keep-alive ativo).",
+          executionDetails:
+            "Telemetria recebida em tempo real via stream MQTT oficial EcoFlow (keep-alive ativo).",
           executedAt: new Date(),
         },
       })
@@ -359,11 +483,13 @@ export class EcoFlowMqttStreamService {
 
     for (const key of candidateKeys) {
       const candidateValue = quotaData[key];
-      const isEnabledState = candidateValue === 1 || candidateValue === "1" || candidateValue === true;
+      const isEnabledState =
+        candidateValue === 1 || candidateValue === "1" || candidateValue === true;
       if (isEnabledState) {
         return true;
       }
-      const isDisabledState = candidateValue === 0 || candidateValue === "0" || candidateValue === false;
+      const isDisabledState =
+        candidateValue === 0 || candidateValue === "0" || candidateValue === false;
       if (isDisabledState) {
         return false;
       }
@@ -372,7 +498,10 @@ export class EcoFlowMqttStreamService {
     return null;
   }
 
-  private extractNumberFromCandidates(quotaData: Record<string, unknown>, keys: string[]): number | null {
+  private extractNumberFromCandidates(
+    quotaData: Record<string, unknown>,
+    keys: string[]
+  ): number | null {
     for (const key of keys) {
       const candidateValue = quotaData[key];
       const parsedValue = this.parseNumericCandidate(candidateValue);
@@ -393,8 +522,7 @@ export class EcoFlowMqttStreamService {
     const isNonEmptyString = typeof candidate === "string" && candidate.trim().length > 0;
     if (isNonEmptyString) {
       const parsed = Number(candidate.trim());
-      const isValidNumber = !isNaN(parsed);
-      if (isValidNumber) {
+      if (!isNaN(parsed)) {
         return parsed;
       }
     }

@@ -6,6 +6,9 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 # Evita deploys concorrentes simultâneos
 concurrency:
   group: production-deploy
@@ -18,11 +21,14 @@ jobs:
     steps:
       - name: Executar Deploy Remoto na VPS
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          VPS_TARGET_DIR: ${{ secrets.VPS_TARGET_DIR }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_SSH_PORT || 22 }}
+          envs: VPS_TARGET_DIR
           script_stop: true
           command_timeout: 15m
           script: |
@@ -30,7 +36,7 @@ jobs:
             echo "🚀 [WattFlow CI/CD] Iniciando deploy da branch main..."
 
             # 1. Navegar até o diretório do projeto na VPS
-            TARGET_DIR="${{ secrets.VPS_TARGET_DIR || '/opt/wattflow' }}"
+            TARGET_DIR="${VPS_TARGET_DIR:-/opt/wattflow}"
             if [ ! -d "$TARGET_DIR" ]; then
               echo "❌ Diretório de deploy $TARGET_DIR não encontrado na VPS."
               exit 1
@@ -53,24 +59,20 @@ jobs:
 
             # 3. Garantir existência do arquivo .env
             if [ ! -f .env ]; then
-              echo "⚠️ Arquivo .env não encontrado. Copiando de .env.example..."
-              cp .env.example .env
+              echo "❌ Arquivo .env não encontrado em $TARGET_DIR. Configure o .env antes do deploy."
+              exit 1
             fi
 
-            # 4. Reconstruir e subir os contêineres isolados
+            # 4. Reconstruir e subir os contêineres isolados (aguardando healthchecks)
             echo "🔨 Compilando e iniciando contêineres Docker..."
             docker rm -f wattflow_postgres wattflow_app wattflow_cron 2>/dev/null || true
-            docker compose up -d --build --remove-orphans
+            docker compose up -d --build --remove-orphans --wait
 
-            # 5. Sincronizar schema do banco com Prisma
-            echo "🗄️ Sincronizando schema do PostgreSQL via Prisma..."
-            docker compose exec -T app npx prisma db push --skip-generate || true
-
-            # 6. Limpar imagens antigas para poupar espaço em disco da VPS
+            # 5. Limpar imagens antigas para poupar espaço em disco da VPS
             echo "🧹 Limpando imagens Docker órfãs..."
             docker image prune -f
 
-            # 7. Validar saúde dos serviços
+            # 6. Validar saúde dos serviços
             echo "🩺 Verificando status dos contêineres..."
             docker compose ps
 

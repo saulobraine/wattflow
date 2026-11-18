@@ -10,6 +10,8 @@ import { DevicePair } from "../../domain/models/DevicePair";
 import { EcoFlowCredentials } from "../../domain/models/EcoFlowCredentials";
 import { OrchestratorConfiguration } from "../../domain/models/OrchestratorConfiguration";
 import { NotificationConfig } from "../notifications/NotificationDispatcher";
+import { getEncryptionKey } from "../security/encryptionHelper";
+import { decryptAndMigrateConfigurationSecrets } from "../security/secretMigrationHelper";
 
 export interface RetrievedConfigurationRecord {
   databaseRecordId: string;
@@ -37,6 +39,8 @@ export class ConfigurationRepository {
   }
 
   public async findActiveConfiguration(): Promise<RetrievedConfigurationRecord | null> {
+    getEncryptionKey();
+
     const rawRecord = await this.databaseClient.userConfiguration.findFirst({
       where: {
         isAutomationActive: true,
@@ -53,6 +57,8 @@ export class ConfigurationRepository {
   }
 
   public async findActiveConfigurationByUserId(userId: string): Promise<RetrievedConfigurationRecord | null> {
+    getEncryptionKey();
+
     const rawRecord = await this.databaseClient.userConfiguration.findUnique({
       where: { userId },
     });
@@ -61,9 +67,9 @@ export class ConfigurationRepository {
       return null;
     }
 
-    const hasEcoFlow =
-      rawRecord.ecoflowAccessKey.trim().length > 0 &&
-      rawRecord.ecoflowSerialNumber.trim().length > 0;
+    const trimmedAccessKey = rawRecord.ecoflowAccessKey.trim();
+    const trimmedSerialNumber = rawRecord.ecoflowSerialNumber.trim();
+    const hasEcoFlow = trimmedAccessKey.length > 0 && trimmedSerialNumber.length > 0;
     if (!hasEcoFlow) {
       return null;
     }
@@ -72,6 +78,8 @@ export class ConfigurationRepository {
   }
 
   public async findAllActiveConfigurations(): Promise<RetrievedConfigurationRecord[]> {
+    getEncryptionKey();
+
     const rawRecords = await this.databaseClient.userConfiguration.findMany({
       where: {
         ecoflowAccessKey: { not: "" },
@@ -81,8 +89,7 @@ export class ConfigurationRepository {
 
     const results: RetrievedConfigurationRecord[] = [];
     for (const record of rawRecords) {
-      const mapped = this.mapRecordToConfiguration(record);
-      results.push(mapped);
+      await this.appendMappedRecordSafely(record, results);
     }
     return results;
   }
@@ -107,9 +114,32 @@ export class ConfigurationRepository {
     });
   }
 
-  private mapRecordToConfiguration(rawRecord: PrismaUserConfiguration): RetrievedConfigurationRecord {
+  private async appendMappedRecordSafely(
+    record: PrismaUserConfiguration,
+    accumulator: RetrievedConfigurationRecord[]
+  ): Promise<void> {
+    try {
+      const mapped = await this.mapRecordToConfiguration(record);
+      accumulator.push(mapped);
+    } catch (mappingError: unknown) {
+      const detail =
+        mappingError instanceof Error ? mappingError.message : "erro ao decifrar/mapear registro";
+      console.warn(
+        `[ConfigurationRepository] Ignorando configuração inválida (${record.id}): ${detail}`
+      );
+    }
+  }
+
+  private async mapRecordToConfiguration(
+    rawRecord: PrismaUserConfiguration
+  ): Promise<RetrievedConfigurationRecord> {
+    const decryptedSecrets = await decryptAndMigrateConfigurationSecrets(
+      this.databaseClient,
+      rawRecord
+    );
+
     const ecoflowKey = new AccessKey(rawRecord.ecoflowAccessKey);
-    const ecoflowSecret = new AccessSecret(rawRecord.ecoflowAccessSecret);
+    const ecoflowSecret = new AccessSecret(decryptedSecrets.ecoflowAccessSecret);
     const ecoflowCredentials = new EcoFlowCredentials(ecoflowKey, ecoflowSecret);
 
     const credentialsBundle = new CredentialsBundle(ecoflowCredentials);
@@ -129,10 +159,10 @@ export class ConfigurationRepository {
       ecoflowEndpointRegion: rawRecord.ecoflowEndpointRegion,
       isAutomationActive: rawRecord.isAutomationActive,
       notificationConfig: {
-        telegramBotToken: rawRecord.telegramBotToken,
+        telegramBotToken: decryptedSecrets.telegramBotToken,
         telegramChatId: rawRecord.telegramChatId,
         whatsappPhoneNumber: rawRecord.whatsappPhoneNumber,
-        whatsappApiKey: rawRecord.whatsappApiKey,
+        whatsappApiKey: decryptedSecrets.whatsappApiKey,
         isNotificationActive: rawRecord.isNotificationActive,
       },
       configuration,

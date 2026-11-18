@@ -2,7 +2,15 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../infrastructure/database/prismaClient";
 import { ConfigurationRepository } from "../../infrastructure/repositories/ConfigurationRepository";
 import { OrchestratorSyncUseCase, SyncExecutionResult } from "../../application/OrchestratorSyncUseCase";
-import { extractUserFromRequest } from "../../infrastructure/auth/sessionHelper";
+import {
+  enforceCsrfProtection,
+  extractUserFromRequest,
+  SESSION_COOKIE_NAME,
+} from "../../infrastructure/auth/sessionHelper";
+import {
+  extractCronTokenFromHeaders,
+  verifyCronRequestAuthorization,
+} from "../../infrastructure/security/cronAuthHelper";
 
 interface SyncApiResponseData {
   success: boolean;
@@ -14,6 +22,8 @@ export default async function handleSync(
   request: NextApiRequest,
   response: NextApiResponse<SyncApiResponseData>
 ): Promise<void> {
+  response.setHeader("Cache-Control", "no-store");
+
   const isAllowedMethod = request.method === "GET" || request.method === "POST";
   if (!isAllowedMethod) {
     response.setHeader("Allow", ["GET", "POST"]);
@@ -24,22 +34,78 @@ export default async function handleSync(
     return;
   }
 
-  const sessionUser = extractUserFromRequest(request);
-  const configuredCronSecret = process.env.CRON_SECRET_TOKEN;
-  const authorizationHeader = request.headers.authorization;
-  const bearerExpected = `Bearer ${configuredCronSecret}`;
-  const queryToken = request.query.token;
+  const { hasValidSecretConfigured, isAuthorized: isCronAuthorized } =
+    verifyCronRequestAuthorization(request, process.env.CRON_SECRET_TOKEN);
 
-  const isCronAuthorized =
-    Boolean(configuredCronSecret) &&
-    (authorizationHeader === bearerExpected || queryToken === configuredCronSecret);
+  let sessionUser: Awaited<ReturnType<typeof extractUserFromRequest>> = null;
 
-  if (!sessionUser && !isCronAuthorized) {
-    response.status(401).json({
-      success: false,
-      message: "Não autorizado. Forneça o token do Cron ou realize login na plataforma.",
-    });
-    return;
+  if (!isCronAuthorized) {
+    const hasSessionCookie = Boolean(request.headers?.cookie?.includes(SESSION_COOKIE_NAME));
+    const hasCronHeaderAttempt = extractCronTokenFromHeaders(request) !== null;
+
+    if (request.method === "GET") {
+      if (hasSessionCookie && !hasCronHeaderAttempt) {
+        response.setHeader("Allow", ["POST"]);
+        response.status(405).json({
+          success: false,
+          message: "Sincronização autenticada por sessão exige o método POST.",
+        });
+        return;
+      }
+
+      if (!hasValidSecretConfigured) {
+        response.status(500).json({
+          success: false,
+          message:
+            "Variável de ambiente CRON_SECRET_TOKEN obrigatória não configurada ou com menos de 32 caracteres.",
+        });
+        return;
+      }
+
+      response.status(401).json({
+        success: false,
+        message: "Não autorizado. Forneça o token do Cron via cabeçalho HTTP.",
+      });
+      return;
+    }
+
+    // request.method === "POST" sem autorização Cron
+    if (hasSessionCookie) {
+      try {
+        sessionUser = await extractUserFromRequest(request);
+      } catch (authError: unknown) {
+        const authMessage =
+          authError instanceof Error
+            ? authError.message
+            : "Erro interno na configuração de autenticação do servidor.";
+        response.status(500).json({
+          success: false,
+          message: authMessage,
+        });
+        return;
+      }
+
+      if (sessionUser && !enforceCsrfProtection(request, response)) {
+        return;
+      }
+    }
+
+    if (!sessionUser) {
+      if (!hasValidSecretConfigured) {
+        response.status(500).json({
+          success: false,
+          message:
+            "Variável de ambiente CRON_SECRET_TOKEN obrigatória não configurada ou com menos de 32 caracteres.",
+        });
+        return;
+      }
+
+      response.status(401).json({
+        success: false,
+        message: "Não autorizado. Forneça o token do Cron via cabeçalho ou realize login na plataforma.",
+      });
+      return;
+    }
   }
 
   try {
@@ -68,10 +134,10 @@ export default async function handleSync(
       data: batchResults,
     });
   } catch (caughtError: unknown) {
-    const errorMessage = caughtError instanceof Error ? caughtError.message : "Erro desconhecido na sincronização.";
+    console.error("[Sync API] Erro interno durante sincronização:", caughtError);
     response.status(500).json({
       success: false,
-      message: errorMessage,
+      message: "Erro interno ao processar a sincronização de energia.",
     });
   }
 }

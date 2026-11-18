@@ -49,8 +49,13 @@ export default function ProfilePage() {
   // Form Dados Pessoais
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [profileCurrentPassword, setProfileCurrentPassword] = useState("");
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const [profileFeedback, setProfileFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  const isEmailChanged = Boolean(
+    profileData && email.trim().toLowerCase() !== profileData.email.trim().toLowerCase()
+  );
 
   // Form Troca de Senha
   const [currentPassword, setCurrentPassword] = useState("");
@@ -65,6 +70,7 @@ export default function ProfilePage() {
   const [isSettingUp2FA, setIsSettingUp2FA] = useState(false);
   const [totpSecret, setTotpSecret] = useState("");
   const [totpToken, setTotpToken] = useState("");
+  const [enableTwoFactorPassword, setEnableTwoFactorPassword] = useState("");
   const [qrCodeUrl, setQrCodeUrl] = useState("");
   const [copiedSecret, setCopiedSecret] = useState(false);
   const [isVerifying2FA, setIsVerifying2FA] = useState(false);
@@ -106,19 +112,33 @@ export default function ProfilePage() {
   // Atualizar dados de Perfil (Nome e E-mail)
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsUpdatingProfile(true);
     setProfileFeedback(null);
+
+    if (isEmailChanged && !profileCurrentPassword) {
+      setProfileFeedback({
+        type: "error",
+        message: "Informe sua senha atual para confirmar a alteração do endereço de e-mail.",
+      });
+      return;
+    }
+
+    setIsUpdatingProfile(true);
 
     try {
       const response = await fetch("/api/auth/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fullName, email }),
+        body: JSON.stringify({
+          fullName,
+          email,
+          ...(isEmailChanged ? { currentPassword: profileCurrentPassword } : {}),
+        }),
       });
       const result = await response.json();
 
-      if (result.success) {
+      if (response.ok && result.success) {
         setProfileFeedback({ type: "success", message: result.message });
+        setProfileCurrentPassword("");
         await refreshUser();
         await fetchProfile();
       } else {
@@ -136,8 +156,8 @@ export default function ProfilePage() {
     e.preventDefault();
     setPasswordFeedback(null);
 
-    if (newPassword.length < 6) {
-      setPasswordFeedback({ type: "error", message: "A nova senha deve possuir no mínimo 6 caracteres." });
+    if (newPassword.length < 12 || newPassword.length > 128) {
+      setPasswordFeedback({ type: "error", message: "A nova senha deve possuir entre 12 e 128 caracteres." });
       return;
     }
 
@@ -185,6 +205,7 @@ export default function ProfilePage() {
         setQrCodeUrl(result.data.qrCodeDataUrl || "");
         setIsSettingUp2FA(true);
         setTotpToken("");
+        setEnableTwoFactorPassword("");
       } else {
         setTwoFactorFeedback({ type: "error", message: result.message || "Falha ao gerar segredo 2FA." });
       }
@@ -205,8 +226,8 @@ export default function ProfilePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "VERIFY_AND_ENABLE",
-          secret: totpSecret,
           token: totpToken,
+          currentPassword: enableTwoFactorPassword,
         }),
       });
       const result = await response.json();
@@ -217,6 +238,7 @@ export default function ProfilePage() {
         setTotpSecret("");
         setQrCodeUrl("");
         setTotpToken("");
+        setEnableTwoFactorPassword("");
         await fetchProfile();
       } else {
         setTwoFactorFeedback({ type: "error", message: result.message || "Código inválido." });
@@ -487,16 +509,40 @@ export default function ProfilePage() {
                     type="email"
                     required
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (profileData && e.target.value.trim().toLowerCase() === profileData.email.trim().toLowerCase()) {
+                        setProfileCurrentPassword("");
+                      }
+                    }}
                     placeholder="seu@email.com"
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 transition-colors font-mono"
                   />
                 </div>
 
+                {isEmailChanged && (
+                  <div className="space-y-1.5 p-3.5 rounded-xl bg-amber-500/5 border border-amber-500/30">
+                    <label htmlFor="profile-current-password" className="text-xs font-semibold text-amber-300 flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5 text-amber-400" aria-hidden="true" />
+                      Senha atual (obrigatória para alterar o e-mail)
+                    </label>
+                    <input
+                      id="profile-current-password"
+                      type="password"
+                      required
+                      autoComplete="current-password"
+                      value={profileCurrentPassword}
+                      onChange={(e) => setProfileCurrentPassword(e.target.value)}
+                      placeholder="Digite sua senha atual"
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-amber-400 transition-colors"
+                    />
+                  </div>
+                )}
+
                 <div className="flex justify-end pt-2">
                   <button
                     type="submit"
-                    disabled={isUpdatingProfile}
+                    disabled={isUpdatingProfile || (isEmailChanged && !profileCurrentPassword)}
                     className="px-5 py-2.5 rounded-xl font-semibold text-xs bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all flex items-center gap-2 shadow-lg shadow-emerald-950/40 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isUpdatingProfile ? (
@@ -563,17 +609,18 @@ export default function ProfilePage() {
 
                 <div className="space-y-1.5">
                   <label htmlFor="new-password-input" className="text-xs font-semibold text-slate-300">
-                    Nova Senha (Mínimo 6 caracteres)
+                    Nova Senha (12 a 128 caracteres)
                   </label>
                   <div className="relative">
                     <input
                       id="new-password-input"
                       type={showNewPassword ? "text" : "password"}
                       required
-                      minLength={6}
+                      minLength={12}
+                      maxLength={128}
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
-                      placeholder="Mínimo 6 caracteres"
+                      placeholder="Entre 12 e 128 caracteres"
                       className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 pr-10 text-sm text-slate-200 focus:outline-none focus:border-amber-400 transition-colors"
                     />
                     <button
@@ -760,9 +807,24 @@ export default function ProfilePage() {
                                 placeholder="000000"
                                 className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-center font-mono text-lg tracking-widest text-slate-100 focus:outline-none focus:border-indigo-400 transition-colors"
                               />
+                              <div className="space-y-1">
+                                <label htmlFor="totp-current-password-input" className="text-xs font-semibold text-slate-300 block">
+                                  Confirme sua senha atual para ativar o 2FA:
+                                </label>
+                                <input
+                                  id="totp-current-password-input"
+                                  type="password"
+                                  required
+                                  autoComplete="current-password"
+                                  value={enableTwoFactorPassword}
+                                  onChange={(e) => setEnableTwoFactorPassword(e.target.value)}
+                                  placeholder="Sua senha atual"
+                                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-400 transition-colors"
+                                />
+                              </div>
                               <button
                                 type="submit"
-                                disabled={isVerifying2FA || totpToken.length !== 6}
+                                disabled={isVerifying2FA || totpToken.length !== 6 || !enableTwoFactorPassword}
                                 className="w-full px-5 py-2.5 rounded-xl font-semibold text-xs bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                               >
                                 {isVerifying2FA ? (
@@ -780,6 +842,8 @@ export default function ProfilePage() {
                                   setIsSettingUp2FA(false);
                                   setQrCodeUrl("");
                                   setTotpSecret("");
+                                  setTotpToken("");
+                                  setEnableTwoFactorPassword("");
                                 }}
                                 className="text-xs text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
                               >
@@ -895,28 +959,34 @@ export default function ProfilePage() {
                 )}
               </div>
 
-              {/* Adicionar Nova Passkey */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800/90 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                <input
-                  type="text"
-                  value={passkeyName}
-                  onChange={(e) => setPasskeyName(e.target.value)}
-                  placeholder="Nome da chave (ex: Touch ID Mac, iPhone)"
-                  className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-200 focus:outline-none focus:border-teal-500 transition-colors flex-1"
-                />
-                <button
-                  type="button"
-                  disabled={isCreatingPasskey || !isPasskeySupported}
-                  onClick={handleCreatePasskey}
-                  className="px-4 py-2.5 rounded-xl font-semibold text-xs bg-teal-600 hover:bg-teal-500 active:scale-95 text-white transition-all flex items-center justify-center gap-2 shadow-lg shadow-teal-950/40 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                >
-                  {isCreatingPasskey ? (
-                    <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-                  ) : (
+              {/* Adicionar Nova Passkey (temporariamente desabilitado até validação FIDO2 completa) */}
+              <div className="space-y-3">
+                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs flex items-start gap-2">
+                  <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" aria-hidden="true" />
+                  <span>
+                    O cadastro de novas Passkeys está temporariamente desabilitado até a conclusão da validação FIDO2 completa no servidor. Você ainda pode remover chaves já registradas acima.
+                  </span>
+                </div>
+                <div className="p-4 rounded-xl bg-slate-950 border border-slate-800/90 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 opacity-60">
+                  <input
+                    type="text"
+                    disabled
+                    value={passkeyName}
+                    onChange={(e) => setPasskeyName(e.target.value)}
+                    placeholder="Nome da chave (indisponível temporariamente)"
+                    className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-400 focus:outline-none transition-colors flex-1 cursor-not-allowed"
+                  />
+                  <button
+                    type="button"
+                    disabled
+                    aria-disabled="true"
+                    title="Cadastro de novas Passkeys temporariamente desabilitado até validação FIDO2 completa"
+                    className="px-4 py-2.5 rounded-xl font-semibold text-xs bg-teal-600 text-white transition-all flex items-center justify-center gap-2 shadow-lg shadow-teal-950/40 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                  >
                     <Plus className="w-4 h-4" aria-hidden="true" />
-                  )}
-                  {isCreatingPasskey ? "Registrando no dispositivo..." : "Criar Nova Passkey"}
-                </button>
+                    Criar Nova Passkey
+                  </button>
+                </div>
               </div>
             </section>
           </div>
@@ -954,7 +1024,10 @@ export default function ProfilePage() {
               <div className="flex items-center justify-end gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => setShowDisableModal(false)}
+                  onClick={() => {
+                    setShowDisableModal(false);
+                    setDisablePassword("");
+                  }}
                   className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
                 >
                   Cancelar

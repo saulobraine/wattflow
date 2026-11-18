@@ -17,8 +17,14 @@ export default function RegisterPage() {
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    setIsLoading(true);
     setErrorMessage(null);
+
+    if (password.length < 12 || password.length > 128) {
+      setErrorMessage("A senha deve possuir entre 12 e 128 caracteres.");
+      return;
+    }
+
+    setIsLoading(true);
 
     try {
       const response = await fetch("/api/auth/register", {
@@ -27,8 +33,16 @@ export default function RegisterPage() {
         body: JSON.stringify({ fullName, email, password }),
       });
 
-      const data = await response.json();
-      if (!data.success) {
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) {
+        if (response.status === 403) {
+          setErrorMessage(data.message || "O cadastro público de novas contas está desabilitado neste servidor.");
+          return;
+        }
+        if (response.status === 429) {
+          setErrorMessage(data.message || "Muitas tentativas de cadastro. Aguarde alguns instantes e tente novamente.");
+          return;
+        }
         setErrorMessage(data.message || "Erro ao criar conta.");
         return;
       }
@@ -113,7 +127,7 @@ export default function RegisterPage() {
 
               <div>
                 <label htmlFor="register-password-input" className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                  Senha (mínimo 6 caracteres)
+                  Senha (12 a 128 caracteres)
                 </label>
                 <div className="relative">
                   <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3.5 transition-colors" aria-hidden="true" />
@@ -121,10 +135,12 @@ export default function RegisterPage() {
                     id="register-password-input"
                     type="password"
                     required
+                    minLength={12}
+                    maxLength={128}
                     autoComplete="new-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
+                    placeholder="Entre 12 e 128 caracteres"
                     className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-base sm:text-sm focus:border-emerald-500 focus:outline-none transition-colors"
                   />
                 </div>

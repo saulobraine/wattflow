@@ -3,6 +3,7 @@ import { DeviceSerialNumber } from "../../domain/values/DeviceSerialNumber";
 import { EcoFlowCredentials } from "../../domain/models/EcoFlowCredentials";
 import { SolarGenerationWatts } from "../../domain/values/SolarGenerationWatts";
 import { EcoFlowSignatureCalculator } from "../../domain/services/EcoFlowSignatureCalculator";
+import { validateEcoFlowMqttBroker } from "../security/ecoflowAllowlist";
 
 interface EcoFlowQuotaResponseJson {
   code: string;
@@ -135,6 +136,7 @@ export class EcoFlowHttpClient {
           timestamp: timestampString,
           sign: signatureHex,
         },
+        signal: AbortSignal.timeout(8000),
       });
     } catch (networkError) {
       const detail = networkError instanceof Error ? networkError.message : "falha de conexão";
@@ -162,16 +164,25 @@ export class EcoFlowHttpClient {
     }
 
     const data = responseJson.data;
-    const rawPort = data.port;
-    const parsedPort = typeof rawPort === "string" ? parseInt(rawPort, 10) : (rawPort ?? 8883);
-    const resolvedPort = isNaN(parsedPort) ? 8883 : parsedPort;
+    const validatedBroker = validateEcoFlowMqttBroker({
+      protocol: data.protocol,
+      url: data.url,
+      port: data.port,
+    });
+
+    const rawAccount = typeof data.certificateAccount === "string" ? data.certificateAccount.trim() : "";
+    const rawPassword = typeof data.certificatePassword === "string" ? data.certificatePassword.trim() : "";
+
+    if (!rawAccount || !rawPassword) {
+      throw new Error("[EcoFlow] Credenciais de certificação MQTT ausentes ou vazias na resposta da API.");
+    }
 
     return {
-      url: data.url ?? "mqtt.ecoflow.com",
-      port: resolvedPort,
-      certificateAccount: data.certificateAccount ?? "",
-      certificatePassword: data.certificatePassword ?? "",
-      protocol: data.protocol ?? "mqtts",
+      url: validatedBroker.host,
+      port: validatedBroker.port,
+      certificateAccount: rawAccount,
+      certificatePassword: data.certificatePassword as string,
+      protocol: validatedBroker.protocol,
     };
   }
 
@@ -250,6 +261,7 @@ export class EcoFlowHttpClient {
           timestamp: timestampString,
           sign: signatureHex,
         },
+        signal: AbortSignal.timeout(8000),
       });
     } catch (networkError) {
       const detail = networkError instanceof Error ? networkError.message : "falha de conexão";
@@ -453,6 +465,7 @@ export class EcoFlowHttpClient {
           "Content-Type": "application/json;charset=UTF-8",
         },
         body: JSON.stringify(requestBody),
+        signal: AbortSignal.timeout(8000),
       });
     } catch (networkError) {
       const detail = networkError instanceof Error ? networkError.message : "falha de rede";
@@ -464,7 +477,6 @@ export class EcoFlowHttpClient {
     }
 
     const responseJson = (await httpResponse.json()) as EcoFlowQuotaResponseJson;
-    console.log(`[EcoFlowHttpClient] PUT /quota retorno (${httpResponse.status}):`, JSON.stringify(responseJson));
     if (responseJson.code !== "0") {
       return { isSuccess: false, errorMessage: responseJson.message ?? `código ${responseJson.code}` };
     }
