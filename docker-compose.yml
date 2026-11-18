@@ -1,5 +1,3 @@
-name: wattflow
-
 services:
   # -------------------------------------------------------------------------
   # 1. Banco de Dados PostgreSQL (100% Isolado na Rede Interna do WattFlow)
