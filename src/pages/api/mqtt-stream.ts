@@ -37,18 +37,34 @@ export default async function handleMqttStream(
   }
 
   try {
+    const rawUserId = request.query.userId;
+    const targetUserId =
+      typeof rawUserId === "string" && rawUserId.trim().length > 0
+        ? rawUserId.trim()
+        : undefined;
+
     const streamService = EcoFlowMqttStreamService.getInstance();
-    const isConnected = streamService.isStreamConnected();
+    const isConnected = targetUserId
+      ? streamService.isStreamConnected(targetUserId)
+      : streamService.isStreamConnected();
 
     if (!isConnected) {
-      await streamService.startWithActiveConfiguration(prisma);
+      if (targetUserId) {
+        await streamService.startWithActiveConfiguration(prisma, targetUserId);
+      } else {
+        await streamService.startWithActiveConfiguration(prisma);
+      }
     }
 
-    const latestTelemetry = streamService.getLatestTelemetry();
+    const latestTelemetry = targetUserId
+      ? streamService.getLatestTelemetry(targetUserId)
+      : streamService.getLatestTelemetry();
 
     response.status(200).json({
       success: true,
-      isConnected: streamService.isStreamConnected(),
+      isConnected: targetUserId
+        ? streamService.isStreamConnected(targetUserId)
+        : streamService.isStreamConnected(),
       latestTelemetry,
       message: "Stream MQTT oficial EcoFlow ativo com keep-alive de 60s.",
     });

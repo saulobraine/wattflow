@@ -2,7 +2,19 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../../infrastructure/database/prismaClient";
 import { UserEmail } from "../../../domain/values/UserEmail";
 import { RawPassword } from "../../../domain/values/RawPassword";
-import { getAuthenticationTokenService, setSessionCookie } from "../../../infrastructure/auth/sessionHelper";
+import {
+  getAuthenticationTokenService,
+  setSessionCookie,
+} from "../../../infrastructure/auth/sessionHelper";
+import {
+  checkRateLimit,
+  extractClientIp,
+  sendRateLimitExceeded,
+} from "../../../infrastructure/security/rateLimiter";
+
+const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
+const MAX_REGISTER_PER_IP = 10;
+const MAX_REGISTER_PER_EMAIL = 5;
 
 interface RegisterResponseBody {
   success: boolean;
@@ -18,20 +30,53 @@ export default async function handleRegister(
   request: NextApiRequest,
   response: NextApiResponse<RegisterResponseBody>
 ): Promise<void> {
+  response.setHeader("Cache-Control", "no-store");
+
   if (request.method !== "POST") {
     response.setHeader("Allow", ["POST"]);
     response.status(405).json({ success: false, message: "Método não permitido." });
     return;
   }
 
-  const { email, password, fullName } = request.body;
+  if (process.env.ALLOW_PUBLIC_REGISTRATION !== "true") {
+    response.status(403).json({
+      success: false,
+      message: "O cadastro público de novas contas está desabilitado neste servidor.",
+    });
+    return;
+  }
+
+  const clientIp = extractClientIp(request);
+  const ipLimit = checkRateLimit(`register:ip:${clientIp}`, MAX_REGISTER_PER_IP, FIFTEEN_MINUTES_MS);
+  if (!ipLimit.allowed) {
+    sendRateLimitExceeded(
+      response,
+      ipLimit.retryAfterSeconds,
+      "Muitas tentativas de cadastro a partir deste IP. Aguarde antes de tentar novamente."
+    );
+    return;
+  }
+
+  let tokenService: ReturnType<typeof getAuthenticationTokenService>;
+  try {
+    tokenService = getAuthenticationTokenService();
+  } catch (authConfigError: unknown) {
+    const errorMessage =
+      authConfigError instanceof Error
+        ? authConfigError.message
+        : "Erro interno de configuração de autenticação.";
+    response.status(500).json({ success: false, message: errorMessage });
+    return;
+  }
+
+  const { email, password, fullName } = request.body ?? {};
 
   let userEmail: UserEmail;
   let rawPassword: RawPassword;
 
   try {
-    userEmail = new UserEmail(String(email || ""));
-    rawPassword = new RawPassword(String(password || ""));
+    userEmail = new UserEmail(typeof email === "string" ? email : "");
+    rawPassword = new RawPassword(typeof password === "string" ? password : "");
   } catch (validationError: unknown) {
     const message = validationError instanceof Error ? validationError.message : "Dados inválidos.";
     response.status(400).json({ success: false, message });
@@ -42,6 +87,16 @@ export default async function handleRegister(
   userEmail.transferEmail((e) => {
     normalizedEmail = e;
   });
+
+  const emailLimit = checkRateLimit(
+    `register:acct:${normalizedEmail}`,
+    MAX_REGISTER_PER_EMAIL,
+    FIFTEEN_MINUTES_MS
+  );
+  if (!emailLimit.allowed) {
+    sendRateLimitExceeded(response, emailLimit.retryAfterSeconds);
+    return;
+  }
 
   const existingUser = await prisma.user.findUnique({
     where: { email: normalizedEmail },
@@ -55,7 +110,7 @@ export default async function handleRegister(
     return;
   }
 
-  const hashedPassword = rawPassword.generateHashedRepresentation();
+  const hashedPassword = await rawPassword.generateHashedRepresentation();
   let storedHash = "";
   hashedPassword.transferHash((h) => {
     storedHash = h;
@@ -82,8 +137,12 @@ export default async function handleRegister(
     return user;
   });
 
-  const tokenService = getAuthenticationTokenService();
-  const sessionToken = tokenService.createSessionToken(createdUser.id, createdUser.email);
+  const sessionToken = tokenService.createSessionToken(
+    createdUser.id,
+    createdUser.email,
+    7,
+    createdUser.tokenVersion ?? 0
+  );
   setSessionCookie(response, sessionToken);
 
   response.status(201).json({

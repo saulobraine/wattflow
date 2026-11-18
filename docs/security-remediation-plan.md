@@ -46,17 +46,17 @@
 ## Etapa 3 — Alto: TLS MQTT, Passkeys, Rate Limiting, Isolamento Multi-Tenant e Sessões
 **Itens:** `SEC-05`, `SEC-06`, `SEC-07`, `SEC-08`, `SEC-09`
 **Responsáveis:** `ApexDev` + `PixelCraft`
-- [ ] **SEC-05:** Habilitar `rejectUnauthorized: true` em `EcoFlowMqttStreamService.ts` e `local-sync-daemon.js`.
-- [ ] **SEC-06:** Remover fluxo simulado de Passkeys (ou implementar validação FIDO2 completa com `@simplewebauthn/server` e challenge persistido).
-- [ ] **SEC-07:** Implementar Rate Limiting (IP + conta) em `/api/auth/*`, `/api/test-control` (cooldown AC/ATS) e `/api/test-notification`. Trocar `scryptSync` por `crypto.scrypt` assíncrono, exigir senha 12-128 chars e flag `ALLOW_PUBLIC_REGISTRATION` (default `false`).
-- [ ] **SEC-08:** Refatorar `EcoFlowMqttStreamService` e `LiveTelemetryService` para escopo isolado por `userId` (`Map<string, ...>`).
-- [ ] **SEC-09:** Adicionar `tokenVersion` no modelo `User` validado a cada request e incrementado em logout, troca de senha, troca de e-mail e 2FA. Exigir `currentPassword` no `PATCH /api/auth/profile` ao alterar e-mail.
-- [ ] **Portão de Testes (100%):**
+- [x] **SEC-05:** Habilitar `rejectUnauthorized: true` em `EcoFlowMqttStreamService.ts` e `local-sync-daemon.js`.
+- [x] **SEC-06:** Remover fluxo simulado de Passkeys (ou implementar validação FIDO2 completa com `@simplewebauthn/server` e challenge persistido).
+- [x] **SEC-07:** Implementar Rate Limiting (IP + conta) em `/api/auth/*`, `/api/test-control` (cooldown AC/ATS) e `/api/test-notification`. Trocar `scryptSync` por `crypto.scrypt` assíncrono, exigir senha 12-128 chars e flag `ALLOW_PUBLIC_REGISTRATION` (default `false`).
+- [x] **SEC-08:** Refatorar `EcoFlowMqttStreamService` e `LiveTelemetryService` para escopo isolado por `userId` (`Map<string, ...>`).
+- [x] **SEC-09:** Adicionar `tokenVersion` no modelo `User` validado a cada request e incrementado em logout, troca de senha, troca de e-mail e 2FA. Exigir `currentPassword` no `PATCH /api/auth/profile` ao alterar e-mail.
+- [x] **Portão de Testes (100%):**
   - `UnitTestEngine`: Testes de rate limit, isolamento de estado multi-tenant, revogação via `tokenVersion` e política de senha.
   - `E2EGuardian`: Testes E2E de bloqueio por tentativas, invalidação de sessão pós-logout e troca de e-mail.
   - `Sentinel`: Code Review do diff.
   - `Certifier`: Homologação.
-- [ ] **Commit (`GitOps`):** `fix(security): habilitar TLS estrito, rate limit, isolamento multi-tenant e revogacao de sessao`
+- [x] **Commit (`GitOps`):** `fix(security): habilitar TLS estrito, rate limit, isolamento multi-tenant e revogacao de sessao`
 
 ---
 

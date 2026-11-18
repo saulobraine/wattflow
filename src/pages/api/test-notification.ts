@@ -7,6 +7,16 @@ import {
 } from "../../infrastructure/notifications/NotificationDispatcher";
 import { isUnchangedOrMaskedSecret } from "../../infrastructure/security/encryptionHelper";
 import { decryptAndMigrateConfigurationSecrets } from "../../infrastructure/security/secretMigrationHelper";
+import {
+  checkRateLimit,
+  extractClientIp,
+  sendRateLimitExceeded,
+} from "../../infrastructure/security/rateLimiter";
+
+const FIVE_MINUTES_MS = 5 * 60 * 1000;
+const ONE_MINUTE_MS = 60 * 1000;
+const MAX_NOTIF_PER_IP = 10;
+const MAX_NOTIF_PER_USER = 5;
 
 interface TestNotificationRequestBody {
   channel: "TELEGRAM" | "WHATSAPP";
@@ -19,7 +29,7 @@ interface TestNotificationRequestBody {
 interface TestNotificationApiResponse {
   success: boolean;
   message: string;
-  channel: "TELEGRAM" | "WHATSAPP";
+  channel?: "TELEGRAM" | "WHATSAPP";
   errorDetails?: string;
 }
 
@@ -39,9 +49,16 @@ export default async function handleTestNotification(
     return;
   }
 
-  let sessionUser: ReturnType<typeof extractUserFromRequest> = null;
+  const clientIp = extractClientIp(request);
+  const ipLimit = checkRateLimit(`testnotif:ip:${clientIp}`, MAX_NOTIF_PER_IP, FIVE_MINUTES_MS);
+  if (!ipLimit.allowed) {
+    sendRateLimitExceeded(response, ipLimit.retryAfterSeconds);
+    return;
+  }
+
+  let sessionUser: Awaited<ReturnType<typeof extractUserFromRequest>> = null;
   try {
-    sessionUser = extractUserFromRequest(request);
+    sessionUser = await extractUserFromRequest(request);
   } catch (authError: unknown) {
     const authMessage =
       authError instanceof Error
@@ -68,6 +85,16 @@ export default async function handleTestNotification(
   sessionUser.provideIdentity((userId) => {
     extractedUserId = userId;
   });
+
+  const userLimit = checkRateLimit(
+    `testnotif:user:${extractedUserId}`,
+    MAX_NOTIF_PER_USER,
+    ONE_MINUTE_MS
+  );
+  if (!userLimit.allowed) {
+    sendRateLimitExceeded(response, userLimit.retryAfterSeconds);
+    return;
+  }
 
   const body = (request.body ?? {}) as TestNotificationRequestBody;
   const channel = body.channel === "WHATSAPP" ? "WHATSAPP" : "TELEGRAM";

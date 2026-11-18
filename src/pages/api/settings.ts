@@ -11,6 +11,7 @@ import {
   maskSecretIrreversible,
 } from "../../infrastructure/security/encryptionHelper";
 import { decryptAndMigrateConfigurationSecrets } from "../../infrastructure/security/secretMigrationHelper";
+import { EcoFlowMqttStreamService } from "../../infrastructure/services/EcoFlowMqttStreamService";
 
 export interface SettingsResponseData {
   ecoflowEndpointRegion: string;
@@ -44,9 +45,9 @@ export default async function handleSettings(
 ): Promise<void> {
   response.setHeader("Cache-Control", "no-store");
 
-  let sessionUser: ReturnType<typeof extractUserFromRequest> = null;
+  let sessionUser: Awaited<ReturnType<typeof extractUserFromRequest>> = null;
   try {
-    sessionUser = extractUserFromRequest(request);
+    sessionUser = await extractUserFromRequest(request);
   } catch (authError: unknown) {
     const authMessage =
       authError instanceof Error
@@ -270,6 +271,8 @@ export default async function handleSettings(
           isNotificationActive: resolvedNotificationActive,
         },
       });
+
+      EcoFlowMqttStreamService.getInstance().stopStream(extractedUserId);
 
       response.status(200).json({
         success: true,

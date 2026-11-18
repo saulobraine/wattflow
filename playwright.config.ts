@@ -39,6 +39,8 @@ export default defineConfig({
             process.env.AUTH_SECRET.trim().length >= 32
               ? process.env.AUTH_SECRET
               : "e2e-auth-secret-token-with-at-least-32-chars",
+          ALLOW_PUBLIC_REGISTRATION:
+            process.env.ALLOW_PUBLIC_REGISTRATION ?? "true",
           ENCRYPTION_KEY:
             process.env.ENCRYPTION_KEY &&
             /^[0-9a-fA-F]{64}$/.test(process.env.ENCRYPTION_KEY.trim()) &&

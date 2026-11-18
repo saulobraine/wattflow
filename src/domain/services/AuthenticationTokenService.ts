@@ -9,6 +9,7 @@ interface RawTokenPayload {
   userId: string;
   email: string;
   scope: TokenScope;
+  tokenVersion: number;
   expiresAt: number;
 }
 
@@ -16,7 +17,7 @@ const FIVE_MINUTES_MS = 5 * 60 * 1000;
 
 /**
  * Serviço de geração e validação de tokens criptográficos (HMAC-SHA256)
- * com separação estrita de escopo ("session" vs "2fa_challenge").
+ * com separação estrita de escopo ("session" vs "2fa_challenge") e controle de revogação via tokenVersion.
  * Respeita Object Calisthenics:
  * - Apenas 1 variável de instância
  * - 1 ponto por linha
@@ -32,12 +33,19 @@ export class AuthenticationTokenService {
     this.secretKey = secretKey;
   }
 
-  public createSessionToken(userId: string, email: string, validityDays = 7): UserSessionToken {
+  public createSessionToken(
+    userId: string,
+    email: string,
+    validityDays = 7,
+    tokenVersion = 0
+  ): UserSessionToken {
+    const normalizedVersion = Number.isInteger(tokenVersion) && tokenVersion >= 0 ? tokenVersion : 0;
     const expiresAt = Date.now() + validityDays * 24 * 60 * 60 * 1000;
     const serializedToken = this.signPayload({
       userId,
       email,
       scope: "session",
+      tokenVersion: normalizedVersion,
       expiresAt,
     });
     return new UserSessionToken(serializedToken);
@@ -46,32 +54,41 @@ export class AuthenticationTokenService {
   public createTwoFactorChallengeToken(
     userId: string,
     email: string,
-    ttlMilliseconds = FIVE_MINUTES_MS
+    ttlMilliseconds = FIVE_MINUTES_MS,
+    tokenVersion = 0
   ): string {
+    const normalizedVersion = Number.isInteger(tokenVersion) && tokenVersion >= 0 ? tokenVersion : 0;
     const expiresAt = Date.now() + ttlMilliseconds;
     return this.signPayload({
       userId,
       email,
       scope: "2fa_challenge",
+      tokenVersion: normalizedVersion,
       expiresAt,
     });
   }
 
-  public verifySessionToken(sessionToken: UserSessionToken): UserIdentity | null {
+  public verifySessionToken(
+    sessionToken: UserSessionToken,
+    expectedTokenVersion?: number
+  ): UserIdentity | null {
     let rawToken = "";
     sessionToken.transferToken((token: string) => {
       rawToken = token;
     });
 
-    return this.verifyScopedToken(rawToken, "session");
+    return this.verifyScopedToken(rawToken, "session", expectedTokenVersion);
   }
 
-  public verifyTwoFactorChallengeToken(rawChallengeToken: string): UserIdentity | null {
+  public verifyTwoFactorChallengeToken(
+    rawChallengeToken: string,
+    expectedTokenVersion?: number
+  ): UserIdentity | null {
     if (typeof rawChallengeToken !== "string" || rawChallengeToken.trim().length === 0) {
       return null;
     }
 
-    return this.verifyScopedToken(rawChallengeToken.trim(), "2fa_challenge");
+    return this.verifyScopedToken(rawChallengeToken.trim(), "2fa_challenge", expectedTokenVersion);
   }
 
   private signPayload(payload: RawTokenPayload): string {
@@ -82,7 +99,11 @@ export class AuthenticationTokenService {
     return `${base64Payload}.${signature}`;
   }
 
-  private verifyScopedToken(rawToken: string, requiredScope: TokenScope): UserIdentity | null {
+  private verifyScopedToken(
+    rawToken: string,
+    requiredScope: TokenScope,
+    expectedTokenVersion?: number
+  ): UserIdentity | null {
     const tokenParts = rawToken.split(".");
     if (tokenParts.length !== 2) {
       return null;
@@ -120,13 +141,22 @@ export class AuthenticationTokenService {
       return null;
     }
 
+    const payloadVersion = parsedPayload.tokenVersion;
+    if (typeof payloadVersion !== "number" || !Number.isInteger(payloadVersion) || payloadVersion < 0) {
+      return null;
+    }
+
+    if (expectedTokenVersion !== undefined && payloadVersion !== expectedTokenVersion) {
+      return null;
+    }
+
     if (typeof parsedPayload.expiresAt !== "number" || Date.now() > parsedPayload.expiresAt) {
       return null;
     }
 
     try {
       const emailValue = new UserEmail(parsedPayload.email);
-      return new UserIdentity(parsedPayload.userId, emailValue);
+      return new UserIdentity(parsedPayload.userId, emailValue, payloadVersion);
     } catch {
       return null;
     }

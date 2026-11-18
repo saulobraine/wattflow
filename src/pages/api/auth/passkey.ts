@@ -1,5 +1,4 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { randomBytes } from "node:crypto";
 import { prisma } from "../../../infrastructure/database/prismaClient";
 import { extractUserFromRequest } from "../../../infrastructure/auth/sessionHelper";
 
@@ -7,10 +6,6 @@ interface PasskeyResponseBody {
   success: boolean;
   message: string;
   data?: {
-    challenge?: string;
-    userId?: string;
-    userEmail?: string;
-    userName?: string;
     passkeys?: Array<{
       id: string;
       name: string;
@@ -24,7 +19,23 @@ export default async function handlePasskey(
   request: NextApiRequest,
   response: NextApiResponse<PasskeyResponseBody>
 ): Promise<void> {
-  const sessionUser = extractUserFromRequest(request);
+  response.setHeader("Cache-Control", "no-store");
+
+  let sessionUser: Awaited<ReturnType<typeof extractUserFromRequest>> = null;
+  try {
+    sessionUser = await extractUserFromRequest(request);
+  } catch (authError: unknown) {
+    const authMessage =
+      authError instanceof Error
+        ? authError.message
+        : "Erro interno de configuração de autenticação.";
+    response.status(500).json({
+      success: false,
+      message: authMessage,
+    });
+    return;
+  }
+
   if (!sessionUser) {
     response.status(401).json({
       success: false,
@@ -73,78 +84,9 @@ export default async function handlePasskey(
   }
 
   if (request.method === "POST") {
-    const { action, credentialId, publicKey, name, transports } = request.body || {};
-
-    if (action === "CHALLENGE") {
-      const challengeBuffer = randomBytes(32);
-      const challengeBase64 = challengeBuffer.toString("base64url");
-
-      response.status(200).json({
-        success: true,
-        message: "Desafio de registro WebAuthn gerado.",
-        data: {
-          challenge: challengeBase64,
-          userId: user.id,
-          userEmail: user.email,
-          userName: user.fullName || user.email,
-        },
-      });
-      return;
-    }
-
-    if (action === "REGISTER") {
-      if (!credentialId || !publicKey) {
-        response.status(400).json({
-          success: false,
-          message: "Dados da chave de acesso (ID e chave pública) são obrigatórios.",
-        });
-        return;
-      }
-
-      const passkeyName = (name && String(name).trim()) || "Passkey " + (user.passkeys.length + 1);
-
-      try {
-        await prisma.userPasskey.create({
-          data: {
-            userId: user.id,
-            name: passkeyName,
-            credentialId: String(credentialId),
-            publicKey: String(publicKey),
-            transports: transports ? JSON.stringify(transports) : null,
-          },
-        });
-
-        const updatedPasskeys = await prisma.userPasskey.findMany({
-          where: { userId: user.id },
-          select: { id: true, name: true, createdAt: true, lastUsedAt: true },
-          orderBy: { createdAt: "desc" },
-        });
-
-        response.status(201).json({
-          success: true,
-          message: `Passkey "${passkeyName}" registrada com sucesso!`,
-          data: {
-            passkeys: updatedPasskeys.map((p) => ({
-              id: p.id,
-              name: p.name,
-              createdAt: p.createdAt.toISOString(),
-              lastUsedAt: p.lastUsedAt ? p.lastUsedAt.toISOString() : null,
-            })),
-          },
-        });
-        return;
-      } catch (err: unknown) {
-        console.error("Erro ao registrar passkey:", err);
-        response.status(409).json({
-          success: false,
-          message: "Esta chave de acesso já está registrada.",
-        });
-        return;
-      }
-    }
+    const { action, passkeyId } = request.body ?? {};
 
     if (action === "DELETE") {
-      const { passkeyId } = request.body || {};
       if (!passkeyId) {
         response.status(400).json({
           success: false,
@@ -181,9 +123,10 @@ export default async function handlePasskey(
       return;
     }
 
-    response.status(400).json({
+    response.status(501).json({
       success: false,
-      message: "Ação de passkey não reconhecida.",
+      message:
+        "Registro e desafio de Passkeys (WebAuthn/FIDO2) estão desabilitados até a implementação da verificação criptográfica completa no servidor.",
     });
     return;
   }

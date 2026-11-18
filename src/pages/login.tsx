@@ -28,8 +28,14 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
 
-      const data = await response.json();
-      if (!data.success) {
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) {
+        if (response.status === 429) {
+          setErrorMessage(
+            data.message || "Muitas tentativas de login. Aguarde alguns instantes e tente novamente."
+          );
+          return;
+        }
         setErrorMessage(data.message || "Credenciais inválidas.");
         return;
       }
@@ -66,8 +72,14 @@ export default function LoginPage() {
         }),
       });
 
-      const data = await response.json();
-      if (!data.success) {
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) {
+        if (response.status === 429) {
+          setErrorMessage(
+            data.message || "Muitas tentativas de verificação. Aguarde alguns instantes e tente novamente."
+          );
+          return;
+        }
         setErrorMessage(data.message || "Código 2FA inválido ou expirado.");
         return;
       }

@@ -1,15 +1,34 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockFindUnique } = vi.hoisted(() => ({
+const { mockFindUnique, mockUpsert, mockStopStream } = vi.hoisted(() => ({
   mockFindUnique: vi.fn(),
+  mockUpsert: vi.fn(),
+  mockStopStream: vi.fn(),
 }));
 
 vi.mock("../../../infrastructure/database/prismaClient", () => ({
   prisma: {
+    user: {
+      findUnique: vi.fn().mockResolvedValue({
+        id: "usr-settings-1",
+        email: "settings@wattflow.local",
+        tokenVersion: 0,
+      }),
+    },
     userConfiguration: {
       findUnique: mockFindUnique,
+      update: vi.fn(),
+      upsert: mockUpsert,
     },
+  },
+}));
+
+vi.mock("../../../infrastructure/services/EcoFlowMqttStreamService", () => ({
+  EcoFlowMqttStreamService: {
+    getInstance: vi.fn(() => ({
+      stopStream: mockStopStream,
+    })),
   },
 }));
 
@@ -160,5 +179,28 @@ describe("GET /api/settings masking & Cache-Control (SEC-01 / SEC-03)", () => {
       success: false,
       message: expect.stringContaining("ENCRYPTION_KEY"),
     });
+  });
+
+  it("POST /api/settings calls stopStream(userId) after persisting updated credentials", async () => {
+    mockFindUnique.mockResolvedValueOnce(null);
+    mockUpsert.mockResolvedValueOnce({ userId: "usr-settings-1" });
+
+    const req = {
+      method: "POST",
+      headers: { cookie: buildAuthCookieHeader("usr-settings-1") },
+      body: {
+        ecoflowEndpointRegion: "https://api.ecoflow.com",
+        ecoflowAccessKey: "new-ak-1234",
+        ecoflowAccessSecret: "new-as-1234",
+        ecoflowSerialNumber: "R601ZAB12345",
+      },
+    } as unknown as NextApiRequest;
+    const res = createMockApiResponse();
+
+    await handleSettings(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(mockUpsert).toHaveBeenCalledTimes(1);
+    expect(mockStopStream).toHaveBeenCalledWith("usr-settings-1");
   });
 });

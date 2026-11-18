@@ -41,10 +41,10 @@ export default async function handleSync(
       authorizationHeader === bearerExpected || queryToken === configuredCronSecret;
   }
 
-  let sessionUser: ReturnType<typeof extractUserFromRequest> = null;
+  let sessionUser: Awaited<ReturnType<typeof extractUserFromRequest>> = null;
   if (!isCronAuthorized) {
     try {
-      sessionUser = extractUserFromRequest(request);
+      sessionUser = await extractUserFromRequest(request);
     } catch (authError: unknown) {
       const authMessage =
         authError instanceof Error

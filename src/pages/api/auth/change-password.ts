@@ -1,8 +1,21 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../../infrastructure/database/prismaClient";
-import { extractUserFromRequest } from "../../../infrastructure/auth/sessionHelper";
+import {
+  extractUserFromRequest,
+  getAuthenticationTokenService,
+  setSessionCookie,
+} from "../../../infrastructure/auth/sessionHelper";
 import { RawPassword } from "../../../domain/values/RawPassword";
 import { HashedPassword } from "../../../domain/values/HashedPassword";
+import {
+  checkRateLimit,
+  extractClientIp,
+  sendRateLimitExceeded,
+} from "../../../infrastructure/security/rateLimiter";
+
+const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
+const MAX_CHANGE_PASSWORD_PER_IP = 10;
+const MAX_CHANGE_PASSWORD_PER_USER = 5;
 
 interface ChangePasswordResponseBody {
   success: boolean;
@@ -13,6 +26,8 @@ export default async function handleChangePassword(
   request: NextApiRequest,
   response: NextApiResponse<ChangePasswordResponseBody>
 ): Promise<void> {
+  response.setHeader("Cache-Control", "no-store");
+
   if (request.method !== "POST") {
     response.setHeader("Allow", ["POST"]);
     response.status(405).json({
@@ -22,7 +37,32 @@ export default async function handleChangePassword(
     return;
   }
 
-  const sessionUser = extractUserFromRequest(request);
+  const clientIp = extractClientIp(request);
+  const ipLimit = checkRateLimit(
+    `chgpass:ip:${clientIp}`,
+    MAX_CHANGE_PASSWORD_PER_IP,
+    FIFTEEN_MINUTES_MS
+  );
+  if (!ipLimit.allowed) {
+    sendRateLimitExceeded(response, ipLimit.retryAfterSeconds);
+    return;
+  }
+
+  let sessionUser: Awaited<ReturnType<typeof extractUserFromRequest>> = null;
+  try {
+    sessionUser = await extractUserFromRequest(request);
+  } catch (authError: unknown) {
+    const authMessage =
+      authError instanceof Error
+        ? authError.message
+        : "Erro interno de configuração de autenticação.";
+    response.status(500).json({
+      success: false,
+      message: authMessage,
+    });
+    return;
+  }
+
   if (!sessionUser) {
     response.status(401).json({
       success: false,
@@ -36,9 +76,19 @@ export default async function handleChangePassword(
     extractedUserId = userId;
   });
 
-  const { currentPassword, newPassword } = request.body || {};
+  const userLimit = checkRateLimit(
+    `chgpass:user:${extractedUserId}`,
+    MAX_CHANGE_PASSWORD_PER_USER,
+    FIFTEEN_MINUTES_MS
+  );
+  if (!userLimit.allowed) {
+    sendRateLimitExceeded(response, userLimit.retryAfterSeconds);
+    return;
+  }
 
-  if (!currentPassword || !newPassword) {
+  const { currentPassword, newPassword } = request.body ?? {};
+
+  if (typeof currentPassword !== "string" || !currentPassword || typeof newPassword !== "string" || !newPassword) {
     response.status(400).json({
       success: false,
       message: "A senha atual e a nova senha são obrigatórias.",
@@ -60,19 +110,8 @@ export default async function handleChangePassword(
     }
 
     const currentHashed = new HashedPassword(user.passwordHash);
-    let candidateRawCurrent: RawPassword;
-
-    try {
-      candidateRawCurrent = new RawPassword(String(currentPassword));
-    } catch {
-      response.status(400).json({
-        success: false,
-        message: "Senha atual incorreta.",
-      });
-      return;
-    }
-
-    if (!currentHashed.matchesRawPassword(candidateRawCurrent)) {
+    const isCurrentValid = await currentHashed.matchesPlaintextCandidate(currentPassword);
+    if (!isCurrentValid) {
       response.status(400).json({
         success: false,
         message: "A senha atual digitada está incorreta.",
@@ -82,7 +121,7 @@ export default async function handleChangePassword(
 
     let rawNewPassword: RawPassword;
     try {
-      rawNewPassword = new RawPassword(String(newPassword));
+      rawNewPassword = new RawPassword(newPassword);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Nova senha inválida.";
       response.status(400).json({
@@ -92,18 +131,29 @@ export default async function handleChangePassword(
       return;
     }
 
-    const newHashedPassword = rawNewPassword.generateHashedRepresentation();
+    const newHashedPassword = await rawNewPassword.generateHashedRepresentation();
     let newHashString = "";
     newHashedPassword.transferHash((h) => {
       newHashString = h;
     });
 
-    await prisma.user.update({
+    const updatedUser = await prisma.user.update({
       where: { id: extractedUserId },
       data: {
         passwordHash: newHashString,
+        tokenVersion: { increment: 1 },
       },
     });
+
+    const nextTokenVersion = updatedUser?.tokenVersion ?? (user.tokenVersion ?? 0) + 1;
+    const tokenService = getAuthenticationTokenService();
+    const rotatedSessionToken = tokenService.createSessionToken(
+      user.id,
+      user.email,
+      7,
+      nextTokenVersion
+    );
+    setSessionCookie(response, rotatedSessionToken);
 
     response.status(200).json({
       success: true,

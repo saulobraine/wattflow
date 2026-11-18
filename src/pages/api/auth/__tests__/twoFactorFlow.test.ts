@@ -30,6 +30,7 @@ import { AuthenticationTokenService } from "../../../../domain/services/Authenti
 import { SESSION_COOKIE_NAME } from "../../../../infrastructure/auth/sessionHelper";
 import { encryptSecret } from "../../../../infrastructure/security/encryptionHelper";
 import { generateBase32Secret, generateTotpCode } from "../../../../infrastructure/auth/totpHelper";
+import { resetRateLimiterState } from "../../../../infrastructure/security/rateLimiter";
 
 const VALID_AUTH_SECRET = "auth-secret-token-with-32-chars!";
 const VALID_ENCRYPTION_KEY = "4f8a2c1e9d7b6a3f0e5c8d1a2b4c6e8f9a1b3c5d7e9f0a2b4c6d8e0f1a3b5c7d";
@@ -71,6 +72,7 @@ describe("2FA authentication flow (/api/auth/login + /api/auth/login-2fa + /api/
 
   beforeEach(() => {
     vi.clearAllMocks();
+    resetRateLimiterState();
     process.env.AUTH_SECRET = VALID_AUTH_SECRET;
     process.env.ENCRYPTION_KEY = VALID_ENCRYPTION_KEY;
     mockQrToDataUrl.mockResolvedValue("data:image/png;base64,MOCKQR");
@@ -207,12 +209,13 @@ describe("2FA authentication flow (/api/auth/login + /api/auth/login-2fa + /api/
       const encryptedPending = encryptSecret(pendingSecret);
 
       // 1) Blocks overwrite when 2FA already active (409)
-      mockUserFindUnique.mockResolvedValueOnce({
+      mockUserFindUnique.mockResolvedValue({
         id: "usr-1",
         email: "user@wattflow.local",
         passwordHash,
         twoFactorEnabled: true,
         pendingTwoFactorSecret: null,
+        tokenVersion: 0,
       });
       const resAlreadyActive = createMockApiResponse();
       await handleTwoFactor(
@@ -226,12 +229,13 @@ describe("2FA authentication flow (/api/auth/login + /api/auth/login-2fa + /api/
       expect(resAlreadyActive.statusCode).toBe(409);
 
       // 2) Rejects client-supplied secret in body (400)
-      mockUserFindUnique.mockResolvedValueOnce({
+      mockUserFindUnique.mockResolvedValue({
         id: "usr-1",
         email: "user@wattflow.local",
         passwordHash,
         twoFactorEnabled: false,
         pendingTwoFactorSecret: encryptedPending,
+        tokenVersion: 0,
       });
       const resBodySecret = createMockApiResponse();
       await handleTwoFactor(
@@ -251,13 +255,6 @@ describe("2FA authentication flow (/api/auth/login + /api/auth/login-2fa + /api/
       expect(resBodySecret.body.message).toContain("'secret' não é aceito");
 
       // 3) Requires currentPassword (400 if missing, 401 if wrong)
-      mockUserFindUnique.mockResolvedValueOnce({
-        id: "usr-1",
-        email: "user@wattflow.local",
-        passwordHash,
-        twoFactorEnabled: false,
-        pendingTwoFactorSecret: encryptedPending,
-      });
       const resMissingPassword = createMockApiResponse();
       await handleTwoFactor(
         {
@@ -269,13 +266,6 @@ describe("2FA authentication flow (/api/auth/login + /api/auth/login-2fa + /api/
       );
       expect(resMissingPassword.statusCode).toBe(400);
 
-      mockUserFindUnique.mockResolvedValueOnce({
-        id: "usr-1",
-        email: "user@wattflow.local",
-        passwordHash,
-        twoFactorEnabled: false,
-        pendingTwoFactorSecret: encryptedPending,
-      });
       const resWrongPassword = createMockApiResponse();
       await handleTwoFactor(
         {
@@ -296,14 +286,7 @@ describe("2FA authentication flow (/api/auth/login + /api/auth/login-2fa + /api/
       vi.setSystemTime(new Date("2026-11-18T00:00:00Z"));
       const validTotp = generateTotpCode(pendingSecret, 0);
 
-      mockUserFindUnique.mockResolvedValueOnce({
-        id: "usr-1",
-        email: "user@wattflow.local",
-        passwordHash,
-        twoFactorEnabled: false,
-        pendingTwoFactorSecret: encryptedPending,
-      });
-      mockUserUpdate.mockResolvedValueOnce({ id: "usr-1" });
+      mockUserUpdate.mockResolvedValueOnce({ id: "usr-1", tokenVersion: 1 });
 
       const resSuccess = createMockApiResponse();
       await handleTwoFactor(
@@ -330,6 +313,7 @@ describe("2FA authentication flow (/api/auth/login + /api/auth/login-2fa + /api/
           twoFactorEnabled: true,
           twoFactorSecret: expect.stringMatching(/^enc:v1:/),
           pendingTwoFactorSecret: null,
+          tokenVersion: { increment: 1 },
         },
       });
     });

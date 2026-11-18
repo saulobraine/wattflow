@@ -18,7 +18,21 @@ export default async function handleAutomations(
   request: NextApiRequest,
   response: NextApiResponse<AutomationsResponseBody>
 ): Promise<void> {
-  const sessionUser = extractUserFromRequest(request);
+  let sessionUser: Awaited<ReturnType<typeof extractUserFromRequest>> = null;
+  try {
+    sessionUser = await extractUserFromRequest(request);
+  } catch (authError: unknown) {
+    const authMessage =
+      authError instanceof Error
+        ? authError.message
+        : "Erro interno de configuração de autenticação.";
+    response.status(500).json({
+      success: false,
+      message: authMessage,
+    });
+    return;
+  }
+
   if (!sessionUser) {
     response.status(401).json({
       success: false,

@@ -16,7 +16,15 @@ const {
 }));
 
 vi.mock("../../../infrastructure/database/prismaClient", () => ({
-  prisma: {},
+  prisma: {
+    user: {
+      findUnique: vi.fn().mockResolvedValue({
+        id: "user-99",
+        email: "owner@wattflow.local",
+        tokenVersion: 0,
+      }),
+    },
+  },
 }));
 
 vi.mock("../../../infrastructure/services/EcoFlowMqttStreamService", () => ({

@@ -6,6 +6,16 @@ import {
 } from "../../../infrastructure/auth/sessionHelper";
 import { verifyTotpCode } from "../../../infrastructure/auth/totpHelper";
 import { decryptAndMigrateUserTotpSecret } from "../../../infrastructure/security/secretMigrationHelper";
+import {
+  checkRateLimit,
+  extractClientIp,
+  sendRateLimitExceeded,
+} from "../../../infrastructure/security/rateLimiter";
+
+const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
+const FIVE_MINUTES_MS = 5 * 60 * 1000;
+const MAX_2FA_ATTEMPTS_PER_IP = 15;
+const MAX_2FA_ATTEMPTS_PER_USER = 5;
 
 interface LoginTwoFactorRequestBody {
   challengeToken?: unknown;
@@ -35,6 +45,17 @@ export default async function handleLoginTwoFactor(
       success: false,
       message: "Método HTTP não permitido. Utilize POST.",
     });
+    return;
+  }
+
+  const clientIp = extractClientIp(request);
+  const ipLimit = checkRateLimit(`login2fa:ip:${clientIp}`, MAX_2FA_ATTEMPTS_PER_IP, FIFTEEN_MINUTES_MS);
+  if (!ipLimit.allowed) {
+    sendRateLimitExceeded(
+      response,
+      ipLimit.retryAfterSeconds,
+      "Muitas tentativas de verificação 2FA a partir deste IP. Aguarde antes de tentar novamente."
+    );
     return;
   }
 
@@ -80,9 +101,21 @@ export default async function handleLoginTwoFactor(
   }
 
   let userId = "";
-  challengeIdentity.provideIdentity((extractedId) => {
+  let challengeTokenVersion = 0;
+  challengeIdentity.provideIdentity((extractedId, _email, tokenVer) => {
     userId = extractedId;
+    challengeTokenVersion = tokenVer;
   });
+
+  const userLimit = checkRateLimit(`login2fa:user:${userId}`, MAX_2FA_ATTEMPTS_PER_USER, FIVE_MINUTES_MS);
+  if (!userLimit.allowed) {
+    sendRateLimitExceeded(
+      response,
+      userLimit.retryAfterSeconds,
+      "Muitas tentativas de código 2FA para esta conta. Aguarde antes de tentar novamente."
+    );
+    return;
+  }
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -92,6 +125,15 @@ export default async function handleLoginTwoFactor(
     response.status(401).json({
       success: false,
       message: "Autenticação em duas etapas não está ativa ou configurada para esta conta.",
+    });
+    return;
+  }
+
+  const currentDbTokenVersion = user.tokenVersion ?? 0;
+  if (currentDbTokenVersion !== challengeTokenVersion) {
+    response.status(401).json({
+      success: false,
+      message: "Desafio 2FA revogado. Realize o login novamente.",
     });
     return;
   }
@@ -137,7 +179,12 @@ export default async function handleLoginTwoFactor(
     return;
   }
 
-  const sessionToken = tokenService.createSessionToken(user.id, user.email);
+  const sessionToken = tokenService.createSessionToken(
+    user.id,
+    user.email,
+    7,
+    currentDbTokenVersion
+  );
   setSessionCookie(response, sessionToken);
 
   response.status(200).json({

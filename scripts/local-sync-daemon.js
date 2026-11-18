@@ -224,7 +224,7 @@ async function startMqttStream() {
       keepalive: 60,
       clean: true,
       reconnectPeriod: 5000,
-      rejectUnauthorized: false,
+      rejectUnauthorized: true,
     });
 
     mqttClient.on("connect", () => {

@@ -1,5 +1,10 @@
 import { UserEmail } from "../values/UserEmail";
 
+interface IdentityMetadata {
+  email: UserEmail;
+  tokenVersion: number;
+}
+
 /**
  * Entidade de Domínio representando a identidade autenticada do usuário.
  * Respeita Object Calisthenics:
@@ -9,18 +14,24 @@ import { UserEmail } from "../values/UserEmail";
  */
 export class UserIdentity {
   private readonly userIdentifier: string;
-  private readonly userEmail: UserEmail;
+  private readonly metadata: IdentityMetadata;
 
-  constructor(userIdentifier: string, userEmail: UserEmail) {
+  constructor(userIdentifier: string, userEmail: UserEmail, tokenVersion = 0) {
     this.userIdentifier = userIdentifier;
-    this.userEmail = userEmail;
+    this.metadata = {
+      email: userEmail,
+      tokenVersion,
+    };
   }
 
-  public provideIdentity(receiver: (identifier: string, emailString: string) => void): void {
+  public provideIdentity(
+    receiver: (identifier: string, emailString: string, tokenVersion: number) => void
+  ): void {
     let emailString = "";
-    this.userEmail.transferEmail((email: string) => {
+    const emailObject = this.metadata.email;
+    emailObject.transferEmail((email: string) => {
       emailString = email;
     });
-    receiver(this.userIdentifier, emailString);
+    receiver(this.userIdentifier, emailString, this.metadata.tokenVersion);
   }
 }

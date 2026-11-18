@@ -1,12 +1,21 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../../infrastructure/database/prismaClient";
 import { UserEmail } from "../../../domain/values/UserEmail";
-import { RawPassword } from "../../../domain/values/RawPassword";
+import { MAX_PASSWORD_LENGTH } from "../../../domain/values/RawPassword";
 import { HashedPassword } from "../../../domain/values/HashedPassword";
 import {
   getAuthenticationTokenService,
   setSessionCookie,
 } from "../../../infrastructure/auth/sessionHelper";
+import {
+  checkRateLimit,
+  extractClientIp,
+  sendRateLimitExceeded,
+} from "../../../infrastructure/security/rateLimiter";
+
+const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
+const MAX_LOGIN_ATTEMPTS_PER_IP = 20;
+const MAX_LOGIN_ATTEMPTS_PER_ACCOUNT = 5;
 
 interface LoginResponseBody {
   success: boolean;
@@ -32,6 +41,17 @@ export default async function handleLogin(
     return;
   }
 
+  const clientIp = extractClientIp(request);
+  const ipLimit = checkRateLimit(`login:ip:${clientIp}`, MAX_LOGIN_ATTEMPTS_PER_IP, FIFTEEN_MINUTES_MS);
+  if (!ipLimit.allowed) {
+    sendRateLimitExceeded(
+      response,
+      ipLimit.retryAfterSeconds,
+      "Muitas tentativas de login a partir deste IP. Aguarde antes de tentar novamente."
+    );
+    return;
+  }
+
   let tokenService: ReturnType<typeof getAuthenticationTokenService>;
   try {
     tokenService = getAuthenticationTokenService();
@@ -49,12 +69,17 @@ export default async function handleLogin(
 
   const { email, password } = request.body ?? {};
 
-  let userEmail: UserEmail;
-  let candidatePassword: RawPassword;
+  if (typeof password !== "string" || password.length === 0 || password.length > MAX_PASSWORD_LENGTH) {
+    response.status(400).json({
+      success: false,
+      message: "E-mail ou senha em formato inválido.",
+    });
+    return;
+  }
 
+  let userEmail: UserEmail;
   try {
     userEmail = new UserEmail(String(email || ""));
-    candidatePassword = new RawPassword(String(password || ""));
   } catch {
     response.status(400).json({
       success: false,
@@ -67,6 +92,20 @@ export default async function handleLogin(
   userEmail.transferEmail((e) => {
     normalizedEmail = e;
   });
+
+  const accountLimit = checkRateLimit(
+    `login:acct:${normalizedEmail}`,
+    MAX_LOGIN_ATTEMPTS_PER_ACCOUNT,
+    FIFTEEN_MINUTES_MS
+  );
+  if (!accountLimit.allowed) {
+    sendRateLimitExceeded(
+      response,
+      accountLimit.retryAfterSeconds,
+      "Muitas tentativas de login para esta conta. Aguarde antes de tentar novamente."
+    );
+    return;
+  }
 
   const user = await prisma.user.findUnique({
     where: { email: normalizedEmail },
@@ -81,7 +120,7 @@ export default async function handleLogin(
   }
 
   const hashedPassword = new HashedPassword(user.passwordHash);
-  const isValidPassword = hashedPassword.matchesRawPassword(candidatePassword);
+  const isValidPassword = await hashedPassword.matchesPlaintextCandidate(password);
 
   if (!isValidPassword) {
     response.status(401).json({
@@ -91,8 +130,15 @@ export default async function handleLogin(
     return;
   }
 
+  const currentTokenVersion = user.tokenVersion ?? 0;
+
   if (user.twoFactorEnabled) {
-    const challengeToken = tokenService.createTwoFactorChallengeToken(user.id, user.email);
+    const challengeToken = tokenService.createTwoFactorChallengeToken(
+      user.id,
+      user.email,
+      5 * 60 * 1000,
+      currentTokenVersion
+    );
     response.status(200).json({
       success: true,
       requiresTwoFactor: true,
@@ -102,7 +148,12 @@ export default async function handleLogin(
     return;
   }
 
-  const sessionToken = tokenService.createSessionToken(user.id, user.email);
+  const sessionToken = tokenService.createSessionToken(
+    user.id,
+    user.email,
+    7,
+    currentTokenVersion
+  );
   setSessionCookie(response, sessionToken);
 
   response.status(200).json({

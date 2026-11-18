@@ -10,6 +10,17 @@ import { EcoFlowTestUseCase, EcoFlowTestResult } from "../../application/EcoFlow
 import { resolveEcoFlowEndpointRegion } from "../../infrastructure/security/ecoflowAllowlist";
 import { isUnchangedOrMaskedSecret } from "../../infrastructure/security/encryptionHelper";
 import { decryptAndMigrateConfigurationSecrets } from "../../infrastructure/security/secretMigrationHelper";
+import {
+  checkCooldown,
+  checkRateLimit,
+  extractClientIp,
+  sendRateLimitExceeded,
+} from "../../infrastructure/security/rateLimiter";
+
+const ONE_MINUTE_MS = 60 * 1000;
+const AC_SWITCH_COOLDOWN_MS = 10 * 1000;
+const MAX_TEST_CONTROL_PER_IP = 30;
+const MAX_TEST_CONTROL_PER_USER = 20;
 
 interface TestControlRequestBody {
   actionTarget: "ECOFLOW_ON" | "ECOFLOW_OFF" | "ECOFLOW_TELEMETRY";
@@ -40,9 +51,16 @@ export default async function handleTestControl(
     return;
   }
 
-  let sessionUser: ReturnType<typeof extractUserFromRequest> = null;
+  const clientIp = extractClientIp(request);
+  const ipLimit = checkRateLimit(`testctrl:ip:${clientIp}`, MAX_TEST_CONTROL_PER_IP, ONE_MINUTE_MS);
+  if (!ipLimit.allowed) {
+    sendRateLimitExceeded(response, ipLimit.retryAfterSeconds);
+    return;
+  }
+
+  let sessionUser: Awaited<ReturnType<typeof extractUserFromRequest>> = null;
   try {
-    sessionUser = extractUserFromRequest(request);
+    sessionUser = await extractUserFromRequest(request);
   } catch (authError: unknown) {
     const authMessage =
       authError instanceof Error
@@ -67,6 +85,16 @@ export default async function handleTestControl(
   sessionUser.provideIdentity((userId) => {
     extractedUserId = userId;
   });
+
+  const userLimit = checkRateLimit(
+    `testctrl:user:${extractedUserId}`,
+    MAX_TEST_CONTROL_PER_USER,
+    ONE_MINUTE_MS
+  );
+  if (!userLimit.allowed) {
+    sendRateLimitExceeded(response, userLimit.retryAfterSeconds);
+    return;
+  }
 
   const body = (request.body ?? {}) as TestControlRequestBody;
   const { actionTarget } = body;
@@ -151,6 +179,23 @@ export default async function handleTestControl(
       message: "Credenciais incompletas. Preencha todos os campos da EcoFlow para realizar o teste.",
     });
     return;
+  }
+
+  const isPhysicalAcToggle = actionTarget === "ECOFLOW_ON" || actionTarget === "ECOFLOW_OFF";
+  if (isPhysicalAcToggle) {
+    const normalizedSerialForCooldown = effectiveEcoFlowSerial.trim().toUpperCase();
+    const cooldownResult = checkCooldown(
+      `testctrl:ac-cooldown:${extractedUserId}:${normalizedSerialForCooldown}`,
+      AC_SWITCH_COOLDOWN_MS
+    );
+    if (!cooldownResult.allowed) {
+      sendRateLimitExceeded(
+        response,
+        cooldownResult.retryAfterSeconds,
+        `Aguarde ${cooldownResult.retryAfterSeconds}s entre comutações físicas da saída AC/ATS.`
+      );
+      return;
+    }
   }
 
   const ecoflowKey = new AccessKey(effectiveEcoFlowKey);

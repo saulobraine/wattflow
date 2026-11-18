@@ -113,25 +113,42 @@ describe("AuthenticationTokenService & sessionHelper (AUTH_SECRET >= 32 chars)",
       expect(service).toBeInstanceOf(AuthenticationTokenService);
     });
 
-    it("extractUserFromRequest returns null without session cookie and fails closed if AUTH_SECRET is invalid when cookie is present", () => {
+    it("extractUserFromRequest returns null without session cookie and fails closed if AUTH_SECRET is invalid when cookie is present", async () => {
       delete process.env.AUTH_SECRET;
+      const mockDb = {
+        user: {
+          findUnique: vi.fn(),
+        },
+      } as unknown as Parameters<typeof extractUserFromRequest>[1];
+
       const reqWithoutCookie = { headers: {} } as NextApiRequest;
-      expect(extractUserFromRequest(reqWithoutCookie)).toBeNull();
+      await expect(extractUserFromRequest(reqWithoutCookie, mockDb)).resolves.toBeNull();
 
       const reqWithCookie = {
         headers: { cookie: `${SESSION_COOKIE_NAME}=some.token` },
       } as NextApiRequest;
-      expect(() => extractUserFromRequest(reqWithCookie)).toThrow(/AUTH_SECRET obrigatória/);
+      await expect(extractUserFromRequest(reqWithCookie, mockDb)).rejects.toThrow(
+        /AUTH_SECRET obrigatória/
+      );
     });
 
-    it("extractUserFromRequest extracts authenticated user from valid cookie", () => {
+    it("extractUserFromRequest extracts authenticated user from valid cookie and validates tokenVersion", async () => {
       process.env.AUTH_SECRET = VALID_SECRET_64;
       const service = getAuthenticationTokenService();
-      const token = service.createSessionToken("usr-42", "admin@wattflow.local");
+      const token = service.createSessionToken("usr-42", "admin@wattflow.local", 7, 2);
       let rawToken = "";
       token.transferToken((t) => {
         rawToken = t;
       });
+
+      const mockFindUnique = vi.fn().mockResolvedValueOnce({
+        id: "usr-42",
+        email: "admin@wattflow.local",
+        tokenVersion: 2,
+      });
+      const mockDb = {
+        user: { findUnique: mockFindUnique },
+      } as unknown as Parameters<typeof extractUserFromRequest>[1];
 
       const req = {
         headers: {
@@ -139,13 +156,21 @@ describe("AuthenticationTokenService & sessionHelper (AUTH_SECRET >= 32 chars)",
         },
       } as NextApiRequest;
 
-      const user = extractUserFromRequest(req);
+      const user = await extractUserFromRequest(req, mockDb);
       expect(user).not.toBeNull();
       let extractedId = "";
       user?.provideIdentity((id) => {
         extractedId = id;
       });
       expect(extractedId).toBe("usr-42");
+
+      // Revoked when DB tokenVersion increments
+      mockFindUnique.mockResolvedValueOnce({
+        id: "usr-42",
+        email: "admin@wattflow.local",
+        tokenVersion: 3,
+      });
+      await expect(extractUserFromRequest(req, mockDb)).resolves.toBeNull();
     });
 
     it("sets and clears session cookies with HttpOnly, SameSite=Lax, and Secure in production", () => {

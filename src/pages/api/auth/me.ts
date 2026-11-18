@@ -4,6 +4,7 @@ import { extractUserFromRequest } from "../../../infrastructure/auth/sessionHelp
 
 interface MeResponseBody {
   isAuthenticated: boolean;
+  message?: string;
   user?: {
     id: string;
     email: string;
@@ -15,7 +16,23 @@ export default async function handleMe(
   request: NextApiRequest,
   response: NextApiResponse<MeResponseBody>
 ): Promise<void> {
-  const sessionUser = extractUserFromRequest(request);
+  response.setHeader("Cache-Control", "no-store");
+
+  let sessionUser: Awaited<ReturnType<typeof extractUserFromRequest>> = null;
+  try {
+    sessionUser = await extractUserFromRequest(request);
+  } catch (authError: unknown) {
+    const authMessage =
+      authError instanceof Error
+        ? authError.message
+        : "Erro interno de configuração de autenticação.";
+    response.status(500).json({
+      isAuthenticated: false,
+      message: authMessage,
+    });
+    return;
+  }
+
   if (!sessionUser) {
     response.status(200).json({ isAuthenticated: false });
     return;

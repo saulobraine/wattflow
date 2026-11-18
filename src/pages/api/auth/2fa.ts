@@ -1,7 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import QRCode from "qrcode";
 import { prisma } from "../../../infrastructure/database/prismaClient";
-import { extractUserFromRequest } from "../../../infrastructure/auth/sessionHelper";
+import {
+  extractUserFromRequest,
+  getAuthenticationTokenService,
+  setSessionCookie,
+} from "../../../infrastructure/auth/sessionHelper";
 import {
   generateBase32Secret,
   verifyTotpCode,
@@ -10,7 +14,15 @@ import {
 import { encryptSecret } from "../../../infrastructure/security/encryptionHelper";
 import { decryptAndMigrateUserTotpSecret } from "../../../infrastructure/security/secretMigrationHelper";
 import { HashedPassword } from "../../../domain/values/HashedPassword";
-import { RawPassword } from "../../../domain/values/RawPassword";
+import {
+  checkRateLimit,
+  extractClientIp,
+  sendRateLimitExceeded,
+} from "../../../infrastructure/security/rateLimiter";
+
+const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
+const MAX_2FA_CONFIG_PER_IP = 15;
+const MAX_2FA_CONFIG_PER_USER = 8;
 
 interface TwoFactorResponseBody {
   success: boolean;
@@ -23,17 +35,12 @@ interface TwoFactorResponseBody {
   };
 }
 
-function verifyUserPassword(passwordHash: string, candidatePassword: unknown): boolean {
+async function verifyUserPassword(passwordHash: string, candidatePassword: unknown): Promise<boolean> {
   if (typeof candidatePassword !== "string" || candidatePassword.length === 0) {
     return false;
   }
   const currentHashed = new HashedPassword(passwordHash);
-  try {
-    const rawCandidate = new RawPassword(candidatePassword);
-    return currentHashed.matchesRawPassword(rawCandidate);
-  } catch {
-    return false;
-  }
+  return currentHashed.matchesPlaintextCandidate(candidatePassword);
 }
 
 export default async function handleTwoFactor(
@@ -51,9 +58,16 @@ export default async function handleTwoFactor(
     return;
   }
 
-  let sessionUser: ReturnType<typeof extractUserFromRequest> = null;
+  const clientIp = extractClientIp(request);
+  const ipLimit = checkRateLimit(`2fa:ip:${clientIp}`, MAX_2FA_CONFIG_PER_IP, FIFTEEN_MINUTES_MS);
+  if (!ipLimit.allowed) {
+    sendRateLimitExceeded(response, ipLimit.retryAfterSeconds);
+    return;
+  }
+
+  let sessionUser: Awaited<ReturnType<typeof extractUserFromRequest>> = null;
   try {
-    sessionUser = extractUserFromRequest(request);
+    sessionUser = await extractUserFromRequest(request);
   } catch (authError: unknown) {
     const authMessage =
       authError instanceof Error
@@ -78,6 +92,16 @@ export default async function handleTwoFactor(
   sessionUser.provideIdentity((userId) => {
     extractedUserId = userId;
   });
+
+  const userLimit = checkRateLimit(
+    `2fa:user:${extractedUserId}`,
+    MAX_2FA_CONFIG_PER_USER,
+    FIFTEEN_MINUTES_MS
+  );
+  if (!userLimit.allowed) {
+    sendRateLimitExceeded(response, userLimit.retryAfterSeconds);
+    return;
+  }
 
   const body = (request.body ?? {}) as Record<string, unknown>;
   const { action, secret, token, currentPassword } = body;
@@ -163,7 +187,8 @@ export default async function handleTwoFactor(
         return;
       }
 
-      if (!verifyUserPassword(user.passwordHash, currentPassword)) {
+      const isPasswordValid = await verifyUserPassword(user.passwordHash, currentPassword);
+      if (!isPasswordValid) {
         response.status(401).json({
           success: false,
           message: "Senha atual incorreta.",
@@ -202,14 +227,25 @@ export default async function handleTwoFactor(
         return;
       }
 
-      await prisma.user.update({
+      const updatedUser = await prisma.user.update({
         where: { id: extractedUserId },
         data: {
           twoFactorEnabled: true,
           twoFactorSecret: encryptSecret(plainPendingSecret),
           pendingTwoFactorSecret: null,
+          tokenVersion: { increment: 1 },
         },
       });
+
+      const nextTokenVersion = updatedUser?.tokenVersion ?? (user.tokenVersion ?? 0) + 1;
+      const tokenService = getAuthenticationTokenService();
+      const rotatedSession = tokenService.createSessionToken(
+        user.id,
+        user.email,
+        7,
+        nextTokenVersion
+      );
+      setSessionCookie(response, rotatedSession);
 
       response.status(200).json({
         success: true,
@@ -230,7 +266,8 @@ export default async function handleTwoFactor(
         return;
       }
 
-      if (!verifyUserPassword(user.passwordHash, currentPassword)) {
+      const isPasswordValid = await verifyUserPassword(user.passwordHash, currentPassword);
+      if (!isPasswordValid) {
         response.status(401).json({
           success: false,
           message: "Senha atual incorreta.",
@@ -238,14 +275,25 @@ export default async function handleTwoFactor(
         return;
       }
 
-      await prisma.user.update({
+      const updatedUser = await prisma.user.update({
         where: { id: extractedUserId },
         data: {
           twoFactorEnabled: false,
           twoFactorSecret: null,
           pendingTwoFactorSecret: null,
+          tokenVersion: { increment: 1 },
         },
       });
+
+      const nextTokenVersion = updatedUser?.tokenVersion ?? (user.tokenVersion ?? 0) + 1;
+      const tokenService = getAuthenticationTokenService();
+      const rotatedSession = tokenService.createSessionToken(
+        user.id,
+        user.email,
+        7,
+        nextTokenVersion
+      );
+      setSessionCookie(response, rotatedSession);
 
       response.status(200).json({
         success: true,
