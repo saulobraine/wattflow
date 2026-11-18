@@ -74,7 +74,7 @@ test.describe("Etapa 2 - SEC-01 (2FA TOTP) & SEC-03 (BYOK Masking)", () => {
     const totpSecret: string = setupJson.data.secret;
     expect(totpSecret).toBeTruthy();
 
-    const enableCode = generateTotpCode(totpSecret);
+    const enableCode = generateTotpCode(totpSecret, Date.now() - 30_000);
     await page.locator("#totp-code-input").fill(enableCode);
     await page.locator("#totp-current-password-input").fill(password);
 
@@ -91,7 +91,10 @@ test.describe("Etapa 2 - SEC-01 (2FA TOTP) & SEC-03 (BYOK Masking)", () => {
     await expect(page.getByText(/Sua conta está protegida por 2FA/i)).toBeVisible();
 
     // Logout e garantir que nao ha cookie de sessao antes do 2FA
-    const logoutRes = await page.request.post("/api/auth/logout");
+    const originUrl = new URL(page.url()).origin;
+    const logoutRes = await page.request.post("/api/auth/logout", {
+      headers: { origin: originUrl },
+    });
     expect(logoutRes.status()).toBe(200);
 
     await page.goto("/login");

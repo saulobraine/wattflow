@@ -1,37 +1,32 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../infrastructure/database/prismaClient";
 import { EcoFlowMqttStreamService } from "../../infrastructure/services/EcoFlowMqttStreamService";
-
-const MIN_CRON_SECRET_LENGTH = 32;
+import { verifyCronRequestAuthorization } from "../../infrastructure/security/cronAuthHelper";
 
 export default async function handleMqttStream(
   request: NextApiRequest,
   response: NextApiResponse
 ): Promise<void> {
-  const secretToken = process.env.CRON_SECRET_TOKEN;
-  if (!secretToken || secretToken.trim().length < MIN_CRON_SECRET_LENGTH) {
+  response.setHeader("Cache-Control", "no-store");
+
+  const { hasValidSecretConfigured, isAuthorized } = verifyCronRequestAuthorization(
+    request,
+    process.env.CRON_SECRET_TOKEN
+  );
+
+  if (!hasValidSecretConfigured) {
     response.status(500).json({
       success: false,
-      message: "Variável de ambiente CRON_SECRET_TOKEN obrigatória não configurada ou com menos de 32 caracteres.",
+      message:
+        "Variável de ambiente CRON_SECRET_TOKEN obrigatória não configurada ou com menos de 32 caracteres.",
     });
     return;
   }
 
-  const rawHeaderToken = request.headers["x-cron-token"];
-  const headerToken = Array.isArray(rawHeaderToken) ? rawHeaderToken[0] : rawHeaderToken;
-  const rawQueryToken = request.query.token;
-  const queryToken = Array.isArray(rawQueryToken) ? rawQueryToken[0] : rawQueryToken;
-  const providedToken = headerToken || queryToken;
-
-  const isTokenValid =
-    typeof providedToken === "string" &&
-    providedToken.length > 0 &&
-    providedToken === secretToken;
-
-  if (!isTokenValid) {
+  if (!isAuthorized) {
     response.status(401).json({
       success: false,
-      message: "Token de autorização inválido.",
+      message: "Token de autorização inválido ou ausente no cabeçalho HTTP.",
     });
     return;
   }
@@ -39,7 +34,7 @@ export default async function handleMqttStream(
   try {
     const rawUserId = request.query.userId;
     const targetUserId =
-      typeof rawUserId === "string" && rawUserId.trim().length > 0
+      typeof rawUserId === "string" && rawUserId.trim().length > 0 && rawUserId.trim().length <= 128
         ? rawUserId.trim()
         : undefined;
 
@@ -69,14 +64,10 @@ export default async function handleMqttStream(
       message: "Stream MQTT oficial EcoFlow ativo com keep-alive de 60s.",
     });
   } catch (caughtError: unknown) {
-    const errorMessage =
-      caughtError instanceof Error
-        ? caughtError.message
-        : "Falha interna ao inicializar ou consultar o stream MQTT.";
-
+    console.error("[MqttStream API] Erro interno ao inicializar stream:", caughtError);
     response.status(500).json({
       success: false,
-      message: errorMessage,
+      message: "Falha interna ao inicializar ou consultar o stream MQTT.",
     });
   }
 }

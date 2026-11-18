@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../../infrastructure/database/prismaClient";
 import {
+  enforceCsrfProtection,
   extractUserFromRequest,
   getAuthenticationTokenService,
   setSessionCookie,
@@ -12,6 +13,7 @@ import {
   extractClientIp,
   sendRateLimitExceeded,
 } from "../../../infrastructure/security/rateLimiter";
+import { profilePatchBodySchema } from "../../../infrastructure/security/apiSchemas";
 
 const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
 const MAX_EMAIL_CHANGE_PER_USER = 5;
@@ -62,6 +64,12 @@ export default async function handleProfile(
       message: "Usuário não autenticado.",
     });
     return;
+  }
+
+  if (request.method === "PATCH") {
+    if (!enforceCsrfProtection(request, response)) {
+      return;
+    }
   }
 
   let extractedUserId = "";
@@ -124,7 +132,17 @@ export default async function handleProfile(
   }
 
   if (request.method === "PATCH") {
-    const { email, fullName, currentPassword } = request.body ?? {};
+    const parsedBody = profilePatchBodySchema.safeParse(request.body ?? {});
+    if (!parsedBody.success) {
+      const issueMessage = parsedBody.error.issues[0]?.message || "Dados de perfil inválidos.";
+      response.status(400).json({
+        success: false,
+        message: issueMessage,
+      });
+      return;
+    }
+
+    const { email, fullName, currentPassword } = parsedBody.data;
 
     try {
       const currentUser = await prisma.user.findUnique({
@@ -147,13 +165,13 @@ export default async function handleProfile(
       let isEmailChanging = false;
 
       if (fullName !== undefined) {
-        dataToUpdate.fullName = typeof fullName === "string" ? fullName.trim() : null;
+        dataToUpdate.fullName = typeof fullName === "string" ? fullName : null;
       }
 
       if (email !== undefined) {
         let validatedEmail = "";
         try {
-          const userEmail = new UserEmail(String(email));
+          const userEmail = new UserEmail(email);
           userEmail.transferEmail((e) => {
             validatedEmail = e;
           });

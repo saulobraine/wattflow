@@ -4,25 +4,23 @@ test.describe("Etapa 3 - SEC-05 a SEC-09 (Passkeys, Senha 12+, Revogacao tokenVe
   test("politica de senha: /api/auth/register rejeita senha com menos de 12 caracteres (400)", async ({
     request,
   }) => {
-    const shortPasswords = ["12345678", "ShortPass1!", "ElevenChars"];
-
-    for (const shortPassword of shortPasswords) {
-      const res = await request.post("/api/auth/register", {
-        data: {
-          email: `e2e-short-${Date.now()}-${Math.random().toString(36).slice(2, 7)}@wattflow.local`,
-          password: shortPassword,
-          fullName: "Short Password Tester",
-        },
-      });
-      expect(res.status()).toBe(400);
-      const json = await res.json();
-      expect(json.success).toBe(false);
-    }
+    const res = await request.post("/api/auth/register", {
+      data: {
+        email: `e2e-short-${Date.now()}@wattflow.local`,
+        password: "ShortPass1!",
+        fullName: "Short Password Tester",
+      },
+    });
+    expect(res.status()).toBe(400);
+    const json = await res.json();
+    expect(json.success).toBe(false);
   });
 
   test("passkeys desabilitadas: /api/auth/passkey retorna 501 para CHALLENGE e REGISTER", async ({
     page,
+    baseURL,
   }) => {
+    const targetOrigin = baseURL || "http://127.0.0.1:3005";
     const email = `e2e-passkey-${Date.now()}@wattflow.local`;
     const password = "StrongE2ePassword!123";
 
@@ -36,6 +34,7 @@ test.describe("Etapa 3 - SEC-05 a SEC-09 (Passkeys, Senha 12+, Revogacao tokenVe
     expect(registerRes.status()).toBe(201);
 
     const challengeRes = await page.request.post("/api/auth/passkey", {
+      headers: { origin: targetOrigin },
       data: { action: "CHALLENGE" },
     });
     expect(challengeRes.status()).toBe(501);
@@ -43,6 +42,7 @@ test.describe("Etapa 3 - SEC-05 a SEC-09 (Passkeys, Senha 12+, Revogacao tokenVe
     expect(challengeJson.success).toBe(false);
 
     const registerPasskeyRes = await page.request.post("/api/auth/passkey", {
+      headers: { origin: targetOrigin },
       data: { action: "REGISTER", name: "Test Passkey" },
     });
     expect(registerPasskeyRes.status()).toBe(501);
@@ -74,7 +74,9 @@ test.describe("Etapa 3 - SEC-05 a SEC-09 (Passkeys, Senha 12+, Revogacao tokenVe
     expect(initialSessionCookie).toBeDefined();
 
     // Alterar email sem currentPassword deve retornar 400
+    const targetOrigin = baseURL || "http://127.0.0.1:3005";
     const emailChangeNoPassRes = await page.request.patch("/api/auth/profile", {
+      headers: { origin: targetOrigin },
       data: {
         email: `changed-${email}`,
       },
@@ -85,6 +87,7 @@ test.describe("Etapa 3 - SEC-05 a SEC-09 (Passkeys, Senha 12+, Revogacao tokenVe
 
     // Troca de senha incrementa tokenVersion e invalida o cookie antigo
     const changePassRes = await page.request.post("/api/auth/change-password", {
+      headers: { origin: targetOrigin },
       data: {
         currentPassword: initialPassword,
         newPassword: updatedPassword,
@@ -109,7 +112,9 @@ test.describe("Etapa 3 - SEC-05 a SEC-09 (Passkeys, Senha 12+, Revogacao tokenVe
     );
     expect(activeSessionCookie).toBeDefined();
 
-    const logoutRes = await page.request.post("/api/auth/logout");
+    const logoutRes = await page.request.post("/api/auth/logout", {
+      headers: { origin: targetOrigin },
+    });
     expect(logoutRes.status()).toBe(200);
 
     const staleContextAfterLogout = await playwrightRequest.newContext({

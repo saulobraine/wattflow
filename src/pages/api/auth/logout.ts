@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../../infrastructure/database/prismaClient";
 import {
   clearSessionCookie,
+  enforceCsrfProtection,
   extractUserFromRequest,
 } from "../../../infrastructure/auth/sessionHelper";
 
@@ -10,6 +11,19 @@ export default async function handleLogout(
   response: NextApiResponse
 ): Promise<void> {
   response.setHeader("Cache-Control", "no-store");
+
+  if (request.method !== "POST") {
+    response.setHeader("Allow", ["POST"]);
+    response.status(405).json({
+      success: false,
+      message: "Método HTTP não permitido. Utilize POST.",
+    });
+    return;
+  }
+
+  if (!enforceCsrfProtection(request, response)) {
+    return;
+  }
 
   try {
     const sessionUser = await extractUserFromRequest(request);

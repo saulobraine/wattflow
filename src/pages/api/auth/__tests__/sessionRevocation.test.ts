@@ -127,7 +127,11 @@ describe("Session revocation via tokenVersion & profile email verification (SEC-
 
     const req = {
       method: "POST",
-      headers: { cookie: cookieV0 },
+      headers: {
+        host: "localhost:3000",
+        origin: "http://localhost:3000",
+        cookie: cookieV0,
+      },
     } as unknown as NextApiRequest;
     const res = createMockApiResponse();
 
@@ -139,6 +143,31 @@ describe("Session revocation via tokenVersion & profile email verification (SEC-
       data: { tokenVersion: { increment: 1 } },
     });
     expect(String(res.headers["Set-Cookie"])).toContain("Max-Age=0");
+  });
+
+  it("GET /api/auth/logout is blocked with 405 and cross-site POST is blocked with 403 (SEC-10)", async () => {
+    const resGet = createMockApiResponse();
+    await handleLogout(
+      { method: "GET", headers: {} } as unknown as NextApiRequest,
+      resGet
+    );
+    expect(resGet.statusCode).toBe(405);
+    expect(resGet.headers.Allow).toEqual(["POST"]);
+
+    const resCsrf = createMockApiResponse();
+    await handleLogout(
+      {
+        method: "POST",
+        headers: {
+          host: "app.wattflow.local",
+          origin: "https://evil.example.com",
+          "sec-fetch-site": "cross-site",
+        },
+      } as unknown as NextApiRequest,
+      resCsrf
+    );
+    expect(resCsrf.statusCode).toBe(403);
+    expect(mockUserUpdate).not.toHaveBeenCalled();
   });
 
   it("POST /api/auth/change-password increments tokenVersion and rotates session cookie", async () => {
@@ -160,7 +189,11 @@ describe("Session revocation via tokenVersion & profile email verification (SEC-
 
     const req = {
       method: "POST",
-      headers: { cookie: cookieV0 },
+      headers: {
+        host: "localhost:3000",
+        origin: "http://localhost:3000",
+        cookie: cookieV0,
+      },
       body: {
         currentPassword: oldPassword,
         newPassword: "NewStrongPassword123!",
@@ -201,7 +234,11 @@ describe("Session revocation via tokenVersion & profile email verification (SEC-
     await handleProfile(
       {
         method: "PATCH",
-        headers: { cookie: cookieV0 },
+        headers: {
+          host: "localhost:3000",
+          origin: "http://localhost:3000",
+          cookie: cookieV0,
+        },
         body: { email: "new@wattflow.local" },
       } as unknown as NextApiRequest,
       resMissingPwd
@@ -223,7 +260,11 @@ describe("Session revocation via tokenVersion & profile email verification (SEC-
     await handleProfile(
       {
         method: "PATCH",
-        headers: { cookie: cookieV0 },
+        headers: {
+          host: "localhost:3000",
+          origin: "http://localhost:3000",
+          cookie: cookieV0,
+        },
         body: { email: "new@wattflow.local", currentPassword: "WrongPassword123!" },
       } as unknown as NextApiRequest,
       resWrongPwd
@@ -256,7 +297,11 @@ describe("Session revocation via tokenVersion & profile email verification (SEC-
     await handleProfile(
       {
         method: "PATCH",
-        headers: { cookie: cookieV0 },
+        headers: {
+          host: "localhost:3000",
+          origin: "http://localhost:3000",
+          cookie: cookieV0,
+        },
         body: {
           email: "new@wattflow.local",
           fullName: "Updated Name",

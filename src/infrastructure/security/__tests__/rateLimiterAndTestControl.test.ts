@@ -184,6 +184,8 @@ describe("rateLimiter & /api/test-control cooldown (SEC-05)", () => {
         method: "POST",
         socket: { remoteAddress: "127.0.0.1" },
         headers: {
+          host: "localhost:3000",
+          origin: "http://localhost:3000",
           "x-real-ip": ip,
           cookie: `${SESSION_COOKIE_NAME}=${encodeURIComponent(raw)}`,
         },

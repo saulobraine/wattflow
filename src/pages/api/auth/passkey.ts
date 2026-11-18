@@ -1,6 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../../infrastructure/database/prismaClient";
-import { extractUserFromRequest } from "../../../infrastructure/auth/sessionHelper";
+import {
+  enforceCsrfProtection,
+  extractUserFromRequest,
+} from "../../../infrastructure/auth/sessionHelper";
+import { passkeyPostBodySchema } from "../../../infrastructure/security/apiSchemas";
 
 interface PasskeyResponseBody {
   success: boolean;
@@ -44,6 +48,12 @@ export default async function handlePasskey(
     return;
   }
 
+  if (request.method === "POST") {
+    if (!enforceCsrfProtection(request, response)) {
+      return;
+    }
+  }
+
   let extractedUserId = "";
   sessionUser.provideIdentity((userId) => {
     extractedUserId = userId;
@@ -84,7 +94,18 @@ export default async function handlePasskey(
   }
 
   if (request.method === "POST") {
-    const { action, passkeyId } = request.body ?? {};
+    const parsedBody = passkeyPostBodySchema.safeParse(request.body ?? {});
+    if (!parsedBody.success) {
+      const issueMessage =
+        parsedBody.error.issues[0]?.message || "Ação de passkey não reconhecida.";
+      response.status(400).json({
+        success: false,
+        message: issueMessage,
+      });
+      return;
+    }
+
+    const { action, passkeyId } = parsedBody.data;
 
     if (action === "DELETE") {
       if (!passkeyId) {
@@ -97,7 +118,7 @@ export default async function handlePasskey(
 
       await prisma.userPasskey.deleteMany({
         where: {
-          id: String(passkeyId),
+          id: passkeyId,
           userId: user.id,
         },
       });

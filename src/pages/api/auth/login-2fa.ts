@@ -4,24 +4,19 @@ import {
   getAuthenticationTokenService,
   setSessionCookie,
 } from "../../../infrastructure/auth/sessionHelper";
-import { verifyTotpCode } from "../../../infrastructure/auth/totpHelper";
+import { verifyTotpCodeWithCounter } from "../../../infrastructure/auth/totpHelper";
 import { decryptAndMigrateUserTotpSecret } from "../../../infrastructure/security/secretMigrationHelper";
 import {
   checkRateLimit,
   extractClientIp,
   sendRateLimitExceeded,
 } from "../../../infrastructure/security/rateLimiter";
+import { loginTwoFactorBodySchema } from "../../../infrastructure/security/apiSchemas";
 
 const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
 const FIVE_MINUTES_MS = 5 * 60 * 1000;
 const MAX_2FA_ATTEMPTS_PER_IP = 15;
 const MAX_2FA_ATTEMPTS_PER_USER = 5;
-
-interface LoginTwoFactorRequestBody {
-  challengeToken?: unknown;
-  token?: unknown;
-  code?: unknown;
-}
 
 interface LoginTwoFactorResponseBody {
   success: boolean;
@@ -74,22 +69,20 @@ export default async function handleLoginTwoFactor(
     return;
   }
 
-  const body = (request.body ?? {}) as LoginTwoFactorRequestBody;
-  const rawChallengeToken = typeof body.challengeToken === "string" ? body.challengeToken.trim() : "";
-  const rawTotpCode =
-    typeof body.token === "string"
-      ? body.token.trim()
-      : typeof body.code === "string"
-        ? body.code.trim()
-        : "";
-
-  if (!rawChallengeToken || !/^\d{6}$/.test(rawTotpCode)) {
+  const parsedBody = loginTwoFactorBodySchema.safeParse(request.body ?? {});
+  if (!parsedBody.success) {
+    const issueMessage =
+      parsedBody.error.issues[0]?.message ||
+      "O challengeToken e o código TOTP de 6 dígitos são obrigatórios.";
     response.status(400).json({
       success: false,
-      message: "O challengeToken e o código TOTP de 6 dígitos são obrigatórios.",
+      message: issueMessage,
     });
     return;
   }
+
+  const rawChallengeToken = parsedBody.data.challengeToken;
+  const rawTotpCode = (parsedBody.data.token ?? parsedBody.data.code ?? "").trim();
 
   const challengeIdentity = tokenService.verifyTwoFactorChallengeToken(rawChallengeToken);
   if (!challengeIdentity) {
@@ -147,36 +140,62 @@ export default async function handleLoginTwoFactor(
       user.twoFactorSecret
     );
   } catch (cryptoError: unknown) {
-    const detail =
-      cryptoError instanceof Error
-        ? cryptoError.message
-        : "Falha ao decifrar segredo 2FA no servidor.";
+    console.error("[Login2FA API] Falha ao decifrar segredo 2FA no servidor:", cryptoError);
     response.status(500).json({
       success: false,
-      message: detail,
+      message: "Erro interno ao validar autenticação em duas etapas.",
     });
     return;
   }
 
-  let isCodeValid = false;
+  let totpResult: ReturnType<typeof verifyTotpCodeWithCounter>;
   try {
-    isCodeValid = verifyTotpCode(plainTotpSecret, rawTotpCode);
+    totpResult = verifyTotpCodeWithCounter(
+      plainTotpSecret,
+      rawTotpCode,
+      user.lastTotpCounter ?? null
+    );
   } catch (totpError: unknown) {
-    const detail =
-      totpError instanceof Error ? totpError.message : "Segredo TOTP armazenado inválido.";
+    console.error("[Login2FA API] Segredo TOTP armazenado inválido:", totpError);
     response.status(500).json({
       success: false,
-      message: detail,
+      message: "Erro interno ao validar código de autenticação.",
     });
     return;
   }
 
-  if (!isCodeValid) {
+  if (!totpResult.valid || totpResult.matchedCounter === null) {
     response.status(401).json({
       success: false,
-      message: "Código de autenticação incorreto ou expirado.",
+      message: "Código de autenticação incorreto, expirado ou já utilizado.",
     });
     return;
+  }
+
+  const matchedCounter = totpResult.matchedCounter;
+  if (typeof prisma.user.updateMany === "function") {
+    const atomicUpdate = await prisma.user.updateMany({
+      where: {
+        id: user.id,
+        OR: [{ lastTotpCounter: null }, { lastTotpCounter: { lt: matchedCounter } }],
+      },
+      data: {
+        lastTotpCounter: matchedCounter,
+      },
+    });
+
+    if (atomicUpdate.count === 0) {
+      response.status(401).json({
+        success: false,
+        message: "Código de autenticação já utilizado (replay bloqueado).",
+      });
+      return;
+    }
+  } else if (typeof prisma.user.update === "function") {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastTotpCounter: matchedCounter },
+    });
   }
 
   const sessionToken = tokenService.createSessionToken(

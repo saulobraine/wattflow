@@ -181,7 +181,11 @@ describe("Registration gate & Passkey 501 (SEC-07)", () => {
       token.transferToken((t) => {
         raw = t;
       });
-      return { cookie: `${SESSION_COOKIE_NAME}=${encodeURIComponent(raw)}` };
+      return {
+        host: "localhost:3000",
+        origin: "http://localhost:3000",
+        cookie: `${SESSION_COOKIE_NAME}=${encodeURIComponent(raw)}`,
+      };
     }
 
     it("returns 501 Not Implemented for CHALLENGE and REGISTER actions", async () => {

@@ -63,14 +63,14 @@
 ## Etapa 4 — Médio & Baixo: CSRF, Schemas Zod, Anti-Replay, Timeouts e Security Headers
 **Itens:** `SEC-10`, `SEC-11`, `SEC-12`, `SEC-13`, `SEC-14`
 **Responsáveis:** `ApexDev` + `PipelineForge`
-- [ ] **SEC-10:** Restringir `/api/auth/logout` e `/api/sync` (sessão) para `POST`, cookie `SameSite=Strict`, validação de `Origin`/`Host`.
-- [ ] **SEC-11:** `try/catch` em `decodeURIComponent`/`JSON.parse`, validação Zod com `maxLength` nos bodies das APIs, `escapeHtml()` em notificações Telegram.
-- [ ] **SEC-12:** Aceitar `CRON_SECRET_TOKEN` apenas via header (`Authorization: Bearer` / `x-cron-token`), usar `crypto.timingSafeEqual` (hashes SHA-256) e persistir `lastTotpCounter` contra replay TOTP.
-- [ ] **SEC-13:** `AbortSignal.timeout(8000)` em todos os `fetch()` externos; Security Headers em `next.config.js` (CSP, `X-Frame-Options: DENY`, `HSTS`, `X-Content-Type-Options: nosniff`).
-- [ ] **SEC-14:** Dummy `scrypt` no login contra enumeração por timing, sanitização de mensagens 500, remoção de `console.log` bruto EcoFlow, `Dockerfile` com `npm ci` e permissões não-root.
-- [ ] **Portão de Testes (100%):**
+- [x] **SEC-10:** Restringir `/api/auth/logout` e `/api/sync` (sessão) para `POST`, cookie `SameSite=Strict`, validação de `Origin`/`Host`.
+- [x] **SEC-11:** `try/catch` em `decodeURIComponent`/`JSON.parse`, validação Zod com `maxLength` nos bodies das APIs, `escapeHtml()` em notificações Telegram.
+- [x] **SEC-12:** Aceitar `CRON_SECRET_TOKEN` apenas via header (`Authorization: Bearer` / `x-cron-token`), usar `crypto.timingSafeEqual` (hashes SHA-256) e persistir `lastTotpCounter` contra replay TOTP.
+- [x] **SEC-13:** `AbortSignal.timeout(8000)` em todos os `fetch()` externos; Security Headers em `next.config.js` (CSP, `X-Frame-Options: DENY`, `HSTS`, `X-Content-Type-Options: nosniff`).
+- [x] **SEC-14:** Dummy `scrypt` no login contra enumeração por timing, sanitização de mensagens 500, remoção de `console.log` bruto EcoFlow, `Dockerfile` com `npm ci` e permissões não-root.
+- [x] **Portão de Testes (100%):**
   - `UnitTestEngine`: Suíte completa unitária e integração (Zod, `escapeHtml`, `timingSafeEqual`, anti-replay, headers HTTP, rejeição GET).
   - `E2EGuardian`: Regressão E2E completa de toda a aplicação.
   - `Sentinel`: Auditoria final de código (`[APROVADO]`).
   - `Certifier`: Certificação final de release.
-- [ ] **Commit (`GitOps`):** `fix(security): hardening HTTP, CSRF, Zod schemas, timingSafeEqual e resiliencia`
+- [x] **Commit (`GitOps`):** `fix(security): hardening HTTP, CSRF, Zod schemas, timingSafeEqual e resiliencia`

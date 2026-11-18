@@ -187,7 +187,12 @@ describe("GET /api/settings masking & Cache-Control (SEC-01 / SEC-03)", () => {
 
     const req = {
       method: "POST",
-      headers: { cookie: buildAuthCookieHeader("usr-settings-1") },
+      headers: {
+        cookie: buildAuthCookieHeader("usr-settings-1"),
+        host: "wattflow.local",
+        origin: "https://wattflow.local",
+        "sec-fetch-site": "same-origin",
+      },
       body: {
         ecoflowEndpointRegion: "https://api.ecoflow.com",
         ecoflowAccessKey: "new-ak-1234",
@@ -202,5 +207,51 @@ describe("GET /api/settings masking & Cache-Control (SEC-01 / SEC-03)", () => {
     expect(res.statusCode).toBe(200);
     expect(mockUpsert).toHaveBeenCalledTimes(1);
     expect(mockStopStream).toHaveBeenCalledWith("usr-settings-1");
+  });
+
+  it("sanitizes HTTP 500 internal DB errors in GET and POST /api/settings without leaking details", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mockFindUnique.mockRejectedValueOnce(new Error("ECONNREFUSED postgres://secret-host:5432"));
+
+    const getRes = createMockApiResponse();
+    await handleSettings(
+      {
+        method: "GET",
+        headers: { cookie: buildAuthCookieHeader("usr-settings-1") },
+      } as unknown as NextApiRequest,
+      getRes
+    );
+    expect(getRes.statusCode).toBe(500);
+    expect(JSON.stringify(getRes.body)).not.toContain("ECONNREFUSED");
+    expect(JSON.stringify(getRes.body)).not.toContain("postgres://");
+
+    mockFindUnique.mockResolvedValueOnce(null);
+    mockUpsert.mockRejectedValueOnce(new Error("ECONNREFUSED postgres://secret-host:5432"));
+    const postRes = createMockApiResponse();
+    await handleSettings(
+      {
+        method: "POST",
+        headers: {
+          cookie: buildAuthCookieHeader("usr-settings-1"),
+          host: "wattflow.local",
+          origin: "https://wattflow.local",
+          "sec-fetch-site": "same-origin",
+        },
+        body: {
+          ecoflowEndpointRegion: "https://api.ecoflow.com",
+          ecoflowAccessKey: "new-ak-1234",
+          ecoflowAccessSecret: "new-as-1234",
+          ecoflowSerialNumber: "R601ZAB12345",
+        },
+      } as unknown as NextApiRequest,
+      postRes
+    );
+    expect(postRes.statusCode).toBe(500);
+    expect(postRes.body).toEqual({
+      success: false,
+      message: "Erro interno ao salvar configurações.",
+    });
+    expect(JSON.stringify(postRes.body)).not.toContain("ECONNREFUSED");
+    expect(JSON.stringify(postRes.body)).not.toContain("postgres://");
   });
 });

@@ -1,17 +1,22 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../infrastructure/database/prismaClient";
-import { extractUserFromRequest } from "../../infrastructure/auth/sessionHelper";
+import {
+  enforceCsrfProtection,
+  extractUserFromRequest,
+} from "../../infrastructure/auth/sessionHelper";
 import {
   isAllowedEcoFlowEndpointRegion,
   resolveEcoFlowEndpointRegion,
 } from "../../infrastructure/security/ecoflowAllowlist";
 import {
   encryptSecretIfPresent,
+  getEncryptionKey,
   isUnchangedOrMaskedSecret,
   maskSecretIrreversible,
 } from "../../infrastructure/security/encryptionHelper";
 import { decryptAndMigrateConfigurationSecrets } from "../../infrastructure/security/secretMigrationHelper";
 import { EcoFlowMqttStreamService } from "../../infrastructure/services/EcoFlowMqttStreamService";
+import { settingsPostBodySchema } from "../../infrastructure/security/apiSchemas";
 
 export interface SettingsResponseData {
   ecoflowEndpointRegion: string;
@@ -68,12 +73,29 @@ export default async function handleSettings(
     return;
   }
 
+  if (request.method === "POST") {
+    if (!enforceCsrfProtection(request, response)) {
+      return;
+    }
+  }
+
   let extractedUserId = "";
   sessionUser.provideIdentity((userId) => {
     extractedUserId = userId;
   });
 
   if (request.method === "GET") {
+    try {
+      getEncryptionKey();
+    } catch (keyError: unknown) {
+      console.error("[Settings API] Falha de configuração ENCRYPTION_KEY:", keyError);
+      response.status(500).json({
+        success: false,
+        message: "Erro interno de configuração da chave ENCRYPTION_KEY no servidor.",
+      });
+      return;
+    }
+
     try {
       const existing = await prisma.userConfiguration.findUnique({
         where: { userId: extractedUserId },
@@ -114,25 +136,33 @@ export default async function handleSettings(
       });
       return;
     } catch (readError: unknown) {
-      const detail =
-        readError instanceof Error
-          ? readError.message
-          : "Erro ao carregar e decifrar configurações.";
+      console.error("[Settings API] Erro interno ao carregar/decifrar configurações:", readError);
       response.status(500).json({
         success: false,
-        message: detail,
+        message: "Erro interno ao carregar configurações.",
       });
       return;
     }
   }
 
   if (request.method === "POST") {
-    const body = (request.body ?? {}) as Record<string, unknown>;
+    const parsedBody = settingsPostBodySchema.safeParse(request.body ?? {});
+    if (!parsedBody.success) {
+      const issueMessage =
+        parsedBody.error.issues[0]?.message ||
+        "Dados de configuração inválidos ou excedem o tamanho máximo permitido.";
+      response.status(400).json({
+        success: false,
+        message: issueMessage,
+      });
+      return;
+    }
+
     const {
       ecoflowEndpointRegion,
-      ecoflowAccessKey,
+      ecoflowAccessKey: normalizedAccessKey,
       ecoflowAccessSecret,
-      ecoflowSerialNumber,
+      ecoflowSerialNumber: normalizedSerialNumber,
       tuyaAccessId,
       tuyaAccessSecret,
       tuyaDeviceId,
@@ -142,7 +172,7 @@ export default async function handleSettings(
       whatsappPhoneNumber,
       whatsappApiKey,
       isNotificationActive,
-    } = body;
+    } = parsedBody.data;
 
     if (
       ecoflowEndpointRegion !== undefined &&
@@ -157,14 +187,13 @@ export default async function handleSettings(
       return;
     }
 
-    const normalizedAccessKey = typeof ecoflowAccessKey === "string" ? ecoflowAccessKey.trim() : "";
-    const normalizedSerialNumber =
-      typeof ecoflowSerialNumber === "string" ? ecoflowSerialNumber.trim() : "";
-
-    if (!normalizedAccessKey || !normalizedSerialNumber) {
-      response.status(400).json({
+    try {
+      getEncryptionKey();
+    } catch (keyError: unknown) {
+      console.error("[Settings API] Falha de configuração ENCRYPTION_KEY:", keyError);
+      response.status(500).json({
         success: false,
-        message: "Access Key, Secret Key e Serial Number da EcoFlow são obrigatórios.",
+        message: "Erro interno de configuração da chave ENCRYPTION_KEY no servidor.",
       });
       return;
     }
@@ -280,13 +309,10 @@ export default async function handleSettings(
       });
       return;
     } catch (writeError: unknown) {
-      const detail =
-        writeError instanceof Error
-          ? writeError.message
-          : "Erro interno ao cifrar e salvar configurações.";
+      console.error("[Settings API] Erro interno ao cifrar/salvar configurações:", writeError);
       response.status(500).json({
         success: false,
-        message: detail,
+        message: "Erro interno ao salvar configurações.",
       });
       return;
     }

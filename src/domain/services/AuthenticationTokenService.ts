@@ -132,12 +132,22 @@ export class AuthenticationTokenService {
     try {
       const decodedBuffer = Buffer.from(base64Payload, "base64url");
       const payloadJson = decodedBuffer.toString("utf8");
-      parsedPayload = JSON.parse(payloadJson) as RawTokenPayload;
+      const rawParsed: unknown = JSON.parse(payloadJson);
+      if (typeof rawParsed !== "object" || rawParsed === null || Array.isArray(rawParsed)) {
+        return null;
+      }
+      parsedPayload = rawParsed as RawTokenPayload;
     } catch {
       return null;
     }
 
-    if (!parsedPayload || parsedPayload.scope !== requiredScope) {
+    if (
+      !parsedPayload ||
+      parsedPayload.scope !== requiredScope ||
+      typeof parsedPayload.userId !== "string" ||
+      parsedPayload.userId.trim().length === 0 ||
+      typeof parsedPayload.email !== "string"
+    ) {
       return null;
     }
 

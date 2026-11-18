@@ -180,6 +180,7 @@ async function getEcoFlowCertification(config) {
   const baseUrl = validateEndpointRegion(config.ecoflowEndpointRegion);
   const res = await fetch(`${baseUrl}/iot-open/sign/certification`, {
     headers: { accessKey, nonce, timestamp, sign },
+    signal: AbortSignal.timeout(8000),
   });
 
   if (!res.ok) {

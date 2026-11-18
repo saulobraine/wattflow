@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../../infrastructure/database/prismaClient";
 import {
+  enforceCsrfProtection,
   extractUserFromRequest,
   getAuthenticationTokenService,
   setSessionCookie,
@@ -12,6 +13,7 @@ import {
   extractClientIp,
   sendRateLimitExceeded,
 } from "../../../infrastructure/security/rateLimiter";
+import { changePasswordBodySchema } from "../../../infrastructure/security/apiSchemas";
 
 const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
 const MAX_CHANGE_PASSWORD_PER_IP = 10;
@@ -71,6 +73,10 @@ export default async function handleChangePassword(
     return;
   }
 
+  if (!enforceCsrfProtection(request, response)) {
+    return;
+  }
+
   let extractedUserId = "";
   sessionUser.provideIdentity((userId) => {
     extractedUserId = userId;
@@ -86,15 +92,18 @@ export default async function handleChangePassword(
     return;
   }
 
-  const { currentPassword, newPassword } = request.body ?? {};
-
-  if (typeof currentPassword !== "string" || !currentPassword || typeof newPassword !== "string" || !newPassword) {
+  const parsedBody = changePasswordBodySchema.safeParse(request.body ?? {});
+  if (!parsedBody.success) {
+    const issueMessage =
+      parsedBody.error.issues[0]?.message || "A senha atual e a nova senha são obrigatórias.";
     response.status(400).json({
       success: false,
-      message: "A senha atual e a nova senha são obrigatórias.",
+      message: issueMessage,
     });
     return;
   }
+
+  const { currentPassword, newPassword } = parsedBody.data;
 
   try {
     const user = await prisma.user.findUnique({

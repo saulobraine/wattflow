@@ -1,6 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../infrastructure/database/prismaClient";
-import { extractUserFromRequest } from "../../infrastructure/auth/sessionHelper";
+import {
+  enforceCsrfProtection,
+  extractUserFromRequest,
+} from "../../infrastructure/auth/sessionHelper";
 import { AccessKey } from "../../domain/values/AccessKey";
 import { AccessSecret } from "../../domain/values/AccessSecret";
 import { DeviceSerialNumber } from "../../domain/values/DeviceSerialNumber";
@@ -16,19 +19,12 @@ import {
   extractClientIp,
   sendRateLimitExceeded,
 } from "../../infrastructure/security/rateLimiter";
+import { testControlPostBodySchema } from "../../infrastructure/security/apiSchemas";
 
 const ONE_MINUTE_MS = 60 * 1000;
 const AC_SWITCH_COOLDOWN_MS = 10 * 1000;
 const MAX_TEST_CONTROL_PER_IP = 30;
 const MAX_TEST_CONTROL_PER_USER = 20;
-
-interface TestControlRequestBody {
-  actionTarget: "ECOFLOW_ON" | "ECOFLOW_OFF" | "ECOFLOW_TELEMETRY";
-  ecoflowEndpointRegion?: string;
-  ecoflowAccessKey?: string;
-  ecoflowAccessSecret?: string;
-  ecoflowSerialNumber?: string;
-}
 
 interface TestControlApiResponse {
   success: boolean;
@@ -81,6 +77,10 @@ export default async function handleTestControl(
     return;
   }
 
+  if (!enforceCsrfProtection(request, response)) {
+    return;
+  }
+
   let extractedUserId = "";
   sessionUser.provideIdentity((userId) => {
     extractedUserId = userId;
@@ -96,26 +96,20 @@ export default async function handleTestControl(
     return;
   }
 
-  const body = (request.body ?? {}) as TestControlRequestBody;
+  const parsedBody = testControlPostBodySchema.safeParse(request.body ?? {});
+  if (!parsedBody.success) {
+    const issueMessage =
+      parsedBody.error.issues[0]?.message ||
+      "Ação de teste inválida. Escolha ECOFLOW_ON, ECOFLOW_OFF ou ECOFLOW_TELEMETRY.";
+    response.status(400).json({
+      success: false,
+      message: issueMessage,
+    });
+    return;
+  }
+
+  const body = parsedBody.data;
   const { actionTarget } = body;
-
-  const validTargets = ["ECOFLOW_ON", "ECOFLOW_OFF", "ECOFLOW_TELEMETRY"];
-  if (!validTargets.includes(actionTarget)) {
-    response.status(400).json({
-      success: false,
-      message: "Ação de teste inválida. Escolha ECOFLOW_ON, ECOFLOW_OFF ou ECOFLOW_TELEMETRY.",
-    });
-    return;
-  }
-
-  if (body.ecoflowEndpointRegion !== undefined && typeof body.ecoflowEndpointRegion !== "string") {
-    response.status(400).json({
-      success: false,
-      message:
-        "Região de endpoint EcoFlow inválida. Utilize apenas https://api.ecoflow.com ou https://api-e.ecoflow.com.",
-    });
-    return;
-  }
 
   const savedConfiguration = await prisma.userConfiguration.findUnique({
     where: { userId: extractedUserId },
@@ -138,13 +132,10 @@ export default async function handleTestControl(
       effectiveEcoFlowSecret = (body.ecoflowAccessSecret as string).trim();
     }
   } catch (cryptoError: unknown) {
-    const detail =
-      cryptoError instanceof Error
-        ? cryptoError.message
-        : "Falha ao decifrar credenciais EcoFlow armazenadas.";
+    console.error("[TestControl API] Falha ao decifrar credenciais EcoFlow:", cryptoError);
     response.status(500).json({
       success: false,
-      message: detail,
+      message: "Erro interno ao carregar credenciais EcoFlow armazenadas.",
     });
     return;
   }
@@ -198,15 +189,14 @@ export default async function handleTestControl(
     }
   }
 
-  const ecoflowKey = new AccessKey(effectiveEcoFlowKey);
-  const ecoflowSecret = new AccessSecret(effectiveEcoFlowSecret);
-  const ecoflowCredentials = new EcoFlowCredentials(ecoflowKey, ecoflowSecret);
-  const ecoflowDevice = new DeviceSerialNumber(effectiveEcoFlowSerial);
-  const ecoflowClient = new EcoFlowHttpClient(ecoflowCredentials, effectiveEcoFlowRegion);
-
-  const testUseCase = new EcoFlowTestUseCase();
-
   try {
+    const ecoflowKey = new AccessKey(effectiveEcoFlowKey);
+    const ecoflowSecret = new AccessSecret(effectiveEcoFlowSecret);
+    const ecoflowCredentials = new EcoFlowCredentials(ecoflowKey, ecoflowSecret);
+    const ecoflowDevice = new DeviceSerialNumber(effectiveEcoFlowSerial);
+    const ecoflowClient = new EcoFlowHttpClient(ecoflowCredentials, effectiveEcoFlowRegion);
+
+    const testUseCase = new EcoFlowTestUseCase();
     let result: EcoFlowTestResult;
 
     if (actionTarget === "ECOFLOW_TELEMETRY") {
@@ -223,12 +213,10 @@ export default async function handleTestControl(
       data: result,
     });
   } catch (caughtError: unknown) {
-    const errorDetails =
-      caughtError instanceof Error ? caughtError.message : "Erro desconhecido durante o teste da EcoFlow.";
-
+    console.error("[TestControl API] Erro interno durante execução de teste:", caughtError);
     response.status(500).json({
       success: false,
-      message: errorDetails,
+      message: "Erro interno ao executar o comando de teste no dispositivo.",
     });
   }
 }

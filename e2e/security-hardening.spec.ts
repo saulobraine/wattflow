@@ -42,6 +42,7 @@ test.describe("Etapa 1 - Security Hardening & Auth Gate", () => {
 
   test("bloqueio SSRF em /api/settings rejeita ecoflowEndpointRegion fora da allowlist", async ({
     request,
+    baseURL,
   }) => {
     const unauthSettingsRes = await request.post("/api/settings", {
       data: {
@@ -71,6 +72,7 @@ test.describe("Etapa 1 - Security Hardening & Auth Gate", () => {
 
     for (const invalidRegion of invalidRegions) {
       const ssrfRes = await request.post("/api/settings", {
+        headers: { origin: baseURL || "http://127.0.0.1:3005" },
         data: {
           ecoflowEndpointRegion: invalidRegion,
           ecoflowAccessKey: "dummy-ak",

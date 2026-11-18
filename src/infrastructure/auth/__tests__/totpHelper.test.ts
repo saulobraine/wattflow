@@ -5,6 +5,7 @@ import {
   generateBase32Secret,
   generateTotpCode,
   verifyTotpCode,
+  verifyTotpCodeWithCounter,
 } from "../totpHelper";
 
 describe("totpHelper (SEC-01 / SEC-03)", () => {
@@ -72,6 +73,37 @@ describe("totpHelper (SEC-01 / SEC-03)", () => {
     it("fails closed when verifying against an invalid or weak secret", () => {
       expect(() => verifyTotpCode("INVALID!SECRET", "123456")).toThrow(/caracteres Base32 inválidos/);
       expect(() => verifyTotpCode("A".repeat(24), "123456")).toThrow(/mínimo de 16 bytes/);
+    });
+
+    it("prevents TOTP replay by rejecting counters <= lastUsedCounter (SEC-12)", () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-11-18T00:00:00Z"));
+
+      const secret = generateBase32Secret(20);
+      const code = generateTotpCode(secret, 0);
+
+      const firstAttempt = verifyTotpCodeWithCounter(secret, code, null);
+      expect(firstAttempt.valid).toBe(true);
+      expect(typeof firstAttempt.matchedCounter).toBe("number");
+
+      // Replay with same counter must be rejected
+      const replayAttempt = verifyTotpCodeWithCounter(secret, code, firstAttempt.matchedCounter);
+      expect(replayAttempt).toEqual({ valid: false, matchedCounter: null });
+
+      // Older counter when lastUsedCounter is ahead must also be rejected
+      const staleAttempt = verifyTotpCodeWithCounter(
+        secret,
+        code,
+        (firstAttempt.matchedCounter as number) + 1
+      );
+      expect(staleAttempt).toEqual({ valid: false, matchedCounter: null });
+
+      // Next 30s step succeeds
+      vi.advanceTimersByTime(30_000);
+      const nextCode = generateTotpCode(secret, 0);
+      const nextAttempt = verifyTotpCodeWithCounter(secret, nextCode, firstAttempt.matchedCounter);
+      expect(nextAttempt.valid).toBe(true);
+      expect(nextAttempt.matchedCounter).toBe((firstAttempt.matchedCounter as number) + 1);
     });
   });
 

@@ -136,6 +136,7 @@ export class EcoFlowHttpClient {
           timestamp: timestampString,
           sign: signatureHex,
         },
+        signal: AbortSignal.timeout(8000),
       });
     } catch (networkError) {
       const detail = networkError instanceof Error ? networkError.message : "falha de conexão";
@@ -260,6 +261,7 @@ export class EcoFlowHttpClient {
           timestamp: timestampString,
           sign: signatureHex,
         },
+        signal: AbortSignal.timeout(8000),
       });
     } catch (networkError) {
       const detail = networkError instanceof Error ? networkError.message : "falha de conexão";
@@ -463,6 +465,7 @@ export class EcoFlowHttpClient {
           "Content-Type": "application/json;charset=UTF-8",
         },
         body: JSON.stringify(requestBody),
+        signal: AbortSignal.timeout(8000),
       });
     } catch (networkError) {
       const detail = networkError instanceof Error ? networkError.message : "falha de rede";
@@ -474,7 +477,6 @@ export class EcoFlowHttpClient {
     }
 
     const responseJson = (await httpResponse.json()) as EcoFlowQuotaResponseJson;
-    console.log(`[EcoFlowHttpClient] PUT /quota retorno (${httpResponse.status}):`, JSON.stringify(responseJson));
     if (responseJson.code !== "0") {
       return { isSuccess: false, errorMessage: responseJson.message ?? `código ${responseJson.code}` };
     }

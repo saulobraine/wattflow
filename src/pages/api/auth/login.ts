@@ -1,7 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../../infrastructure/database/prismaClient";
 import { UserEmail } from "../../../domain/values/UserEmail";
-import { MAX_PASSWORD_LENGTH } from "../../../domain/values/RawPassword";
 import { HashedPassword } from "../../../domain/values/HashedPassword";
 import {
   getAuthenticationTokenService,
@@ -12,10 +11,16 @@ import {
   extractClientIp,
   sendRateLimitExceeded,
 } from "../../../infrastructure/security/rateLimiter";
+import { loginBodySchema } from "../../../infrastructure/security/apiSchemas";
 
 const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
 const MAX_LOGIN_ATTEMPTS_PER_IP = 20;
 const MAX_LOGIN_ATTEMPTS_PER_ACCOUNT = 5;
+
+// Hash dummy de 16B salt + 64B digest (hex) para equalizar custo de CPU scrypt quando o e-mail não existe (SEC-14)
+const DUMMY_PASSWORD_HASH = new HashedPassword(
+  `${"7a3f9c1b5e8d2046a1b2c3d4e5f60718"}:${"8f4e2d1c9b7a60514233241506f7e8d9".repeat(4)}`
+);
 
 interface LoginResponseBody {
   success: boolean;
@@ -67,9 +72,8 @@ export default async function handleLogin(
     return;
   }
 
-  const { email, password } = request.body ?? {};
-
-  if (typeof password !== "string" || password.length === 0 || password.length > MAX_PASSWORD_LENGTH) {
+  const parsedBody = loginBodySchema.safeParse(request.body ?? {});
+  if (!parsedBody.success) {
     response.status(400).json({
       success: false,
       message: "E-mail ou senha em formato inválido.",
@@ -77,9 +81,11 @@ export default async function handleLogin(
     return;
   }
 
+  const { email, password } = parsedBody.data;
+
   let userEmail: UserEmail;
   try {
-    userEmail = new UserEmail(String(email || ""));
+    userEmail = new UserEmail(email);
   } catch {
     response.status(400).json({
       success: false,
@@ -112,6 +118,7 @@ export default async function handleLogin(
   });
 
   if (!user) {
+    await DUMMY_PASSWORD_HASH.matchesPlaintextCandidate(password);
     response.status(401).json({
       success: false,
       message: "Credenciais de acesso incorretas.",

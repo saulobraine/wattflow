@@ -2,13 +2,14 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import QRCode from "qrcode";
 import { prisma } from "../../../infrastructure/database/prismaClient";
 import {
+  enforceCsrfProtection,
   extractUserFromRequest,
   getAuthenticationTokenService,
   setSessionCookie,
 } from "../../../infrastructure/auth/sessionHelper";
 import {
   generateBase32Secret,
-  verifyTotpCode,
+  verifyTotpCodeWithCounter,
   buildOtpAuthUrl,
 } from "../../../infrastructure/auth/totpHelper";
 import { encryptSecret } from "../../../infrastructure/security/encryptionHelper";
@@ -19,6 +20,7 @@ import {
   extractClientIp,
   sendRateLimitExceeded,
 } from "../../../infrastructure/security/rateLimiter";
+import { twoFactorBodySchema } from "../../../infrastructure/security/apiSchemas";
 
 const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
 const MAX_2FA_CONFIG_PER_IP = 15;
@@ -88,6 +90,10 @@ export default async function handleTwoFactor(
     return;
   }
 
+  if (!enforceCsrfProtection(request, response)) {
+    return;
+  }
+
   let extractedUserId = "";
   sessionUser.provideIdentity((userId) => {
     extractedUserId = userId;
@@ -103,8 +109,17 @@ export default async function handleTwoFactor(
     return;
   }
 
-  const body = (request.body ?? {}) as Record<string, unknown>;
-  const { action, secret, token, currentPassword } = body;
+  const parsedBody = twoFactorBodySchema.safeParse(request.body ?? {});
+  if (!parsedBody.success) {
+    const issueMessage = parsedBody.error.issues[0]?.message || "Ação de 2FA inválida.";
+    response.status(400).json({
+      success: false,
+      message: issueMessage,
+    });
+    return;
+  }
+
+  const { action, secret, token, currentPassword } = parsedBody.data;
 
   try {
     const user = await prisma.user.findUnique({
@@ -218,11 +233,15 @@ export default async function handleTwoFactor(
         "pendingTwoFactorSecret",
         user.pendingTwoFactorSecret
       );
-      const isValidToken = verifyTotpCode(plainPendingSecret, token);
-      if (!isValidToken) {
+      const totpVerification = verifyTotpCodeWithCounter(
+        plainPendingSecret,
+        token,
+        user.lastTotpCounter ?? null
+      );
+      if (!totpVerification.valid || totpVerification.matchedCounter === null) {
         response.status(400).json({
           success: false,
-          message: "Código de autenticação incorreto ou expirado. Verifique o relógio do seu dispositivo.",
+          message: "Código de autenticação incorreto, expirado ou já utilizado.",
         });
         return;
       }
@@ -233,6 +252,7 @@ export default async function handleTwoFactor(
           twoFactorEnabled: true,
           twoFactorSecret: encryptSecret(plainPendingSecret),
           pendingTwoFactorSecret: null,
+          lastTotpCounter: totpVerification.matchedCounter,
           tokenVersion: { increment: 1 },
         },
       });
@@ -281,6 +301,7 @@ export default async function handleTwoFactor(
           twoFactorEnabled: false,
           twoFactorSecret: null,
           pendingTwoFactorSecret: null,
+          lastTotpCounter: null,
           tokenVersion: { increment: 1 },
         },
       });
@@ -310,10 +331,10 @@ export default async function handleTwoFactor(
       message: "Ação de 2FA inválida.",
     });
   } catch (error: unknown) {
-    const detail = error instanceof Error ? error.message : "Erro interno no servidor de 2FA.";
+    console.error("Erro interno no processamento de 2FA:", error);
     response.status(500).json({
       success: false,
-      message: detail,
+      message: "Erro interno no servidor de 2FA.",
     });
   }
 }

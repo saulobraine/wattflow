@@ -3,6 +3,12 @@ import { randomBytes, createHmac, timingSafeEqual } from "node:crypto";
 const BASE32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 const MIN_TOTP_SECRET_BYTES = 16;
 const BASE32_VALID_PATTERN = /^[A-Z2-7]+={0,6}$/;
+const TOTP_STEP_SECONDS = 30;
+
+export interface TotpVerificationResult {
+  valid: boolean;
+  matchedCounter: number | null;
+}
 
 export function generateBase32Secret(byteLength = 20): string {
   if (!Number.isInteger(byteLength) || byteLength < MIN_TOTP_SECRET_BYTES) {
@@ -76,11 +82,7 @@ export function decodeBase32(input: string): Buffer {
   return decodedBuffer;
 }
 
-export function generateTotpCode(secretBase32: string, stepOffset = 0): string {
-  const key = decodeBase32(secretBase32);
-  const timeStep = 30;
-  const counter = Math.floor(Date.now() / 1000 / timeStep) + stepOffset;
-
+export function generateTotpCodeForCounter(key: Buffer, counter: number): string {
   const buffer = Buffer.alloc(8);
   buffer.writeBigInt64BE(BigInt(counter), 0);
 
@@ -99,34 +101,64 @@ export function generateTotpCode(secretBase32: string, stepOffset = 0): string {
   return otp.toString().padStart(6, "0");
 }
 
-export function verifyTotpCode(secretBase32: string, candidateCode: string): boolean {
-  // Valida o segredo Base32 e entropia >= 16 bytes imediatamente (fail-closed)
-  decodeBase32(secretBase32);
+export function generateTotpCode(secretBase32: string, stepOffset = 0): string {
+  const key = decodeBase32(secretBase32);
+  const counter = Math.floor(Date.now() / 1000 / TOTP_STEP_SECONDS) + stepOffset;
+  return generateTotpCodeForCounter(key, counter);
+}
+
+/**
+ * Valida código TOTP com janela ±1 ciclo (30s) e proteção contra replay (SEC-12).
+ * Se lastUsedCounter for informado, rejeita qualquer contador <= lastUsedCounter.
+ */
+export function verifyTotpCodeWithCounter(
+  secretBase32: string,
+  candidateCode: string,
+  lastUsedCounter?: number | null
+): TotpVerificationResult {
+  const key = decodeBase32(secretBase32);
 
   if (typeof candidateCode !== "string") {
-    return false;
+    return { valid: false, matchedCounter: null };
   }
 
   const normalizedCandidate = candidateCode.trim().replace(/\s/g, "");
   if (!/^\d{6}$/.test(normalizedCandidate)) {
-    return false;
+    return { valid: false, matchedCounter: null };
   }
 
   const candidateBuffer = Buffer.from(normalizedCandidate, "utf8");
+  const baseCounter = Math.floor(Date.now() / 1000 / TOTP_STEP_SECONDS);
 
-  // Permite tolerância de ±1 ciclo (30s antes ou 30s depois) para compensar desvios de relógio
   for (const offset of [0, -1, 1]) {
-    const validCode = generateTotpCode(secretBase32, offset);
+    const stepCounter = baseCounter + offset;
+    const validCode = generateTotpCodeForCounter(key, stepCounter);
     const validBuffer = Buffer.from(validCode, "utf8");
+
     if (
       candidateBuffer.byteLength === validBuffer.byteLength &&
       timingSafeEqual(candidateBuffer, validBuffer)
     ) {
-      return true;
+      if (typeof lastUsedCounter === "number" && stepCounter <= lastUsedCounter) {
+        return { valid: false, matchedCounter: null };
+      }
+
+      return {
+        valid: true,
+        matchedCounter: stepCounter,
+      };
     }
   }
 
-  return false;
+  return { valid: false, matchedCounter: null };
+}
+
+export function verifyTotpCode(
+  secretBase32: string,
+  candidateCode: string,
+  lastUsedCounter?: number | null
+): boolean {
+  return verifyTotpCodeWithCounter(secretBase32, candidateCode, lastUsedCounter).valid;
 }
 
 export function buildOtpAuthUrl(email: string, secretBase32: string): string {

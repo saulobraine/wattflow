@@ -1,6 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../infrastructure/database/prismaClient";
-import { extractUserFromRequest } from "../../infrastructure/auth/sessionHelper";
+import {
+  enforceCsrfProtection,
+  extractUserFromRequest,
+} from "../../infrastructure/auth/sessionHelper";
 import {
   NotificationDispatcher,
   NotificationPayload,
@@ -12,19 +15,12 @@ import {
   extractClientIp,
   sendRateLimitExceeded,
 } from "../../infrastructure/security/rateLimiter";
+import { testNotificationPostBodySchema } from "../../infrastructure/security/apiSchemas";
 
 const FIVE_MINUTES_MS = 5 * 60 * 1000;
 const ONE_MINUTE_MS = 60 * 1000;
 const MAX_NOTIF_PER_IP = 10;
 const MAX_NOTIF_PER_USER = 5;
-
-interface TestNotificationRequestBody {
-  channel: "TELEGRAM" | "WHATSAPP";
-  telegramBotToken?: string;
-  telegramChatId?: string;
-  whatsappPhoneNumber?: string;
-  whatsappApiKey?: string;
-}
 
 interface TestNotificationApiResponse {
   success: boolean;
@@ -81,6 +77,10 @@ export default async function handleTestNotification(
     return;
   }
 
+  if (!enforceCsrfProtection(request, response)) {
+    return;
+  }
+
   let extractedUserId = "";
   sessionUser.provideIdentity((userId) => {
     extractedUserId = userId;
@@ -96,8 +96,21 @@ export default async function handleTestNotification(
     return;
   }
 
-  const body = (request.body ?? {}) as TestNotificationRequestBody;
-  const channel = body.channel === "WHATSAPP" ? "WHATSAPP" : "TELEGRAM";
+  const parsedBody = testNotificationPostBodySchema.safeParse(request.body ?? {});
+  if (!parsedBody.success) {
+    const issueMessage =
+      parsedBody.error.issues[0]?.message ||
+      "Canal ou dados de notificação inválidos.";
+    response.status(400).json({
+      success: false,
+      message: issueMessage,
+      channel: "TELEGRAM",
+    });
+    return;
+  }
+
+  const body = parsedBody.data;
+  const channel = body.channel;
 
   const savedConfiguration = await prisma.userConfiguration.findUnique({
     where: { userId: extractedUserId },
@@ -136,13 +149,10 @@ export default async function handleTestNotification(
         effectiveToken = (body.telegramBotToken as string).trim();
       }
     } catch (cryptoError: unknown) {
-      const detail =
-        cryptoError instanceof Error
-          ? cryptoError.message
-          : "Falha ao decifrar token do Telegram armazenado.";
+      console.error("[TestNotification API] Falha ao decifrar token Telegram:", cryptoError);
       response.status(500).json({
         success: false,
-        message: detail,
+        message: "Falha interna ao carregar token do Telegram armazenado.",
         channel: "TELEGRAM",
       });
       return;
@@ -192,13 +202,10 @@ export default async function handleTestNotification(
       effectiveKey = (body.whatsappApiKey as string).trim();
     }
   } catch (cryptoError: unknown) {
-    const detail =
-      cryptoError instanceof Error
-        ? cryptoError.message
-        : "Falha ao decifrar chave do WhatsApp armazenada.";
+    console.error("[TestNotification API] Falha ao decifrar chave WhatsApp:", cryptoError);
     response.status(500).json({
       success: false,
-      message: detail,
+      message: "Falha interna ao carregar chave do WhatsApp armazenada.",
       channel: "WHATSAPP",
     });
     return;

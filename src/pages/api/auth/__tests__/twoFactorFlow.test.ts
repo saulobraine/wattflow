@@ -191,6 +191,37 @@ describe("2FA authentication flow (/api/auth/login + /api/auth/login-2fa + /api/
     expect(resExpired.headers["Set-Cookie"]).toBeUndefined();
   });
 
+  it("login-2fa sanitizes HTTP 500 internal errors when decryption fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const tokenService = new AuthenticationTokenService(VALID_AUTH_SECRET);
+    const challengeToken = tokenService.createTwoFactorChallengeToken("usr-2fa-1", "user@wattflow.local");
+
+    mockUserFindUnique.mockResolvedValueOnce({
+      id: "usr-2fa-1",
+      email: "user@wattflow.local",
+      fullName: "WattFlow User",
+      twoFactorEnabled: true,
+      twoFactorSecret: "enc:v1:corrupted-iv:corrupted-tag:corrupted-cipher",
+    });
+
+    const res = createMockApiResponse();
+    await handleLoginTwoFactor(
+      {
+        method: "POST",
+        body: { challengeToken, code: "123456" },
+      } as unknown as NextApiRequest,
+      res
+    );
+
+    expect(res.statusCode).toBe(500);
+    expect(res.body).toEqual({
+      success: false,
+      message: "Erro interno ao validar autenticação em duas etapas.",
+    });
+    expect(JSON.stringify(res.body)).not.toContain("enc:v1:");
+    expect(JSON.stringify(res.body)).not.toContain("corrupted");
+  });
+
   describe("/api/auth/2fa VERIFY_AND_ENABLE hardening", () => {
     function buildAuthenticatedHeaders(userId = "usr-1", email = "user@wattflow.local") {
       const tokenService = new AuthenticationTokenService(VALID_AUTH_SECRET);
@@ -199,7 +230,11 @@ describe("2FA authentication flow (/api/auth/login + /api/auth/login-2fa + /api/
       sessionToken.transferToken((t) => {
         rawToken = t;
       });
-      return { cookie: `${SESSION_COOKIE_NAME}=${encodeURIComponent(rawToken)}` };
+      return {
+        host: "localhost:3000",
+        origin: "http://localhost:3000",
+        cookie: `${SESSION_COOKIE_NAME}=${encodeURIComponent(rawToken)}`,
+      };
     }
 
     it("rejects secret in body, requires valid currentPassword, and blocks overwrite when 2FA is already active", async () => {
@@ -313,6 +348,7 @@ describe("2FA authentication flow (/api/auth/login + /api/auth/login-2fa + /api/
           twoFactorEnabled: true,
           twoFactorSecret: expect.stringMatching(/^enc:v1:/),
           pendingTwoFactorSecret: null,
+          lastTotpCounter: expect.any(Number),
           tokenVersion: { increment: 1 },
         },
       });

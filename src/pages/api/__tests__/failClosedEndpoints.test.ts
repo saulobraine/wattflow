@@ -313,7 +313,11 @@ describe("Fail-closed API endpoints (SEC-04)", () => {
 
       const req = {
         method: "POST",
-        headers: { cookie: `${SESSION_COOKIE_NAME}=${encodeURIComponent(rawToken)}` },
+        headers: {
+          host: "localhost:3000",
+          origin: "http://localhost:3000",
+          cookie: `${SESSION_COOKIE_NAME}=${encodeURIComponent(rawToken)}`,
+        },
         query: {},
       } as unknown as NextApiRequest;
       const res = createMockApiResponse();
@@ -323,6 +327,71 @@ describe("Fail-closed API endpoints (SEC-04)", () => {
       expect(res.statusCode).toBe(200);
       expect(mockExecuteSyncForUser).toHaveBeenCalledWith("user-99");
       expect(mockExecuteSyncAll).not.toHaveBeenCalled();
+    });
+
+    it("blocks GET /api/sync with 405 when authenticated by session cookie (SEC-10)", async () => {
+      process.env.AUTH_SECRET = VALID_AUTH_SECRET_32;
+      const req = {
+        method: "GET",
+        headers: { cookie: `${SESSION_COOKIE_NAME}=some.session.token` },
+        query: {},
+      } as unknown as NextApiRequest;
+      const res = createMockApiResponse();
+
+      await handleSync(req, res);
+
+      expect(res.statusCode).toBe(405);
+      expect(res.headers.Allow).toEqual(["POST"]);
+    });
+
+    it("rejects ?token= in query string for /api/mqtt-stream and /api/sync (SEC-12)", async () => {
+      process.env.CRON_SECRET_TOKEN = VALID_CRON_SECRET_32;
+
+      const mqttRes = createMockApiResponse();
+      await handleMqttStream(
+        {
+          method: "GET",
+          query: { token: VALID_CRON_SECRET_32 },
+          headers: {},
+        } as unknown as NextApiRequest,
+        mqttRes
+      );
+      expect(mqttRes.statusCode).toBe(401);
+
+      const syncRes = createMockApiResponse();
+      await handleSync(
+        {
+          method: "GET",
+          query: { token: VALID_CRON_SECRET_32 },
+          headers: {},
+        } as unknown as NextApiRequest,
+        syncRes
+      );
+      expect(syncRes.statusCode).toBe(401);
+    });
+
+    it("sanitizes unexpected 500 internal errors in /api/sync without leaking DB/stack details (SEC-14)", async () => {
+      process.env.CRON_SECRET_TOKEN = VALID_CRON_SECRET_32;
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      mockExecuteSyncAll.mockRejectedValueOnce(new Error("ECONNREFUSED postgres://secret-host:5432"));
+
+      const syncRes = createMockApiResponse();
+      await handleSync(
+        {
+          method: "POST",
+          query: {},
+          headers: { authorization: `Bearer ${VALID_CRON_SECRET_32}` },
+        } as unknown as NextApiRequest,
+        syncRes
+      );
+
+      expect(syncRes.statusCode).toBe(500);
+      expect(syncRes.body).toEqual({
+        success: false,
+        message: "Erro interno ao processar a sincronização de energia.",
+      });
+      expect(JSON.stringify(syncRes.body)).not.toContain("ECONNREFUSED");
+      expect(JSON.stringify(syncRes.body)).not.toContain("postgres://");
     });
   });
 });

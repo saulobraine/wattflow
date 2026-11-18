@@ -9,6 +9,8 @@ import { UserEmail } from "../../domain/values/UserEmail";
 export const SESSION_COOKIE_NAME = "wattflow_session";
 
 const MIN_AUTH_SECRET_LENGTH = 32;
+const SAFE_HTTP_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+const LOOPBACK_IPS = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
 
 export function getAuthenticationTokenService(): AuthenticationTokenService {
   const secret = process.env.AUTH_SECRET;
@@ -18,6 +20,110 @@ export function getAuthenticationTokenService(): AuthenticationTokenService {
     );
   }
   return new AuthenticationTokenService(secret);
+}
+
+/**
+ * Valida proteção contra CSRF em requisições mutáveis autenticadas por cookie:
+ * - Exige correspondência exata entre Origin (ou Referer como fallback) e Host.
+ * - Rejeita requisições cross-site sinalizadas via Sec-Fetch-Site ou sem cabeçalho de origem.
+ */
+export function validateCsrfOrigin(request: NextApiRequest): boolean {
+  const method = (request.method || "GET").toUpperCase();
+  if (SAFE_HTTP_METHODS.has(method)) {
+    return true;
+  }
+
+  const headers = request.headers ?? {};
+  const rawSecFetchSite = headers["sec-fetch-site"];
+  const secFetchSite = Array.isArray(rawSecFetchSite) ? rawSecFetchSite[0] : rawSecFetchSite;
+  if (
+    typeof secFetchSite === "string" &&
+    secFetchSite.trim().length > 0 &&
+    secFetchSite.trim().toLowerCase() !== "same-origin" &&
+    secFetchSite.trim().toLowerCase() !== "none"
+  ) {
+    return false;
+  }
+
+  const expectedHost = resolveExpectedHost(request);
+  if (!expectedHost) {
+    return false;
+  }
+
+  const rawOrigin = headers.origin;
+  const originHeader = Array.isArray(rawOrigin) ? rawOrigin[0] : rawOrigin;
+  if (typeof originHeader === "string" && originHeader.trim().length > 0) {
+    const extractedOriginHost = extractHostFromUrlHeader(originHeader.trim());
+    return extractedOriginHost !== null && extractedOriginHost === expectedHost;
+  }
+
+  const rawReferer = headers.referer;
+  const refererHeader = Array.isArray(rawReferer) ? rawReferer[0] : rawReferer;
+  if (typeof refererHeader === "string" && refererHeader.trim().length > 0) {
+    const extractedRefererHost = extractHostFromUrlHeader(refererHeader.trim());
+    return extractedRefererHost !== null && extractedRefererHost === expectedHost;
+  }
+
+  return false;
+}
+
+export function enforceCsrfProtection(
+  request: NextApiRequest,
+  response: NextApiResponse
+): boolean {
+  if (validateCsrfOrigin(request)) {
+    return true;
+  }
+
+  response.status(403).json({
+    success: false,
+    message: "Requisição bloqueada por proteção CSRF (Origin/Host inválido ou ausente).",
+  });
+  return false;
+}
+
+function resolveExpectedHost(request: NextApiRequest): string | null {
+  const headers = request.headers ?? {};
+  const socketIp = request.socket?.remoteAddress?.trim();
+  const isTrustedProxy =
+    Boolean(socketIp && LOOPBACK_IPS.has(socketIp)) || process.env.TRUST_PROXY === "true";
+
+  if (isTrustedProxy) {
+    const rawForwardedHost = headers["x-forwarded-host"];
+    const forwardedHost = Array.isArray(rawForwardedHost)
+      ? rawForwardedHost[0]
+      : rawForwardedHost;
+    if (typeof forwardedHost === "string" && forwardedHost.trim().length > 0) {
+      const firstHost = forwardedHost.split(",")[0]?.trim().toLowerCase();
+      if (firstHost) {
+        return firstHost;
+      }
+    }
+  }
+
+  const rawHost = headers.host;
+  const hostHeader = Array.isArray(rawHost) ? rawHost[0] : rawHost;
+  if (typeof hostHeader === "string" && hostHeader.trim().length > 0) {
+    return hostHeader.trim().toLowerCase();
+  }
+
+  return null;
+}
+
+function extractHostFromUrlHeader(rawUrl: string): string | null {
+  if (rawUrl === "null") {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return null;
+    }
+    return parsed.host.toLowerCase();
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -92,7 +198,7 @@ export function setSessionCookie(
   const secureFlag = isProduction ? "; Secure" : "";
   const maxAgeSeconds = 7 * 24 * 60 * 60;
 
-  const cookieHeaderValue = `${SESSION_COOKIE_NAME}=${encodeURIComponent(tokenString)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSeconds}${secureFlag}`;
+  const cookieHeaderValue = `${SESSION_COOKIE_NAME}=${encodeURIComponent(tokenString)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAgeSeconds}${secureFlag}`;
   response.setHeader("Set-Cookie", cookieHeaderValue);
 }
 
@@ -100,12 +206,16 @@ export function clearSessionCookie(response: NextApiResponse): void {
   const isProduction = process.env.NODE_ENV === "production";
   const secureFlag = isProduction ? "; Secure" : "";
 
-  const cookieHeaderValue = `${SESSION_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secureFlag}`;
+  const cookieHeaderValue = `${SESSION_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${secureFlag}`;
   response.setHeader("Set-Cookie", cookieHeaderValue);
 }
 
-function parseCookiesFromHeader(cookieHeader: string): Record<string, string> {
+export function parseCookiesFromHeader(cookieHeader: string): Record<string, string> {
   const cookiesMap: Record<string, string> = {};
+  if (typeof cookieHeader !== "string" || cookieHeader.length === 0) {
+    return cookiesMap;
+  }
+
   const cookieEntries = cookieHeader.split(";");
 
   for (const entry of cookieEntries) {
@@ -118,6 +228,7 @@ function parseCookiesFromHeader(cookieHeader: string): Record<string, string> {
     try {
       cookiesMap[key] = decodeURIComponent(rawValue);
     } catch {
+      // Ignora cookie com percent-encoding malformado sem lançar URIError (SEC-11)
       continue;
     }
   }

@@ -11,6 +11,7 @@ import {
   extractClientIp,
   sendRateLimitExceeded,
 } from "../../../infrastructure/security/rateLimiter";
+import { registerBodySchema } from "../../../infrastructure/security/apiSchemas";
 
 const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
 const MAX_REGISTER_PER_IP = 10;
@@ -69,14 +70,21 @@ export default async function handleRegister(
     return;
   }
 
-  const { email, password, fullName } = request.body ?? {};
+  const parsedBody = registerBodySchema.safeParse(request.body ?? {});
+  if (!parsedBody.success) {
+    const message = parsedBody.error.issues[0]?.message || "Dados inválidos.";
+    response.status(400).json({ success: false, message });
+    return;
+  }
+
+  const { email, password, fullName } = parsedBody.data;
 
   let userEmail: UserEmail;
   let rawPassword: RawPassword;
 
   try {
-    userEmail = new UserEmail(typeof email === "string" ? email : "");
-    rawPassword = new RawPassword(typeof password === "string" ? password : "");
+    userEmail = new UserEmail(email);
+    rawPassword = new RawPassword(password);
   } catch (validationError: unknown) {
     const message = validationError instanceof Error ? validationError.message : "Dados inválidos.";
     response.status(400).json({ success: false, message });
@@ -121,7 +129,7 @@ export default async function handleRegister(
       data: {
         email: normalizedEmail,
         passwordHash: storedHash,
-        fullName: fullName ? String(fullName) : null,
+        fullName: fullName ? fullName : null,
       },
     });
 

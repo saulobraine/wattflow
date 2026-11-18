@@ -2,7 +2,11 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../infrastructure/database/prismaClient";
 import { PercentageValue } from "../../domain/values/PercentageValue";
 import { AutomationThresholdPair } from "../../domain/models/AutomationThresholdPair";
-import { extractUserFromRequest } from "../../infrastructure/auth/sessionHelper";
+import {
+  enforceCsrfProtection,
+  extractUserFromRequest,
+} from "../../infrastructure/auth/sessionHelper";
+import { automationsPostBodySchema } from "../../infrastructure/security/apiSchemas";
 
 interface AutomationsResponseBody {
   success: boolean;
@@ -18,6 +22,8 @@ export default async function handleAutomations(
   request: NextApiRequest,
   response: NextApiResponse<AutomationsResponseBody>
 ): Promise<void> {
+  response.setHeader("Cache-Control", "no-store");
+
   let sessionUser: Awaited<ReturnType<typeof extractUserFromRequest>> = null;
   try {
     sessionUser = await extractUserFromRequest(request);
@@ -39,6 +45,12 @@ export default async function handleAutomations(
       message: "Não autenticado. Por favor, faça login para acessar as automações.",
     });
     return;
+  }
+
+  if (request.method === "POST") {
+    if (!enforceCsrfProtection(request, response)) {
+      return;
+    }
   }
 
   let extractedUserId = "";
@@ -77,17 +89,30 @@ export default async function handleAutomations(
   }
 
   if (request.method === "POST") {
-    const { turnOnThreshold, turnOffThreshold, isAutomationActive } = request.body;
-
-    try {
-      const turnOnPercentage = new PercentageValue(Number(turnOnThreshold));
-      const turnOffPercentage = new PercentageValue(Number(turnOffThreshold));
-      new AutomationThresholdPair(turnOnPercentage, turnOffPercentage);
-    } catch (domainValidationError: unknown) {
-      const message = domainValidationError instanceof Error ? domainValidationError.message : "Validação inválida.";
+    const parsedBody = automationsPostBodySchema.safeParse(request.body ?? {});
+    if (!parsedBody.success) {
+      const issueMessage = parsedBody.error.issues[0]?.message || "Validação inválida.";
       response.status(400).json({
         success: false,
-        message: message,
+        message: issueMessage,
+      });
+      return;
+    }
+
+    const { turnOnThreshold, turnOffThreshold, isAutomationActive } = parsedBody.data;
+
+    try {
+      const turnOnPercentage = new PercentageValue(turnOnThreshold);
+      const turnOffPercentage = new PercentageValue(turnOffThreshold);
+      new AutomationThresholdPair(turnOnPercentage, turnOffPercentage);
+    } catch (domainValidationError: unknown) {
+      const message =
+        domainValidationError instanceof Error
+          ? domainValidationError.message
+          : "Validação inválida.";
+      response.status(400).json({
+        success: false,
+        message,
       });
       return;
     }
@@ -95,15 +120,15 @@ export default async function handleAutomations(
     await prisma.userConfiguration.upsert({
       where: { userId: extractedUserId },
       update: {
-        turnOnThreshold: Number(turnOnThreshold),
-        turnOffThreshold: Number(turnOffThreshold),
-        isAutomationActive: Boolean(isAutomationActive),
+        turnOnThreshold,
+        turnOffThreshold,
+        isAutomationActive,
       },
       create: {
         userId: extractedUserId,
-        turnOnThreshold: Number(turnOnThreshold),
-        turnOffThreshold: Number(turnOffThreshold),
-        isAutomationActive: Boolean(isAutomationActive),
+        turnOnThreshold,
+        turnOffThreshold,
+        isAutomationActive,
       },
     });
 

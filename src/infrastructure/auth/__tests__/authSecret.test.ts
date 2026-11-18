@@ -1,13 +1,16 @@
+import { createHmac } from "node:crypto";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AuthenticationTokenService } from "../../../domain/services/AuthenticationTokenService";
 import { UserSessionToken } from "../../../domain/values/UserSessionToken";
 import {
   clearSessionCookie,
+  enforceCsrfProtection,
   extractUserFromRequest,
   getAuthenticationTokenService,
   SESSION_COOKIE_NAME,
   setSessionCookie,
+  validateCsrfOrigin,
 } from "../sessionHelper";
 
 const VALID_SECRET_32 = "a".repeat(32);
@@ -173,7 +176,7 @@ describe("AuthenticationTokenService & sessionHelper (AUTH_SECRET >= 32 chars)",
       await expect(extractUserFromRequest(req, mockDb)).resolves.toBeNull();
     });
 
-    it("sets and clears session cookies with HttpOnly, SameSite=Lax, and Secure in production", () => {
+    it("sets and clears session cookies with HttpOnly, SameSite=Strict, and Secure in production", () => {
       process.env.AUTH_SECRET = VALID_SECRET_32;
       vi.stubEnv("NODE_ENV", "production");
 
@@ -184,13 +187,76 @@ describe("AuthenticationTokenService & sessionHelper (AUTH_SECRET >= 32 chars)",
       setSessionCookie(res, token);
       expect(res.headers["Set-Cookie"]).toContain(`${SESSION_COOKIE_NAME}=`);
       expect(res.headers["Set-Cookie"]).toContain("HttpOnly");
-      expect(res.headers["Set-Cookie"]).toContain("SameSite=Lax");
+      expect(res.headers["Set-Cookie"]).toContain("SameSite=Strict");
       expect(res.headers["Set-Cookie"]).toContain("Secure");
 
       clearSessionCookie(res);
       expect(res.headers["Set-Cookie"]).toContain(`${SESSION_COOKIE_NAME}=;`);
+      expect(res.headers["Set-Cookie"]).toContain("SameSite=Strict");
       expect(res.headers["Set-Cookie"]).toContain("Max-Age=0");
       expect(res.headers["Set-Cookie"]).toContain("Secure");
+    });
+
+    it("returns null safely on malformed percent-encoding in cookie or invalid JSON in token payload (SEC-11)", async () => {
+      process.env.AUTH_SECRET = VALID_SECRET_32;
+
+      const badPercentReq = {
+        headers: { cookie: `${SESSION_COOKIE_NAME}=%E0%A4%A` },
+      } as unknown as NextApiRequest;
+      await expect(extractUserFromRequest(badPercentReq)).resolves.toBeNull();
+
+      const invalidJsonB64 = Buffer.from("{not-valid-json", "utf8").toString("base64url");
+      const validSig = createHmac("sha256", VALID_SECRET_32)
+        .update(invalidJsonB64, "utf8")
+        .digest("base64url");
+      const service = new AuthenticationTokenService(VALID_SECRET_32);
+      expect(service.verifySessionToken(new UserSessionToken(`${invalidJsonB64}.${validSig}`))).toBeNull();
+    });
+
+    it("validateCsrfOrigin & enforceCsrfProtection block cross-site/missing-origin POSTs with 403 and allow same-origin (SEC-10)", () => {
+      expect(validateCsrfOrigin({ method: "GET", headers: {} } as unknown as NextApiRequest)).toBe(true);
+
+      expect(
+        validateCsrfOrigin({
+          method: "POST",
+          headers: { host: "app.wattflow.local", origin: "https://app.wattflow.local", "sec-fetch-site": "same-origin" },
+        } as unknown as NextApiRequest)
+      ).toBe(true);
+
+      expect(
+        validateCsrfOrigin({
+          method: "POST",
+          headers: { host: "app.wattflow.local", referer: "https://app.wattflow.local/settings" },
+        } as unknown as NextApiRequest)
+      ).toBe(true);
+
+      const crossSiteRes = {
+        statusCode: 200,
+        body: undefined as unknown,
+        status: vi.fn(function (this: { statusCode: number }, code: number) {
+          this.statusCode = code;
+          return this;
+        }),
+        json: vi.fn(function (this: { body: unknown }, payload: unknown) {
+          this.body = payload;
+          return this;
+        }),
+      } as unknown as NextApiResponse & { statusCode: number; body: unknown };
+
+      const allowed = enforceCsrfProtection(
+        {
+          method: "POST",
+          headers: {
+            host: "app.wattflow.local",
+            origin: "https://evil.example.com",
+            "sec-fetch-site": "cross-site",
+          },
+        } as unknown as NextApiRequest,
+        crossSiteRes
+      );
+
+      expect(allowed).toBe(false);
+      expect(crossSiteRes.statusCode).toBe(403);
     });
   });
 });
