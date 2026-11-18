@@ -25,12 +25,21 @@ export function generateBase32Secret(byteLength = 20): string {
 }
 
 export function decodeBase32(input: string): Buffer {
-  const cleaned = input.toUpperCase().replace(/=+$/, "").replace(/\s/g, "");
+  if (typeof input !== "string" || input.length > 256) {
+    return Buffer.alloc(0);
+  }
+
+  let cleaned = input.toUpperCase().replace(/\s+/g, "");
+  while (cleaned.endsWith("=")) {
+    cleaned = cleaned.slice(0, -1);
+  }
+
   let bits = 0;
   let value = 0;
   const bytes: number[] = [];
+  const maxIterations = Math.min(cleaned.length, 256);
 
-  for (let i = 0; i < cleaned.length; i++) {
+  for (let i = 0; i < maxIterations; i++) {
     const char = cleaned[i];
     const index = BASE32_ALPHABET.indexOf(char);
     if (index === -1) {
