@@ -1,10 +1,12 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import QRCode from "qrcode";
 import { prisma } from "../../../infrastructure/database/prismaClient";
+import { DEFAULT_SESSION_VALIDITY_DAYS } from "../../../domain/services/AuthenticationTokenService";
 import {
   enforceCsrfProtection,
   extractUserFromRequest,
   getAuthenticationTokenService,
+  PERSISTENT_SESSION_MAX_AGE_SECONDS,
   setSessionCookie,
 } from "../../../infrastructure/auth/sessionHelper";
 import {
@@ -262,10 +264,10 @@ export default async function handleTwoFactor(
       const rotatedSession = tokenService.createSessionToken(
         user.id,
         user.email,
-        7,
+        DEFAULT_SESSION_VALIDITY_DAYS,
         nextTokenVersion
       );
-      setSessionCookie(response, rotatedSession);
+      setSessionCookie(response, rotatedSession, PERSISTENT_SESSION_MAX_AGE_SECONDS);
 
       response.status(200).json({
         success: true,
@@ -311,10 +313,10 @@ export default async function handleTwoFactor(
       const rotatedSession = tokenService.createSessionToken(
         user.id,
         user.email,
-        7,
+        DEFAULT_SESSION_VALIDITY_DAYS,
         nextTokenVersion
       );
-      setSessionCookie(response, rotatedSession);
+      setSessionCookie(response, rotatedSession, PERSISTENT_SESSION_MAX_AGE_SECONDS);
 
       response.status(200).json({
         success: true,

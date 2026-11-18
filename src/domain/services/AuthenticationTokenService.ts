@@ -3,6 +3,13 @@ import { UserIdentity } from "../models/UserIdentity";
 import { UserEmail } from "../values/UserEmail";
 import { UserSessionToken } from "../values/UserSessionToken";
 
+export const DEFAULT_SESSION_VALIDITY_DAYS = 30;
+
+export interface InspectedSessionToken {
+  identity: UserIdentity;
+  expiresAt: number;
+}
+
 type TokenScope = "session" | "2fa_challenge";
 
 interface RawTokenPayload {
@@ -27,7 +34,11 @@ export class AuthenticationTokenService {
   private readonly secretKey: string;
 
   constructor(secretKey: string) {
-    if (!secretKey || secretKey.trim().length < 32) {
+    if (!secretKey) {
+      throw new Error("O segredo de autenticação deve possuir no mínimo 32 caracteres.");
+    }
+    const trimmedSecret = secretKey.trim();
+    if (trimmedSecret.length < 32) {
       throw new Error("O segredo de autenticação deve possuir no mínimo 32 caracteres.");
     }
     this.secretKey = secretKey;
@@ -36,10 +47,12 @@ export class AuthenticationTokenService {
   public createSessionToken(
     userId: string,
     email: string,
-    validityDays = 7,
+    validityDays = DEFAULT_SESSION_VALIDITY_DAYS,
     tokenVersion = 0
   ): UserSessionToken {
-    const normalizedVersion = Number.isInteger(tokenVersion) && tokenVersion >= 0 ? tokenVersion : 0;
+    const isIntegerVersion = Number.isInteger(tokenVersion);
+    const isValidVersion = isIntegerVersion && tokenVersion >= 0;
+    const normalizedVersion = isValidVersion ? tokenVersion : 0;
     const expiresAt = Date.now() + validityDays * 24 * 60 * 60 * 1000;
     const serializedToken = this.signPayload({
       userId,
@@ -57,7 +70,9 @@ export class AuthenticationTokenService {
     ttlMilliseconds = FIVE_MINUTES_MS,
     tokenVersion = 0
   ): string {
-    const normalizedVersion = Number.isInteger(tokenVersion) && tokenVersion >= 0 ? tokenVersion : 0;
+    const isIntegerVersion = Number.isInteger(tokenVersion);
+    const isValidVersion = isIntegerVersion && tokenVersion >= 0;
+    const normalizedVersion = isValidVersion ? tokenVersion : 0;
     const expiresAt = Date.now() + ttlMilliseconds;
     return this.signPayload({
       userId,
@@ -68,27 +83,51 @@ export class AuthenticationTokenService {
     });
   }
 
-  public verifySessionToken(
+  public inspectSessionToken(
     sessionToken: UserSessionToken,
     expectedTokenVersion?: number
-  ): UserIdentity | null {
+  ): InspectedSessionToken | null {
     let rawToken = "";
     sessionToken.transferToken((token: string) => {
       rawToken = token;
     });
 
-    return this.verifyScopedToken(rawToken, "session", expectedTokenVersion);
+    return this.inspectScopedToken(rawToken, "session", expectedTokenVersion);
+  }
+
+  public verifySessionToken(
+    sessionToken: UserSessionToken,
+    expectedTokenVersion?: number
+  ): UserIdentity | null {
+    const inspected = this.inspectSessionToken(sessionToken, expectedTokenVersion);
+    if (!inspected) {
+      return null;
+    }
+    return inspected.identity;
   }
 
   public verifyTwoFactorChallengeToken(
     rawChallengeToken: string,
     expectedTokenVersion?: number
   ): UserIdentity | null {
-    if (typeof rawChallengeToken !== "string" || rawChallengeToken.trim().length === 0) {
+    if (typeof rawChallengeToken !== "string") {
       return null;
     }
 
-    return this.verifyScopedToken(rawChallengeToken.trim(), "2fa_challenge", expectedTokenVersion);
+    const trimmedChallenge = rawChallengeToken.trim();
+    if (trimmedChallenge.length === 0) {
+      return null;
+    }
+
+    const inspected = this.inspectScopedToken(
+      trimmedChallenge,
+      "2fa_challenge",
+      expectedTokenVersion
+    );
+    if (!inspected) {
+      return null;
+    }
+    return inspected.identity;
   }
 
   private signPayload(payload: RawTokenPayload): string {
@@ -99,13 +138,14 @@ export class AuthenticationTokenService {
     return `${base64Payload}.${signature}`;
   }
 
-  private verifyScopedToken(
+  private inspectScopedToken(
     rawToken: string,
     requiredScope: TokenScope,
     expectedTokenVersion?: number
-  ): UserIdentity | null {
+  ): InspectedSessionToken | null {
     const tokenParts = rawToken.split(".");
-    if (tokenParts.length !== 2) {
+    const partsCount = tokenParts.length;
+    if (partsCount !== 2) {
       return null;
     }
 
@@ -118,8 +158,10 @@ export class AuthenticationTokenService {
     const expectedSignature = this.calculateHmac(base64Payload);
     const signatureBuffer = Buffer.from(signature);
     const expectedBuffer = Buffer.from(expectedSignature);
+    const signatureLength = signatureBuffer.length;
+    const expectedLength = expectedBuffer.length;
 
-    if (signatureBuffer.length !== expectedBuffer.length) {
+    if (signatureLength !== expectedLength) {
       return null;
     }
 
@@ -128,31 +170,50 @@ export class AuthenticationTokenService {
       return null;
     }
 
-    let parsedPayload: RawTokenPayload;
+    const parsedPayload = this.parseRawTokenPayload(base64Payload);
+    if (!parsedPayload) {
+      return null;
+    }
+
+    return this.validateTokenClaims(parsedPayload, requiredScope, expectedTokenVersion);
+  }
+
+  private parseRawTokenPayload(base64Payload: string): RawTokenPayload | null {
     try {
       const decodedBuffer = Buffer.from(base64Payload, "base64url");
       const payloadJson = decodedBuffer.toString("utf8");
       const rawParsed: unknown = JSON.parse(payloadJson);
-      if (typeof rawParsed !== "object" || rawParsed === null || Array.isArray(rawParsed)) {
+      const isArrayPayload = Array.isArray(rawParsed);
+      if (typeof rawParsed !== "object" || rawParsed === null || isArrayPayload) {
         return null;
       }
-      parsedPayload = rawParsed as RawTokenPayload;
+      return rawParsed as RawTokenPayload;
     } catch {
       return null;
     }
+  }
 
-    if (
-      !parsedPayload ||
-      parsedPayload.scope !== requiredScope ||
-      typeof parsedPayload.userId !== "string" ||
-      parsedPayload.userId.trim().length === 0 ||
-      typeof parsedPayload.email !== "string"
-    ) {
+  private validateTokenClaims(
+    parsedPayload: RawTokenPayload,
+    requiredScope: TokenScope,
+    expectedTokenVersion?: number
+  ): InspectedSessionToken | null {
+    const payloadScope = parsedPayload.scope;
+    const payloadUserId = parsedPayload.userId;
+    const payloadEmail = parsedPayload.email;
+
+    if (payloadScope !== requiredScope || typeof payloadUserId !== "string") {
+      return null;
+    }
+
+    const trimmedUserId = payloadUserId.trim();
+    if (trimmedUserId.length === 0 || typeof payloadEmail !== "string") {
       return null;
     }
 
     const payloadVersion = parsedPayload.tokenVersion;
-    if (typeof payloadVersion !== "number" || !Number.isInteger(payloadVersion) || payloadVersion < 0) {
+    const isIntegerVersion = Number.isInteger(payloadVersion);
+    if (typeof payloadVersion !== "number" || !isIntegerVersion || payloadVersion < 0) {
       return null;
     }
 
@@ -160,13 +221,19 @@ export class AuthenticationTokenService {
       return null;
     }
 
-    if (typeof parsedPayload.expiresAt !== "number" || Date.now() > parsedPayload.expiresAt) {
+    const payloadExpiresAt = parsedPayload.expiresAt;
+    const currentTimestamp = Date.now();
+    if (typeof payloadExpiresAt !== "number" || currentTimestamp > payloadExpiresAt) {
       return null;
     }
 
     try {
-      const emailValue = new UserEmail(parsedPayload.email);
-      return new UserIdentity(parsedPayload.userId, emailValue, payloadVersion);
+      const emailValue = new UserEmail(payloadEmail);
+      const identity = new UserIdentity(payloadUserId, emailValue, payloadVersion);
+      return {
+        identity,
+        expiresAt: payloadExpiresAt,
+      };
     } catch {
       return null;
     }

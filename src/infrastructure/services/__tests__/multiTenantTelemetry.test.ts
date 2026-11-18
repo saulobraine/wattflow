@@ -60,14 +60,22 @@ function createFakeMqttClient(overrides: { connected?: boolean; reconnecting?: b
 }
 
 describe("Multi-tenant telemetry & MQTT stream isolation (SEC-08)", () => {
+  const originalDisableLocalCron = process.env.DISABLE_LOCAL_CRON;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    delete process.env.DISABLE_LOCAL_CRON;
     resetLiveTelemetryStateForTests();
     EcoFlowMqttStreamService.getInstance().stopStream();
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    if (originalDisableLocalCron === undefined) {
+      delete process.env.DISABLE_LOCAL_CRON;
+    } else {
+      process.env.DISABLE_LOCAL_CRON = originalDisableLocalCron;
+    }
     EcoFlowMqttStreamService.getInstance().stopStream();
   });
 
@@ -265,6 +273,24 @@ describe("Multi-tenant telemetry & MQTT stream isolation (SEC-08)", () => {
       expect(resB1?.detailMessage).toBe("ok:user-B");
 
       expect(mockExecuteSyncForUser).toHaveBeenCalledTimes(2);
+    });
+
+    it("returns null immediately without starting MQTT or syncing when DISABLE_LOCAL_CRON=true", async () => {
+      process.env.DISABLE_LOCAL_CRON = "true";
+
+      const mockPrisma = {
+        userConfiguration: {
+          findUnique: vi.fn(),
+        },
+      } as unknown as PrismaClient;
+
+      const liveService = new LiveTelemetryService(mockPrisma);
+      const result = await liveService.syncIfStale("user-A", 2000);
+
+      expect(result).toBeNull();
+      expect(mockExecuteSyncForUser).not.toHaveBeenCalled();
+      expect(mockMqttConnect).not.toHaveBeenCalled();
+      expect(mockPrisma.userConfiguration.findUnique).not.toHaveBeenCalled();
     });
   });
 });

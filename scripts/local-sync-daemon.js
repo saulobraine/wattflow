@@ -3,6 +3,44 @@
  * Opera em VPS ou ambiente local mantendo a estação EcoFlow acordada
  * sem depender do aplicativo móvel oficial aberto.
  */
+const fs = require("fs");
+const path = require("path");
+
+function resolveDisableLocalCronFlag() {
+  if (process.env.DISABLE_LOCAL_CRON !== undefined) {
+    return process.env.DISABLE_LOCAL_CRON;
+  }
+
+  const envPath = path.resolve(__dirname, "..", ".env");
+  if (!fs.existsSync(envPath)) {
+    return undefined;
+  }
+
+  try {
+    const content = fs.readFileSync(envPath, "utf8");
+    const lines = content.split(/\r?\n/);
+    for (const rawLine of lines) {
+      const trimmed = rawLine.trim();
+      if (!trimmed || trimmed.startsWith("#")) {
+        continue;
+      }
+      const match = /^DISABLE_LOCAL_CRON\s*=\s*(.*)$/.exec(trimmed);
+      if (match) {
+        return match[1].trim().replace(/^["']|["']$/g, "");
+      }
+    }
+  } catch {
+    return undefined;
+  }
+
+  return undefined;
+}
+
+if (resolveDisableLocalCronFlag() === "true") {
+  console.log("[Daemon Local] Desativado via DISABLE_LOCAL_CRON=true (producao ativa). Encerrando.");
+  process.exit(0);
+}
+
 const mqtt = require("mqtt");
 const crypto = require("crypto");
 const { PrismaClient } = require("@prisma/client");

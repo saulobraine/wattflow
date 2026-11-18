@@ -65,6 +65,7 @@ jobs:
 
             # 4. Reconstruir e subir os contêineres isolados (aguardando healthchecks)
             echo "🔨 Compilando e iniciando contêineres Docker..."
+            docker compose config -q
             docker rm -f wattflow_postgres wattflow_app wattflow_cron 2>/dev/null || true
             docker compose up -d --build --remove-orphans --wait
 

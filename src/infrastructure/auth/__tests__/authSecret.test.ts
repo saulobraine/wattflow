@@ -1,15 +1,23 @@
 import { createHmac } from "node:crypto";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AuthenticationTokenService } from "../../../domain/services/AuthenticationTokenService";
+import {
+  AuthenticationTokenService,
+  DEFAULT_SESSION_VALIDITY_DAYS,
+} from "../../../domain/services/AuthenticationTokenService";
 import { UserSessionToken } from "../../../domain/values/UserSessionToken";
 import {
   clearSessionCookie,
   enforceCsrfProtection,
+  extractSessionWithMetaFromRequest,
   extractUserFromRequest,
   getAuthenticationTokenService,
+  PERSISTENT_SESSION_MAX_AGE_SECONDS,
   SESSION_COOKIE_NAME,
   setSessionCookie,
+  SHORT_SESSION_MAX_AGE_SECONDS,
   validateCsrfOrigin,
 } from "../sessionHelper";
 
@@ -89,6 +97,67 @@ describe("AuthenticationTokenService & sessionHelper (AUTH_SECRET >= 32 chars)",
       const shortLived = serviceA.createSessionToken("user-1", "test@wattflow.local", 1);
       vi.setSystemTime(new Date("2026-01-03T00:00:00Z"));
       expect(serviceA.verifySessionToken(shortLived)).toBeNull();
+    });
+
+    it("defaults session validity to 30 days (DEFAULT_SESSION_VALIDITY_DAYS=30) and returns identity + expiresAt via inspectSessionToken", () => {
+      expect(DEFAULT_SESSION_VALIDITY_DAYS).toBe(30);
+
+      vi.useFakeTimers();
+      const baseTimeMs = new Date("2026-11-18T00:00:00Z").getTime();
+      vi.setSystemTime(baseTimeMs);
+
+      const service = new AuthenticationTokenService(VALID_SECRET_32);
+      const token = service.createSessionToken("user-30d", "pwa@wattflow.local");
+      const inspected = service.inspectSessionToken(token);
+
+      expect(inspected).not.toBeNull();
+      expect(inspected?.expiresAt).toBe(baseTimeMs + 30 * 24 * 60 * 60 * 1000);
+
+      let capturedId = "";
+      let capturedEmail = "";
+      let capturedVersion = -1;
+      inspected?.identity.provideIdentity((id, email, version) => {
+        capturedId = id;
+        capturedEmail = email;
+        capturedVersion = version;
+      });
+      expect(capturedId).toBe("user-30d");
+      expect(capturedEmail).toBe("pwa@wattflow.local");
+      expect(capturedVersion).toBe(0);
+
+      expect(service.inspectSessionToken(token, 0)).not.toBeNull();
+      expect(service.inspectSessionToken(token, 1)).toBeNull();
+
+      const challenge = service.createTwoFactorChallengeToken("user-30d", "pwa@wattflow.local");
+      expect(service.inspectSessionToken(new UserSessionToken(challenge))).toBeNull();
+    });
+
+    it("enforces Object Calisthenics rules in AuthenticationTokenService.ts (no else, 1 instance var, max 1 dot per line)", () => {
+      const sourcePath = path.resolve(
+        process.cwd(),
+        "src/domain/services/AuthenticationTokenService.ts"
+      );
+      const source = readFileSync(sourcePath, "utf8");
+
+      const strippedCommentsAndStrings = source
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/\/\/.*$/gm, "")
+        .replace(/(["'`])(?:\\.|(?!\1)[^\\\r\n])*\1/g, '""');
+
+      expect(strippedCommentsAndStrings).not.toMatch(/\belse\b/);
+
+      const privateFields = strippedCommentsAndStrings.match(
+        /^\s*private\s+(readonly\s+)?\w+\s*:/gm
+      );
+      expect(privateFields).toHaveLength(1);
+
+      const codeLines = strippedCommentsAndStrings
+        .split(/\r?\n/)
+        .filter((line) => !line.trim().startsWith("import "));
+
+      for (const line of codeLines) {
+        expect(line).not.toMatch(/\b\w+\.\w+\.\w+/);
+      }
     });
   });
 
@@ -174,26 +243,53 @@ describe("AuthenticationTokenService & sessionHelper (AUTH_SECRET >= 32 chars)",
         tokenVersion: 3,
       });
       await expect(extractUserFromRequest(req, mockDb)).resolves.toBeNull();
+
+      // extractSessionWithMetaFromRequest returns identity, expiresAt, and tokenVersion
+      mockFindUnique.mockResolvedValueOnce({
+        id: "usr-42",
+        email: "admin@wattflow.local",
+        tokenVersion: 2,
+      });
+      const meta = await extractSessionWithMetaFromRequest(req, mockDb);
+      expect(meta).not.toBeNull();
+      expect(meta?.tokenVersion).toBe(2);
+      expect(typeof meta?.expiresAt).toBe("number");
     });
 
-    it("sets and clears session cookies with HttpOnly, SameSite=Strict, and Secure in production", () => {
+    it("sets and clears session cookies with HttpOnly, SameSite=Lax, Max-Age, explicit Expires, and Secure in production", () => {
       process.env.AUTH_SECRET = VALID_SECRET_32;
       vi.stubEnv("NODE_ENV", "production");
+      vi.useFakeTimers();
+      const baseTimeMs = new Date("2026-11-18T12:00:00Z").getTime();
+      vi.setSystemTime(baseTimeMs);
 
       const service = getAuthenticationTokenService();
       const token = service.createSessionToken("usr-1", "a@b.com");
       const res = createMockResponse();
 
+      expect(PERSISTENT_SESSION_MAX_AGE_SECONDS).toBe(2592000);
+      expect(SHORT_SESSION_MAX_AGE_SECONDS).toBe(86400);
+
       setSessionCookie(res, token);
+      const expected30dExpires = new Date(baseTimeMs + 2592000 * 1000).toUTCString();
       expect(res.headers["Set-Cookie"]).toContain(`${SESSION_COOKIE_NAME}=`);
       expect(res.headers["Set-Cookie"]).toContain("HttpOnly");
-      expect(res.headers["Set-Cookie"]).toContain("SameSite=Strict");
+      expect(res.headers["Set-Cookie"]).toContain("SameSite=Lax");
+      expect(res.headers["Set-Cookie"]).toContain("Max-Age=2592000");
+      expect(res.headers["Set-Cookie"]).toContain(`Expires=${expected30dExpires}`);
       expect(res.headers["Set-Cookie"]).toContain("Secure");
+
+      setSessionCookie(res, token, SHORT_SESSION_MAX_AGE_SECONDS);
+      const expected1dExpires = new Date(baseTimeMs + 86400 * 1000).toUTCString();
+      expect(res.headers["Set-Cookie"]).toContain("SameSite=Lax");
+      expect(res.headers["Set-Cookie"]).toContain("Max-Age=86400");
+      expect(res.headers["Set-Cookie"]).toContain(`Expires=${expected1dExpires}`);
 
       clearSessionCookie(res);
       expect(res.headers["Set-Cookie"]).toContain(`${SESSION_COOKIE_NAME}=;`);
-      expect(res.headers["Set-Cookie"]).toContain("SameSite=Strict");
+      expect(res.headers["Set-Cookie"]).toContain("SameSite=Lax");
       expect(res.headers["Set-Cookie"]).toContain("Max-Age=0");
+      expect(res.headers["Set-Cookie"]).toContain("Expires=Thu, 01 Jan 1970 00:00:00 GMT");
       expect(res.headers["Set-Cookie"]).toContain("Secure");
     });
 

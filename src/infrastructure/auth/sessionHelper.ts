@@ -7,6 +7,15 @@ import { UserIdentity } from "../../domain/models/UserIdentity";
 import { UserEmail } from "../../domain/values/UserEmail";
 
 export const SESSION_COOKIE_NAME = "wattflow_session";
+export const PERSISTENT_SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
+export const SHORT_SESSION_MAX_AGE_SECONDS = 24 * 60 * 60;
+export const SLIDING_REFRESH_THRESHOLD_MS = 29 * 24 * 60 * 60 * 1000;
+
+export interface ExtractedSessionMeta {
+  identity: UserIdentity;
+  expiresAt: number;
+  tokenVersion: number;
+}
 
 const MIN_AUTH_SECRET_LENGTH = 32;
 const SAFE_HTTP_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
@@ -127,13 +136,13 @@ function extractHostFromUrlHeader(rawUrl: string): string | null {
 }
 
 /**
- * Extrai e valida a identidade do usuário a partir do cookie de sessão HTTP-Only,
+ * Extrai e valida a sessão e seus metadados (identidade, expiração e tokenVersion) a partir do cookie HTTP-Only,
  * verificando integridade HMAC, escopo "session", expiração e revogação via tokenVersion no banco.
  */
-export async function extractUserFromRequest(
+export async function extractSessionWithMetaFromRequest(
   request: NextApiRequest,
   databaseClient: PrismaClient = prisma
-): Promise<UserIdentity | null> {
+): Promise<ExtractedSessionMeta | null> {
   const cookieHeader = request.headers?.cookie;
   if (!cookieHeader) {
     return null;
@@ -147,14 +156,14 @@ export async function extractUserFromRequest(
 
   const service = getAuthenticationTokenService();
   const tokenValue = new UserSessionToken(rawCookieToken);
-  const verifiedTokenIdentity = service.verifySessionToken(tokenValue);
-  if (!verifiedTokenIdentity) {
+  const inspectedToken = service.inspectSessionToken(tokenValue);
+  if (!inspectedToken) {
     return null;
   }
 
   let tokenUserId = "";
   let tokenVersionFromCookie = 0;
-  verifiedTokenIdentity.provideIdentity((userId, _email, tokenVersion) => {
+  inspectedToken.identity.provideIdentity((userId, _email, tokenVersion) => {
     tokenUserId = userId;
     tokenVersionFromCookie = tokenVersion;
   });
@@ -179,15 +188,35 @@ export async function extractUserFromRequest(
 
   try {
     const currentEmail = new UserEmail(persistedUser.email);
-    return new UserIdentity(persistedUser.id, currentEmail, currentDbTokenVersion);
+    const currentIdentity = new UserIdentity(persistedUser.id, currentEmail, currentDbTokenVersion);
+    return {
+      identity: currentIdentity,
+      expiresAt: inspectedToken.expiresAt,
+      tokenVersion: currentDbTokenVersion,
+    };
   } catch {
     return null;
   }
 }
 
+/**
+ * Extrai e valida a identidade do usuário a partir do cookie de sessão HTTP-Only.
+ */
+export async function extractUserFromRequest(
+  request: NextApiRequest,
+  databaseClient: PrismaClient = prisma
+): Promise<UserIdentity | null> {
+  const sessionMeta = await extractSessionWithMetaFromRequest(request, databaseClient);
+  if (!sessionMeta) {
+    return null;
+  }
+  return sessionMeta.identity;
+}
+
 export function setSessionCookie(
   response: NextApiResponse,
-  sessionToken: UserSessionToken
+  sessionToken: UserSessionToken,
+  maxAgeSeconds = PERSISTENT_SESSION_MAX_AGE_SECONDS
 ): void {
   let tokenString = "";
   sessionToken.transferToken((token) => {
@@ -196,9 +225,9 @@ export function setSessionCookie(
 
   const isProduction = process.env.NODE_ENV === "production";
   const secureFlag = isProduction ? "; Secure" : "";
-  const maxAgeSeconds = 7 * 24 * 60 * 60;
+  const expiresUtc = new Date(Date.now() + maxAgeSeconds * 1000).toUTCString();
 
-  const cookieHeaderValue = `${SESSION_COOKIE_NAME}=${encodeURIComponent(tokenString)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAgeSeconds}${secureFlag}`;
+  const cookieHeaderValue = `${SESSION_COOKIE_NAME}=${encodeURIComponent(tokenString)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSeconds}; Expires=${expiresUtc}${secureFlag}`;
   response.setHeader("Set-Cookie", cookieHeaderValue);
 }
 
@@ -206,7 +235,7 @@ export function clearSessionCookie(response: NextApiResponse): void {
   const isProduction = process.env.NODE_ENV === "production";
   const secureFlag = isProduction ? "; Secure" : "";
 
-  const cookieHeaderValue = `${SESSION_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${secureFlag}`;
+  const cookieHeaderValue = `${SESSION_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT${secureFlag}`;
   response.setHeader("Set-Cookie", cookieHeaderValue);
 }
 

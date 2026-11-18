@@ -1,6 +1,14 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../../infrastructure/database/prismaClient";
-import { extractUserFromRequest } from "../../../infrastructure/auth/sessionHelper";
+import { DEFAULT_SESSION_VALIDITY_DAYS } from "../../../domain/services/AuthenticationTokenService";
+import {
+  extractSessionWithMetaFromRequest,
+  getAuthenticationTokenService,
+  PERSISTENT_SESSION_MAX_AGE_SECONDS,
+  setSessionCookie,
+  SHORT_SESSION_MAX_AGE_SECONDS,
+  SLIDING_REFRESH_THRESHOLD_MS,
+} from "../../../infrastructure/auth/sessionHelper";
 
 interface MeResponseBody {
   isAuthenticated: boolean;
@@ -18,9 +26,9 @@ export default async function handleMe(
 ): Promise<void> {
   response.setHeader("Cache-Control", "no-store");
 
-  let sessionUser: Awaited<ReturnType<typeof extractUserFromRequest>> = null;
+  let sessionMeta: Awaited<ReturnType<typeof extractSessionWithMetaFromRequest>> = null;
   try {
-    sessionUser = await extractUserFromRequest(request);
+    sessionMeta = await extractSessionWithMetaFromRequest(request);
   } catch (authError: unknown) {
     const authMessage =
       authError instanceof Error
@@ -33,13 +41,13 @@ export default async function handleMe(
     return;
   }
 
-  if (!sessionUser) {
+  if (!sessionMeta) {
     response.status(200).json({ isAuthenticated: false });
     return;
   }
 
   let extractedUserId = "";
-  sessionUser.provideIdentity((userId) => {
+  sessionMeta.identity.provideIdentity((userId) => {
     extractedUserId = userId;
   });
 
@@ -55,6 +63,20 @@ export default async function handleMe(
   if (!user) {
     response.status(200).json({ isAuthenticated: false });
     return;
+  }
+
+  const remainingMs = sessionMeta.expiresAt - Date.now();
+  if (
+    remainingMs > SHORT_SESSION_MAX_AGE_SECONDS * 1000 &&
+    remainingMs < SLIDING_REFRESH_THRESHOLD_MS
+  ) {
+    const refreshedToken = getAuthenticationTokenService().createSessionToken(
+      user.id,
+      user.email,
+      DEFAULT_SESSION_VALIDITY_DAYS,
+      sessionMeta.tokenVersion
+    );
+    setSessionCookie(response, refreshedToken, PERSISTENT_SESSION_MAX_AGE_SECONDS);
   }
 
   response.status(200).json({

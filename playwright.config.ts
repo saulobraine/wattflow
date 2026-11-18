@@ -41,6 +41,8 @@ export default defineConfig({
               : "e2e-auth-secret-token-with-at-least-32-chars",
           ALLOW_PUBLIC_REGISTRATION:
             process.env.ALLOW_PUBLIC_REGISTRATION ?? "true",
+          DISABLE_LOCAL_CRON:
+            process.env.E2E_DISABLE_LOCAL_CRON ?? "false",
           ENCRYPTION_KEY:
             process.env.ENCRYPTION_KEY &&
             /^[0-9a-fA-F]{64}$/.test(process.env.ENCRYPTION_KEY.trim()) &&

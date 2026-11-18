@@ -1,8 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../../infrastructure/database/prismaClient";
+import { DEFAULT_SESSION_VALIDITY_DAYS } from "../../../domain/services/AuthenticationTokenService";
 import {
   getAuthenticationTokenService,
+  PERSISTENT_SESSION_MAX_AGE_SECONDS,
   setSessionCookie,
+  SHORT_SESSION_MAX_AGE_SECONDS,
 } from "../../../infrastructure/auth/sessionHelper";
 import { verifyTotpCodeWithCounter } from "../../../infrastructure/auth/totpHelper";
 import { decryptAndMigrateUserTotpSecret } from "../../../infrastructure/security/secretMigrationHelper";
@@ -83,6 +86,7 @@ export default async function handleLoginTwoFactor(
 
   const rawChallengeToken = parsedBody.data.challengeToken;
   const rawTotpCode = (parsedBody.data.token ?? parsedBody.data.code ?? "").trim();
+  const rememberMe = parsedBody.data.rememberMe !== false;
 
   const challengeIdentity = tokenService.verifyTwoFactorChallengeToken(rawChallengeToken);
   if (!challengeIdentity) {
@@ -198,13 +202,18 @@ export default async function handleLoginTwoFactor(
     });
   }
 
+  const validityDays = rememberMe ? DEFAULT_SESSION_VALIDITY_DAYS : 1;
+  const maxAgeSeconds = rememberMe
+    ? PERSISTENT_SESSION_MAX_AGE_SECONDS
+    : SHORT_SESSION_MAX_AGE_SECONDS;
+
   const sessionToken = tokenService.createSessionToken(
     user.id,
     user.email,
-    7,
+    validityDays,
     currentDbTokenVersion
   );
-  setSessionCookie(response, sessionToken);
+  setSessionCookie(response, sessionToken, maxAgeSeconds);
 
   response.status(200).json({
     success: true,

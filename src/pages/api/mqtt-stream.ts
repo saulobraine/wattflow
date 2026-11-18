@@ -31,6 +31,17 @@ export default async function handleMqttStream(
     return;
   }
 
+  if (process.env.DISABLE_LOCAL_CRON === "true") {
+    response.status(200).json({
+      success: true,
+      skipped: true,
+      isConnected: false,
+      latestTelemetry: null,
+      message: "Stream MQTT local desativado (DISABLE_LOCAL_CRON=true).",
+    });
+    return;
+  }
+
   try {
     const rawUserId = request.query.userId;
     const targetUserId =

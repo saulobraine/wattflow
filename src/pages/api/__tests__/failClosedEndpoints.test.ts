@@ -88,11 +88,13 @@ function createMockApiResponse() {
 describe("Fail-closed API endpoints (SEC-04)", () => {
   const originalCronSecret = process.env.CRON_SECRET_TOKEN;
   const originalAuthSecret = process.env.AUTH_SECRET;
+  const originalDisableLocalCron = process.env.DISABLE_LOCAL_CRON;
 
   beforeEach(() => {
     vi.clearAllMocks();
     delete process.env.CRON_SECRET_TOKEN;
     delete process.env.AUTH_SECRET;
+    delete process.env.DISABLE_LOCAL_CRON;
   });
 
   afterEach(() => {
@@ -105,6 +107,11 @@ describe("Fail-closed API endpoints (SEC-04)", () => {
       delete process.env.AUTH_SECRET;
     } else {
       process.env.AUTH_SECRET = originalAuthSecret;
+    }
+    if (originalDisableLocalCron === undefined) {
+      delete process.env.DISABLE_LOCAL_CRON;
+    } else {
+      process.env.DISABLE_LOCAL_CRON = originalDisableLocalCron;
     }
   });
 
@@ -180,6 +187,44 @@ describe("Fail-closed API endpoints (SEC-04)", () => {
         success: true,
         latestTelemetry: { batteryPercentage: 85 },
       });
+    });
+
+    it("enforces 500/401 auth checks before skipping when DISABLE_LOCAL_CRON=true", async () => {
+      process.env.DISABLE_LOCAL_CRON = "true";
+
+      // 500 when CRON_SECRET_TOKEN is absent
+      const resNoSecret = createMockApiResponse();
+      await handleMqttStream(
+        { query: {}, headers: { "x-cron-token": VALID_CRON_SECRET_32 } } as unknown as NextApiRequest,
+        resNoSecret
+      );
+      expect(resNoSecret.statusCode).toBe(500);
+      expect(mockStartWithActiveConfiguration).not.toHaveBeenCalled();
+
+      // 401 when CRON_SECRET_TOKEN is set but header is invalid/missing
+      process.env.CRON_SECRET_TOKEN = VALID_CRON_SECRET_32;
+      const resUnauthorized = createMockApiResponse();
+      await handleMqttStream(
+        { query: {}, headers: { "x-cron-token": "wrong-token" } } as unknown as NextApiRequest,
+        resUnauthorized
+      );
+      expect(resUnauthorized.statusCode).toBe(401);
+      expect(mockStartWithActiveConfiguration).not.toHaveBeenCalled();
+
+      // 200 skipped:true when authorized via Cron header
+      const resSkipped = createMockApiResponse();
+      await handleMqttStream(
+        { query: {}, headers: { "x-cron-token": VALID_CRON_SECRET_32 } } as unknown as NextApiRequest,
+        resSkipped
+      );
+      expect(resSkipped.statusCode).toBe(200);
+      expect(resSkipped.body).toMatchObject({
+        success: true,
+        skipped: true,
+        isConnected: false,
+        latestTelemetry: null,
+      });
+      expect(mockStartWithActiveConfiguration).not.toHaveBeenCalled();
     });
   });
 
@@ -392,6 +437,92 @@ describe("Fail-closed API endpoints (SEC-04)", () => {
       });
       expect(JSON.stringify(syncRes.body)).not.toContain("ECONNREFUSED");
       expect(JSON.stringify(syncRes.body)).not.toContain("postgres://");
+    });
+
+    it("guards DISABLE_LOCAL_CRON=true: skips only authenticated cron (200 skipped:true), keeps 401/405/500 and session sync active", async () => {
+      process.env.DISABLE_LOCAL_CRON = "true";
+
+      // 405 on unsupported method
+      const resMethod = createMockApiResponse();
+      await handleSync(
+        { method: "DELETE", headers: {}, query: {} } as unknown as NextApiRequest,
+        resMethod
+      );
+      expect(resMethod.statusCode).toBe(405);
+
+      // 500 when CRON_SECRET_TOKEN is absent
+      const resNoSecret = createMockApiResponse();
+      await handleSync(
+        {
+          method: "POST",
+          headers: { authorization: `Bearer ${VALID_CRON_SECRET_32}` },
+          query: {},
+        } as unknown as NextApiRequest,
+        resNoSecret
+      );
+      expect(resNoSecret.statusCode).toBe(500);
+
+      // 401 when unauthorized
+      process.env.CRON_SECRET_TOKEN = VALID_CRON_SECRET_32;
+      const resUnauth = createMockApiResponse();
+      await handleSync(
+        { method: "POST", headers: { authorization: "Bearer wrong" }, query: {} } as unknown as NextApiRequest,
+        resUnauth
+      );
+      expect(resUnauth.statusCode).toBe(401);
+
+      // 200 skipped:true when authenticated via Cron header
+      const resCronSkip = createMockApiResponse();
+      await handleSync(
+        {
+          method: "POST",
+          headers: { authorization: `Bearer ${VALID_CRON_SECRET_32}` },
+          query: {},
+        } as unknown as NextApiRequest,
+        resCronSkip
+      );
+      expect(resCronSkip.statusCode).toBe(200);
+      expect(resCronSkip.body).toMatchObject({
+        success: true,
+        skipped: true,
+        data: [],
+      });
+      expect(mockExecuteSyncAll).not.toHaveBeenCalled();
+
+      // Authenticated user session still executes manual sync even with DISABLE_LOCAL_CRON=true
+      process.env.AUTH_SECRET = VALID_AUTH_SECRET_32;
+      const tokenService = new AuthenticationTokenService(VALID_AUTH_SECRET_32);
+      const sessionToken = tokenService.createSessionToken("user-99", "owner@wattflow.local");
+      let rawToken = "";
+      sessionToken.transferToken((t) => {
+        rawToken = t;
+      });
+      mockExecuteSyncForUser.mockResolvedValueOnce({
+        hasExecutedSuccessfully: true,
+        batteryPercentage: 88,
+        solarWatts: 300,
+        outputWatts: 100,
+        triggeredAction: "NONE",
+        detailMessage: "Manual sync OK",
+      });
+
+      const resUserSync = createMockApiResponse();
+      await handleSync(
+        {
+          method: "POST",
+          headers: {
+            cookie: `${SESSION_COOKIE_NAME}=${encodeURIComponent(rawToken)}`,
+            host: "app.wattflow.local",
+            origin: "https://app.wattflow.local",
+            "sec-fetch-site": "same-origin",
+          },
+          query: {},
+        } as unknown as NextApiRequest,
+        resUserSync
+      );
+      expect(resUserSync.statusCode).toBe(200);
+      expect(resUserSync.body.skipped).toBeUndefined();
+      expect(mockExecuteSyncForUser).toHaveBeenCalledWith("user-99");
     });
   });
 });
