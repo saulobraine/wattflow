@@ -33,3 +33,6 @@ Thumbs.db
 # Scratch files
 scratch/
 scratch_*
+
+# Maestri runtime
+.maestri/

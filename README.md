@@ -1,6 +1,8 @@
-# WattFlow &bull; Orquestrador de Energia Inteligente (EcoFlow + Tuya)
+# WattFlow &bull; Orquestrador de Energia Inteligente (EcoFlow + ATS)
 
-MVP de orquestração de energia portátil e IoT para automação de recarga e acionamento de dispositivos inteligentes baseados no nível de bateria da estação EcoFlow (River 2 / Delta 2) e atuadores Tuya Smart Life.
+Sistema de orquestração de energia portátil para automação de comutação de cargas via inversor da estação EcoFlow (River 2 / Delta 2 / Delta Pro) integrado a uma **Chave de Transferência Automática (ATS)** física.
+
+Quando a bateria atinge o limite superior configurado, o WattFlow aciona a saída AC da EcoFlow, fazendo com que a chave ATS transfira as cargas da residência para a energia solar/bateria. Quando o nível da bateria desce até o limite inferior de proteção, a saída AC é desligada e a chave ATS transfere instantaneamente para a rede elétrica da concessionária.
 
 Construído sob os princípios estritos do **Object Calisthenics**, **Next.js (Pages Router)**, **Prisma ORM**, **PostgreSQL** e **Tailwind CSS**.
 

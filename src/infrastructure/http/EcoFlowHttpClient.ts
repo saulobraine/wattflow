@@ -13,7 +13,16 @@ interface EcoFlowQuotaResponseJson {
 export interface EcoFlowTelemetryResult {
   batteryLevel: BatteryLevel;
   solarWatts: SolarGenerationWatts;
+  outputWatts: number;
   isAcOutputEnabled: boolean | null;
+}
+
+export interface EcoFlowMqttCertification {
+  url: string;
+  port: number;
+  certificateAccount: string;
+  certificatePassword: string;
+  protocol?: string;
 }
 
 interface TelemetryHttpAttempt {
@@ -40,12 +49,25 @@ interface TelemetryHttpAttempt {
  * - Apenas um nível de indentação por método
  */
 export class EcoFlowHttpClient {
+  private static readonly ALLOWED_HOSTS = ["api.ecoflow.com", "api-e.ecoflow.com"];
   private readonly credentials: EcoFlowCredentials;
   private readonly baseApiUrl: string;
 
   constructor(credentials: EcoFlowCredentials, baseApiUrl: string) {
     this.credentials = credentials;
-    this.baseApiUrl = baseApiUrl;
+    this.baseApiUrl = this.sanitizeBaseUrl(baseApiUrl);
+  }
+
+  private sanitizeBaseUrl(rawUrl: string): string {
+    try {
+      const parsed = new URL(rawUrl);
+      if (EcoFlowHttpClient.ALLOWED_HOSTS.includes(parsed.hostname)) {
+        return `https://${parsed.hostname}`;
+      }
+    } catch {
+      // url inválida, fallback seguro
+    }
+    return "https://api.ecoflow.com";
   }
 
   public async fetchDeviceTelemetry(serialNumber: DeviceSerialNumber): Promise<EcoFlowTelemetryResult> {
@@ -77,6 +99,80 @@ export class EcoFlowHttpClient {
   public async fetchBatteryLevel(serialNumber: DeviceSerialNumber): Promise<BatteryLevel> {
     const telemetry = await this.fetchDeviceTelemetry(serialNumber);
     return telemetry.batteryLevel;
+  }
+
+  /**
+   * Obtém as credenciais de certificação MQTT da EcoFlow Developer Open API.
+   * Endpoint oficial: GET /iot-open/sign/certification
+   */
+  public async fetchMqttCertification(): Promise<EcoFlowMqttCertification> {
+    const timestampString = Date.now().toString();
+    const nonceString = Math.floor(100000 + Math.random() * 900000).toString();
+    const queryParameters: Record<string, unknown> = {};
+
+    const calculator = new EcoFlowSignatureCalculator();
+    const { signatureDigest, rawAccessKey } = calculator.calculateSignature(
+      this.credentials,
+      queryParameters,
+      nonceString,
+      timestampString
+    );
+
+    let signatureHex = "";
+    signatureDigest.transferDigest((digestString: string) => {
+      signatureHex = digestString;
+    });
+
+    const requestUrl = `${this.baseApiUrl}/iot-open/sign/certification`;
+
+    let httpResponse: Response;
+    try {
+      httpResponse = await fetch(requestUrl, {
+        method: "GET",
+        headers: {
+          accessKey: rawAccessKey,
+          nonce: nonceString,
+          timestamp: timestampString,
+          sign: signatureHex,
+        },
+      });
+    } catch (networkError) {
+      const detail = networkError instanceof Error ? networkError.message : "falha de conexão";
+      throw new Error(`[EcoFlow] Erro ao obter certificação MQTT (${this.baseApiUrl}): ${detail}`);
+    }
+
+    if (!httpResponse.ok) {
+      throw new Error(`[EcoFlow] Falha HTTP ao obter certificação MQTT: ${httpResponse.status} em ${this.baseApiUrl}`);
+    }
+
+    const responseJson = (await httpResponse.json()) as {
+      code: string;
+      message?: string;
+      data?: {
+        url?: string;
+        port?: number | string;
+        protocol?: string;
+        certificateAccount?: string;
+        certificatePassword?: string;
+      };
+    };
+
+    if (responseJson.code !== "0" || !responseJson.data) {
+      throw new Error(`[EcoFlow] Resposta inválida na certificação MQTT: ${responseJson.message ?? responseJson.code}`);
+    }
+
+    const data = responseJson.data;
+    const rawPort = data.port;
+    const parsedPort = typeof rawPort === "string" ? parseInt(rawPort, 10) : (rawPort ?? 8883);
+    const resolvedPort = isNaN(parsedPort) ? 8883 : parsedPort;
+
+    return {
+      url: data.url ?? "mqtt.ecoflow.com",
+      port: resolvedPort,
+      certificateAccount: data.certificateAccount ?? "",
+      certificatePassword: data.certificatePassword ?? "",
+      protocol: data.protocol ?? "mqtts",
+    };
   }
 
   /**
@@ -141,7 +237,8 @@ export class EcoFlowHttpClient {
       signatureHex = digestString;
     });
 
-    const requestUrl = `${targetBaseUrl}/iot-open/sign/device/quota/all?sn=${serialNumber}`;
+    const safeBaseUrl = this.sanitizeBaseUrl(targetBaseUrl);
+    const requestUrl = `${safeBaseUrl}/iot-open/sign/device/quota/all?sn=${encodeURIComponent(serialNumber)}`;
 
     let httpResponse: Response;
     try {
@@ -184,11 +281,13 @@ export class EcoFlowHttpClient {
   private assembleTelemetryResult(quotaData: Record<string, unknown>): EcoFlowTelemetryResult {
     const extractedPercentage = this.extractSocFromQuota(quotaData);
     const extractedSolarWatts = this.extractSolarWattsFromQuota(quotaData);
+    const extractedOutputWatts = this.extractOutputWattsFromQuota(quotaData);
     const extractedAcState = this.extractAcStateFromQuota(quotaData);
 
     return {
       batteryLevel: new BatteryLevel(extractedPercentage),
       solarWatts: new SolarGenerationWatts(extractedSolarWatts),
+      outputWatts: extractedOutputWatts,
       isAcOutputEnabled: extractedAcState,
     };
   }
@@ -207,9 +306,13 @@ export class EcoFlowHttpClient {
   }
 
   private resolveAlternativeEndpoint(currentUrl: string): string {
-    const isEurope = currentUrl.includes("api-e.ecoflow.com");
-    if (isEurope) {
-      return "https://api.ecoflow.com";
+    try {
+      const parsed = new URL(currentUrl);
+      if (parsed.hostname === "api-e.ecoflow.com") {
+        return "https://api.ecoflow.com";
+      }
+    } catch {
+      // fallback
     }
     return "https://api-e.ecoflow.com";
   }
@@ -335,7 +438,8 @@ export class EcoFlowHttpClient {
       signatureHex = digestString;
     });
 
-    const requestUrl = `${targetBaseUrl}/iot-open/sign/device/quota`;
+    const safeBaseUrl = this.sanitizeBaseUrl(targetBaseUrl);
+    const requestUrl = `${safeBaseUrl}/iot-open/sign/device/quota`;
 
     let httpResponse: Response;
     try {
@@ -399,23 +503,76 @@ export class EcoFlowHttpClient {
     const candidateKeys = [
       "mppt.inWatts",
       "mppt.pvInWatts",
+      "mppt.solarInWatts",
+      "mppt.pv2InWatts",
+      "mppt.outWatts",
       "pd.pvInWatts",
+      "pd.chgPowerDc",
+      "pd.carWatts",
       "solarInWatts",
       "pvInWatts",
       "bmsMaster.inputWatts",
-      "inv.inputWatts",
     ];
 
     for (const key of candidateKeys) {
       const candidateValue = quotaData[key];
       const parsedNumber = this.parseNumericCandidate(candidateValue);
-      const isPositiveWatts = parsedNumber !== null && parsedNumber >= 0;
+      const isPositiveWatts = parsedNumber !== null && parsedNumber > 0;
       if (isPositiveWatts) {
         return Math.round(parsedNumber);
       }
     }
 
+    for (const key of candidateKeys) {
+      const candidateValue = quotaData[key];
+      const parsedNumber = this.parseNumericCandidate(candidateValue);
+      const isValidZero = parsedNumber !== null && parsedNumber === 0;
+      if (isValidZero) {
+        return 0;
+      }
+    }
+
     return 0;
+  }
+
+  private extractOutputWattsFromQuota(quotaData: Record<string, unknown>): number {
+    const primaryCandidate = quotaData["pd.wattsOutSum"] ?? quotaData["wattsOutSum"];
+    const parsedPrimary = this.parseNumericCandidate(primaryCandidate);
+    if (parsedPrimary !== null && parsedPrimary >= 0) {
+      return Math.round(parsedPrimary);
+    }
+
+    const isAcEnabled = this.extractAcStateFromQuota(quotaData);
+    let inverterWatts = 0;
+
+    const isAcExplicitlyOff = isAcEnabled === false;
+    if (!isAcExplicitlyOff) {
+      const candidateAcKeys = ["inv.outputWatts", "inv.outWatts", "outputWatts"];
+      for (const key of candidateAcKeys) {
+        const parsedAc = this.parseNumericCandidate(quotaData[key]);
+        if (parsedAc !== null && parsedAc >= 0) {
+          inverterWatts = parsedAc;
+          break;
+        }
+      }
+    }
+
+    let dcWattsSum = 0;
+    const dcKeys = [
+      "pd.carWatts",
+      "pd.typec1Watts",
+      "pd.typec2Watts",
+      "pd.usb1Watts",
+      "pd.usb2Watts",
+    ];
+    for (const key of dcKeys) {
+      const parsedDc = this.parseNumericCandidate(quotaData[key]);
+      if (parsedDc !== null && parsedDc > 0) {
+        dcWattsSum += parsedDc;
+      }
+    }
+
+    return Math.round(inverterWatts + dcWattsSum);
   }
 
   private extractAcStateFromQuota(quotaData: Record<string, unknown>): boolean | null {

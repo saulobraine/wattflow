@@ -3,6 +3,11 @@ set -e
 
 echo "=== [WattFlow] Inicializando Container ==="
 
+# Limpa qualquer .env estático copiado para priorizar variáveis do docker-compose
+if [ -f "./.env" ]; then
+  rm -f ./.env
+fi
+
 if [ -n "$DATABASE_URL" ]; then
   echo ">>> Sincronizando schema do banco de dados (Prisma db push)..."
   if [ -f "./node_modules/.bin/prisma" ]; then

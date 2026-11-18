@@ -5,7 +5,8 @@ datasource db {
 }
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 model User {
@@ -13,11 +14,29 @@ model User {
   email             String             @unique
   passwordHash      String
   fullName          String?
+  twoFactorEnabled  Boolean            @default(false)
+  twoFactorSecret   String?
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   userConfiguration UserConfiguration?
+  passkeys          UserPasskey[]
 
   @@map("users")
+}
+
+model UserPasskey {
+  id           String    @id @default(uuid())
+  userId       String
+  name         String    @default("Passkey")
+  credentialId String    @unique
+  publicKey    String
+  counter      BigInt    @default(0)
+  transports   String?
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_passkeys")
 }
 
 model UserConfiguration {
@@ -35,6 +54,11 @@ model UserConfiguration {
   turnOnThreshold      Int                @default(90)
   turnOffThreshold     Int                @default(30)
   isAutomationActive   Boolean            @default(true)
+  telegramBotToken     String             @default("")
+  telegramChatId       String             @default("")
+  whatsappPhoneNumber  String             @default("")
+  whatsappApiKey       String             @default("")
+  isNotificationActive Boolean            @default(true)
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
   syncExecutionLogs    SyncExecutionLog[]
@@ -47,6 +71,7 @@ model SyncExecutionLog {
   userConfigurationId String
   batteryPercentage   Int
   solarInputWatts     Int               @default(0)
+  outputWatts         Int               @default(0)
   actionTriggered     String
   executionDetails    String?
   executedAt          DateTime          @default(now())

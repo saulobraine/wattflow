@@ -15,7 +15,7 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 COPY prisma ./prisma/
 
-RUN npm ci
+RUN npm install
 
 # 3. Compilação da aplicação Next.js (Standalone)
 FROM base AS builder
@@ -40,8 +40,9 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 ENV PATH="/app/node_modules/.bin:$PATH"
 
-# Ferramentas úteis para healthcheck e rede
-RUN apk add --no-cache curl openssl
+# Ferramentas úteis para healthcheck e rede + Prisma CLI global para sincronização
+RUN apk add --no-cache curl openssl && \
+    npm install -g prisma@6.4.1
 
 # Criação de usuário não-root por segurança
 RUN addgroup --system --gid 1001 nodejs && \
@@ -50,12 +51,11 @@ RUN addgroup --system --gid 1001 nodejs && \
 # Configura permissões do cache do Next.js
 RUN mkdir -p .next && chown -R nextjs:nodejs .next
 
-# Copia os artefatos compilados standalone, estáticos e dependências com Prisma CLI
+# Copia os artefatos compilados standalone, estáticos e schema prisma
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
-COPY --from=deps --chown=nextjs:nodejs /app/node_modules ./node_modules
 
 # Script de entrada para sincronização automática do banco
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
