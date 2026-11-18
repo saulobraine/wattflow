@@ -221,18 +221,18 @@ export default function AutomationsPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-slate-300">
                 <div className="p-3 rounded-lg bg-rose-950/40 border border-rose-900/40 space-y-1.5 transition-all hover:border-rose-700/60 hover:bg-rose-950/60">
                   <div className="font-semibold text-rose-400">&le; {turnOffThreshold}% (Bateria Baixa)</div>
-                  <div className="text-slate-200">&bull; Saída AC EcoFlow: <span className="text-rose-400 font-bold">DESLIGADA</span></div>
-                  <div className="text-slate-200">&bull; Chave ATS: <span className="text-amber-400 font-bold">POSIÇÃO A (REDE)</span></div>
+                  <div className="text-slate-200">• Saída AC EcoFlow: <span className="text-rose-400 font-bold">DESLIGADA</span></div>
+                  <div className="text-slate-200">• Chave ATS: <span className="text-amber-400 font-bold">POSIÇÃO A (REDE)</span></div>
                 </div>
                 <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 space-y-1.5 transition-all hover:border-slate-700 hover:bg-slate-850">
                   <div className="font-semibold text-amber-400">{turnOffThreshold}% a {turnOnThreshold}% (Histerese)</div>
-                  <div className="text-slate-300">&bull; Faixa intermediária estável</div>
+                  <div className="text-slate-300">• Faixa intermediária estável</div>
                   <div className="text-slate-400">Mantém a posição atual da chave ATS</div>
                 </div>
                 <div className="p-3 rounded-lg bg-emerald-950/40 border border-emerald-900/40 space-y-1.5 transition-all hover:border-emerald-700/60 hover:bg-emerald-950/60">
                   <div className="font-semibold text-emerald-400">&ge; {turnOnThreshold}% (Bateria Carregada)</div>
-                  <div className="text-slate-200">&bull; Saída AC EcoFlow: <span className="text-emerald-400 font-bold">LIGADA</span></div>
-                  <div className="text-slate-200">&bull; Chave ATS: <span className="text-emerald-400 font-bold">POSIÇÃO B (SOLAR/BAT)</span></div>
+                  <div className="text-slate-200">• Saída AC EcoFlow: <span className="text-emerald-400 font-bold">LIGADA</span></div>
+                  <div className="text-slate-200">• Chave ATS: <span className="text-emerald-400 font-bold">POSIÇÃO B (SOLAR/BAT)</span></div>
                 </div>
               </div>
             </div>

@@ -870,7 +870,7 @@ export default function ProfilePage() {
                             <div className="text-xs font-semibold text-slate-200">{pk.name}</div>
                             <div className="text-[11px] text-slate-500 font-mono">
                               Criada em: {new Date(pk.createdAt).toLocaleDateString("pt-BR")}
-                              {pk.lastUsedAt && ` &bull; Usada em: ${new Date(pk.lastUsedAt).toLocaleDateString("pt-BR")}`}
+                              {pk.lastUsedAt && ` • Usada em: ${new Date(pk.lastUsedAt).toLocaleDateString("pt-BR")}`}
                             </div>
                           </div>
                         </div>
