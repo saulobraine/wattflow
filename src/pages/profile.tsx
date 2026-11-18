@@ -674,7 +674,7 @@ export default function ProfilePage() {
                       Configurar Autenticação em 2 Etapas
                     </button>
                   ) : (
-                    <div className="p-6 rounded-2xl bg-slate-950/80 border border-indigo-900/40 space-y-6 animate-in fade-in-0 shadow-2xl">
+                    <div className="p-5 sm:p-6 rounded-2xl bg-slate-950/80 border border-indigo-900/40 space-y-6 animate-in fade-in-0 shadow-2xl overflow-hidden">
                       <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                         <div className="space-y-0.5">
                           <h4 className="text-sm font-bold text-slate-100 flex items-center gap-2">
@@ -688,21 +688,21 @@ export default function ProfilePage() {
                       </div>
 
                       {/* Bloco Central: QR Code + Entrada Manual */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start min-w-0">
                         {/* Imagem do QR Code em Card Branco de Alto Contraste */}
-                        <div className="flex flex-col items-center justify-center p-5 bg-slate-900/90 rounded-2xl border border-slate-800 text-center gap-3">
+                        <div className="flex flex-col items-center justify-center p-4 bg-slate-900/90 rounded-2xl border border-slate-800 text-center gap-2.5 min-w-0">
                           {qrCodeUrl ? (
-                            <div className="p-3 bg-white rounded-xl shadow-lg shadow-black/50 border border-slate-200">
+                            <div className="p-2.5 bg-white rounded-xl shadow-lg shadow-black/50 border border-slate-200">
                               <img
                                 src={qrCodeUrl}
                                 alt="QR Code de Autenticação 2FA"
-                                width={192}
-                                height={192}
-                                className="w-44 h-44 sm:w-48 sm:h-48 block"
+                                width={160}
+                                height={160}
+                                className="w-36 h-36 sm:w-40 sm:h-40 block object-contain"
                               />
                             </div>
                           ) : (
-                            <div className="w-48 h-48 bg-slate-800 rounded-xl flex items-center justify-center text-slate-500 text-xs">
+                            <div className="w-40 h-40 bg-slate-800 rounded-xl flex items-center justify-center text-slate-500 text-xs">
                               <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
                             </div>
                           )}
@@ -712,13 +712,13 @@ export default function ProfilePage() {
                         </div>
 
                         {/* Chave de Configuração Manual */}
-                        <div className="space-y-4">
+                        <div className="space-y-4 min-w-0">
                           <div className="space-y-1.5">
                             <span className="text-xs font-semibold text-slate-300 block">
                               Ou insira a chave secreta manualmente:
                             </span>
-                            <div className="flex items-center gap-2 bg-slate-900 p-2.5 rounded-xl border border-slate-800">
-                              <span className="font-mono text-indigo-300 font-bold tracking-widest text-xs flex-1 truncate select-all">
+                            <div className="flex items-center gap-2 bg-slate-900 p-2.5 rounded-xl border border-slate-800 min-w-0">
+                              <span className="font-mono text-indigo-300 font-bold tracking-widest text-xs flex-1 truncate select-all min-w-0">
                                 {totpSecret}
                               </span>
                               <button
@@ -743,11 +743,11 @@ export default function ProfilePage() {
                           </div>
 
                           {/* Verificação do Código de 6 dígitos */}
-                          <form onSubmit={handleVerifyAndEnable2FA} className="space-y-3 pt-3 border-t border-slate-800/80">
+                          <form onSubmit={handleVerifyAndEnable2FA} className="space-y-3 pt-3 border-t border-slate-800/80 min-w-0">
                             <label htmlFor="totp-code-input" className="text-xs font-semibold text-slate-300 block">
                               Digite o código de 6 dígitos gerado:
                             </label>
-                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                            <div className="flex flex-col gap-2.5">
                               <input
                                 id="totp-code-input"
                                 type="text"
@@ -758,12 +758,12 @@ export default function ProfilePage() {
                                 value={totpToken}
                                 onChange={(e) => setTotpToken(e.target.value.replace(/\D/g, ""))}
                                 placeholder="000000"
-                                className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-center font-mono text-lg tracking-widest text-slate-100 focus:outline-none focus:border-indigo-400 transition-colors flex-1"
+                                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-center font-mono text-lg tracking-widest text-slate-100 focus:outline-none focus:border-indigo-400 transition-colors"
                               />
                               <button
                                 type="submit"
                                 disabled={isVerifying2FA || totpToken.length !== 6}
-                                className="px-5 py-2.5 rounded-xl font-semibold text-xs bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+                                className="w-full px-5 py-2.5 rounded-xl font-semibold text-xs bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                               >
                                 {isVerifying2FA ? (
                                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -773,7 +773,7 @@ export default function ProfilePage() {
                                 Ativar 2FA
                               </button>
                             </div>
-                            <div className="flex justify-end pt-1">
+                            <div className="flex justify-center pt-1">
                               <button
                                 type="button"
                                 onClick={() => {
