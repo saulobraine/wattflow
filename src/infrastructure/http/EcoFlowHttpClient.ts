@@ -49,12 +49,25 @@ interface TelemetryHttpAttempt {
  * - Apenas um nível de indentação por método
  */
 export class EcoFlowHttpClient {
+  private static readonly ALLOWED_HOSTS = ["api.ecoflow.com", "api-e.ecoflow.com"];
   private readonly credentials: EcoFlowCredentials;
   private readonly baseApiUrl: string;
 
   constructor(credentials: EcoFlowCredentials, baseApiUrl: string) {
     this.credentials = credentials;
-    this.baseApiUrl = baseApiUrl;
+    this.baseApiUrl = this.sanitizeBaseUrl(baseApiUrl);
+  }
+
+  private sanitizeBaseUrl(rawUrl: string): string {
+    try {
+      const parsed = new URL(rawUrl);
+      if (EcoFlowHttpClient.ALLOWED_HOSTS.includes(parsed.hostname)) {
+        return `https://${parsed.hostname}`;
+      }
+    } catch {
+      // url inválida, fallback seguro
+    }
+    return "https://api.ecoflow.com";
   }
 
   public async fetchDeviceTelemetry(serialNumber: DeviceSerialNumber): Promise<EcoFlowTelemetryResult> {
@@ -224,7 +237,8 @@ export class EcoFlowHttpClient {
       signatureHex = digestString;
     });
 
-    const requestUrl = `${targetBaseUrl}/iot-open/sign/device/quota/all?sn=${serialNumber}`;
+    const safeBaseUrl = this.sanitizeBaseUrl(targetBaseUrl);
+    const requestUrl = `${safeBaseUrl}/iot-open/sign/device/quota/all?sn=${encodeURIComponent(serialNumber)}`;
 
     let httpResponse: Response;
     try {
@@ -292,9 +306,13 @@ export class EcoFlowHttpClient {
   }
 
   private resolveAlternativeEndpoint(currentUrl: string): string {
-    const isEurope = currentUrl.includes("api-e.ecoflow.com");
-    if (isEurope) {
-      return "https://api.ecoflow.com";
+    try {
+      const parsed = new URL(currentUrl);
+      if (parsed.hostname === "api-e.ecoflow.com") {
+        return "https://api.ecoflow.com";
+      }
+    } catch {
+      // fallback
     }
     return "https://api-e.ecoflow.com";
   }
@@ -420,7 +438,8 @@ export class EcoFlowHttpClient {
       signatureHex = digestString;
     });
 
-    const requestUrl = `${targetBaseUrl}/iot-open/sign/device/quota`;
+    const safeBaseUrl = this.sanitizeBaseUrl(targetBaseUrl);
+    const requestUrl = `${safeBaseUrl}/iot-open/sign/device/quota`;
 
     let httpResponse: Response;
     try {
