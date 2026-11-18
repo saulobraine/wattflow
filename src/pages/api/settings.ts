@@ -5,30 +5,45 @@ import {
   isAllowedEcoFlowEndpointRegion,
   resolveEcoFlowEndpointRegion,
 } from "../../infrastructure/security/ecoflowAllowlist";
+import {
+  encryptSecretIfPresent,
+  isUnchangedOrMaskedSecret,
+  maskSecretIrreversible,
+} from "../../infrastructure/security/encryptionHelper";
+import { decryptAndMigrateConfigurationSecrets } from "../../infrastructure/security/secretMigrationHelper";
+
+export interface SettingsResponseData {
+  ecoflowEndpointRegion: string;
+  ecoflowAccessKey: string;
+  hasEcoflowAccessSecret: boolean;
+  ecoflowAccessSecretMasked: string;
+  ecoflowSerialNumber: string;
+  tuyaAccessId: string;
+  hasTuyaAccessSecret: boolean;
+  tuyaAccessSecretMasked: string;
+  tuyaDeviceId: string;
+  tuyaEndpointRegion: string;
+  hasTelegramBotToken: boolean;
+  telegramBotTokenMasked: string;
+  telegramChatId: string;
+  whatsappPhoneNumber: string;
+  hasWhatsappApiKey: boolean;
+  whatsappApiKeyMasked: string;
+  isNotificationActive: boolean;
+}
 
 interface SettingsResponseBody {
   success: boolean;
   message: string;
-  data?: {
-    ecoflowEndpointRegion: string;
-    ecoflowAccessKey: string;
-    ecoflowAccessSecret?: string;
-    ecoflowAccessSecretMasked: string;
-    ecoflowSerialNumber: string;
-    telegramBotToken?: string;
-    telegramBotTokenMasked: string;
-    telegramChatId: string;
-    whatsappPhoneNumber: string;
-    whatsappApiKey?: string;
-    whatsappApiKeyMasked: string;
-    isNotificationActive: boolean;
-  };
+  data?: SettingsResponseData;
 }
 
 export default async function handleSettings(
   request: NextApiRequest,
   response: NextApiResponse<SettingsResponseBody>
 ): Promise<void> {
+  response.setHeader("Cache-Control", "no-store");
+
   let sessionUser: ReturnType<typeof extractUserFromRequest> = null;
   try {
     sessionUser = extractUserFromRequest(request);
@@ -58,59 +73,75 @@ export default async function handleSettings(
   });
 
   if (request.method === "GET") {
-    const existing = await prisma.userConfiguration.findUnique({
-      where: { userId: extractedUserId },
-    });
+    try {
+      const existing = await prisma.userConfiguration.findUnique({
+        where: { userId: extractedUserId },
+      });
 
-    if (!existing) {
+      if (!existing) {
+        response.status(200).json({
+          success: true,
+          message: "Nenhuma configuração cadastrada.",
+        });
+        return;
+      }
+
+      const decryptedSecrets = await decryptAndMigrateConfigurationSecrets(prisma, existing);
+
       response.status(200).json({
         success: true,
-        message: "Nenhuma configuração cadastrada.",
+        message: "Configurações carregadas com sucesso.",
+        data: {
+          ecoflowEndpointRegion: existing.ecoflowEndpointRegion,
+          ecoflowAccessKey: existing.ecoflowAccessKey,
+          hasEcoflowAccessSecret: decryptedSecrets.ecoflowAccessSecret.length > 0,
+          ecoflowAccessSecretMasked: maskSecretIrreversible(decryptedSecrets.ecoflowAccessSecret),
+          ecoflowSerialNumber: existing.ecoflowSerialNumber,
+          tuyaAccessId: existing.tuyaAccessId || "",
+          hasTuyaAccessSecret: decryptedSecrets.tuyaAccessSecret.length > 0,
+          tuyaAccessSecretMasked: maskSecretIrreversible(decryptedSecrets.tuyaAccessSecret),
+          tuyaDeviceId: existing.tuyaDeviceId || "",
+          tuyaEndpointRegion: existing.tuyaEndpointRegion || "https://openapi.tuyaus.com",
+          hasTelegramBotToken: decryptedSecrets.telegramBotToken.length > 0,
+          telegramBotTokenMasked: maskSecretIrreversible(decryptedSecrets.telegramBotToken),
+          telegramChatId: existing.telegramChatId || "",
+          whatsappPhoneNumber: existing.whatsappPhoneNumber || "",
+          hasWhatsappApiKey: decryptedSecrets.whatsappApiKey.length > 0,
+          whatsappApiKeyMasked: maskSecretIrreversible(decryptedSecrets.whatsappApiKey),
+          isNotificationActive: existing.isNotificationActive ?? true,
+        },
+      });
+      return;
+    } catch (readError: unknown) {
+      const detail =
+        readError instanceof Error
+          ? readError.message
+          : "Erro ao carregar e decifrar configurações.";
+      response.status(500).json({
+        success: false,
+        message: detail,
       });
       return;
     }
-
-    response.status(200).json({
-      success: true,
-      message: "Configurações carregadas com sucesso.",
-      data: {
-        ecoflowEndpointRegion: existing.ecoflowEndpointRegion,
-        ecoflowAccessKey: existing.ecoflowAccessKey,
-        ecoflowAccessSecret: existing.ecoflowAccessSecret || "",
-        ecoflowAccessSecretMasked: existing.ecoflowAccessSecret || "",
-        ecoflowSerialNumber: existing.ecoflowSerialNumber,
-        telegramBotToken: existing.telegramBotToken || "",
-        telegramBotTokenMasked: existing.telegramBotToken || "",
-        telegramChatId: existing.telegramChatId || "",
-        whatsappPhoneNumber: existing.whatsappPhoneNumber || "",
-        whatsappApiKey: existing.whatsappApiKey || "",
-        whatsappApiKeyMasked: existing.whatsappApiKey || "",
-        isNotificationActive: existing.isNotificationActive ?? true,
-      },
-    });
-    return;
   }
 
   if (request.method === "POST") {
+    const body = (request.body ?? {}) as Record<string, unknown>;
     const {
       ecoflowEndpointRegion,
       ecoflowAccessKey,
       ecoflowAccessSecret,
       ecoflowSerialNumber,
+      tuyaAccessId,
+      tuyaAccessSecret,
+      tuyaDeviceId,
+      tuyaEndpointRegion,
       telegramBotToken,
       telegramChatId,
       whatsappPhoneNumber,
       whatsappApiKey,
       isNotificationActive,
-    } = request.body;
-
-    if (!ecoflowAccessKey || !ecoflowAccessSecret || !ecoflowSerialNumber) {
-      response.status(400).json({
-        success: false,
-        message: "Access Key, Secret Key e Serial Number da EcoFlow são obrigatórios.",
-      });
-      return;
-    }
+    } = body;
 
     if (
       ecoflowEndpointRegion !== undefined &&
@@ -125,58 +156,137 @@ export default async function handleSettings(
       return;
     }
 
-    const validatedEndpointRegion = resolveEcoFlowEndpointRegion(ecoflowEndpointRegion);
+    const normalizedAccessKey = typeof ecoflowAccessKey === "string" ? ecoflowAccessKey.trim() : "";
+    const normalizedSerialNumber =
+      typeof ecoflowSerialNumber === "string" ? ecoflowSerialNumber.trim() : "";
 
-    const isMasked = (value?: string) => !value || value.includes("••••");
+    if (!normalizedAccessKey || !normalizedSerialNumber) {
+      response.status(400).json({
+        success: false,
+        message: "Access Key, Secret Key e Serial Number da EcoFlow são obrigatórios.",
+      });
+      return;
+    }
 
-    const existingConfig = await prisma.userConfiguration.findUnique({
-      where: { userId: extractedUserId },
-    });
+    try {
+      const existingConfig = await prisma.userConfiguration.findUnique({
+        where: { userId: extractedUserId },
+      });
 
-    const finalEcoFlowSecret = isMasked(ecoflowAccessSecret)
-      ? existingConfig?.ecoflowAccessSecret || ""
-      : ecoflowAccessSecret.trim();
+      const existingDecrypted = await decryptAndMigrateConfigurationSecrets(
+        prisma,
+        existingConfig
+      );
 
-    const finalTelegramToken = isMasked(telegramBotToken)
-      ? existingConfig?.telegramBotToken || ""
-      : (telegramBotToken || "").trim();
+      const fallbackRegion = isAllowedEcoFlowEndpointRegion(existingConfig?.ecoflowEndpointRegion)
+        ? existingConfig.ecoflowEndpointRegion.trim()
+        : undefined;
+      const validatedEndpointRegion =
+        ecoflowEndpointRegion !== undefined && ecoflowEndpointRegion !== ""
+          ? resolveEcoFlowEndpointRegion(ecoflowEndpointRegion)
+          : resolveEcoFlowEndpointRegion(fallbackRegion);
 
-    const finalWhatsAppKey = isMasked(whatsappApiKey)
-      ? existingConfig?.whatsappApiKey || ""
-      : (whatsappApiKey || "").trim();
+      const resolvedPlainEcoFlowSecret = isUnchangedOrMaskedSecret(ecoflowAccessSecret)
+        ? existingDecrypted.ecoflowAccessSecret
+        : (ecoflowAccessSecret as string).trim();
 
-    await prisma.userConfiguration.upsert({
-      where: { userId: extractedUserId },
-      update: {
-        ecoflowEndpointRegion: validatedEndpointRegion,
-        ecoflowAccessKey: ecoflowAccessKey.trim(),
-        ecoflowAccessSecret: finalEcoFlowSecret,
-        ecoflowSerialNumber: ecoflowSerialNumber.trim(),
-        telegramBotToken: finalTelegramToken,
-        telegramChatId: (telegramChatId || "").trim(),
-        whatsappPhoneNumber: (whatsappPhoneNumber || "").trim(),
-        whatsappApiKey: finalWhatsAppKey,
-        isNotificationActive: isNotificationActive ?? true,
-      },
-      create: {
-        userId: extractedUserId,
-        ecoflowEndpointRegion: validatedEndpointRegion,
-        ecoflowAccessKey: ecoflowAccessKey.trim(),
-        ecoflowAccessSecret: finalEcoFlowSecret,
-        ecoflowSerialNumber: ecoflowSerialNumber.trim(),
-        telegramBotToken: finalTelegramToken,
-        telegramChatId: (telegramChatId || "").trim(),
-        whatsappPhoneNumber: (whatsappPhoneNumber || "").trim(),
-        whatsappApiKey: finalWhatsAppKey,
-        isNotificationActive: isNotificationActive ?? true,
-      },
-    });
+      if (!resolvedPlainEcoFlowSecret) {
+        response.status(400).json({
+          success: false,
+          message: "Access Key, Secret Key e Serial Number da EcoFlow são obrigatórios.",
+        });
+        return;
+      }
 
-    response.status(200).json({
-      success: true,
-      message: "Credenciais e configurações de notificação salvas com sucesso!",
-    });
-    return;
+      const resolvedPlainTuyaSecret = isUnchangedOrMaskedSecret(tuyaAccessSecret)
+        ? existingDecrypted.tuyaAccessSecret
+        : (tuyaAccessSecret as string).trim();
+
+      const resolvedPlainTelegramToken = isUnchangedOrMaskedSecret(telegramBotToken)
+        ? existingDecrypted.telegramBotToken
+        : (telegramBotToken as string).trim();
+
+      const resolvedPlainWhatsAppKey = isUnchangedOrMaskedSecret(whatsappApiKey)
+        ? existingDecrypted.whatsappApiKey
+        : (whatsappApiKey as string).trim();
+
+      const encryptedEcoFlowSecret = encryptSecretIfPresent(resolvedPlainEcoFlowSecret);
+      const encryptedTuyaSecret = encryptSecretIfPresent(resolvedPlainTuyaSecret);
+      const encryptedTelegramToken = encryptSecretIfPresent(resolvedPlainTelegramToken);
+      const encryptedWhatsAppKey = encryptSecretIfPresent(resolvedPlainWhatsAppKey);
+
+      const resolvedTuyaAccessId =
+        typeof tuyaAccessId === "string" ? tuyaAccessId.trim() : existingConfig?.tuyaAccessId ?? "";
+      const resolvedTuyaDeviceId =
+        typeof tuyaDeviceId === "string" ? tuyaDeviceId.trim() : existingConfig?.tuyaDeviceId ?? "";
+      const resolvedTuyaEndpointRegion =
+        typeof tuyaEndpointRegion === "string" && tuyaEndpointRegion.trim().length > 0
+          ? tuyaEndpointRegion.trim()
+          : existingConfig?.tuyaEndpointRegion || "https://openapi.tuyaus.com";
+      const resolvedTelegramChatId =
+        typeof telegramChatId === "string"
+          ? telegramChatId.trim()
+          : existingConfig?.telegramChatId ?? "";
+      const resolvedWhatsappPhone =
+        typeof whatsappPhoneNumber === "string"
+          ? whatsappPhoneNumber.trim()
+          : existingConfig?.whatsappPhoneNumber ?? "";
+      const resolvedNotificationActive =
+        typeof isNotificationActive === "boolean"
+          ? isNotificationActive
+          : existingConfig?.isNotificationActive ?? true;
+
+      await prisma.userConfiguration.upsert({
+        where: { userId: extractedUserId },
+        update: {
+          ecoflowEndpointRegion: validatedEndpointRegion,
+          ecoflowAccessKey: normalizedAccessKey,
+          ecoflowAccessSecret: encryptedEcoFlowSecret,
+          ecoflowSerialNumber: normalizedSerialNumber,
+          tuyaAccessId: resolvedTuyaAccessId,
+          tuyaAccessSecret: encryptedTuyaSecret,
+          tuyaDeviceId: resolvedTuyaDeviceId,
+          tuyaEndpointRegion: resolvedTuyaEndpointRegion,
+          telegramBotToken: encryptedTelegramToken,
+          telegramChatId: resolvedTelegramChatId,
+          whatsappPhoneNumber: resolvedWhatsappPhone,
+          whatsappApiKey: encryptedWhatsAppKey,
+          isNotificationActive: resolvedNotificationActive,
+        },
+        create: {
+          userId: extractedUserId,
+          ecoflowEndpointRegion: validatedEndpointRegion,
+          ecoflowAccessKey: normalizedAccessKey,
+          ecoflowAccessSecret: encryptedEcoFlowSecret,
+          ecoflowSerialNumber: normalizedSerialNumber,
+          tuyaAccessId: resolvedTuyaAccessId,
+          tuyaAccessSecret: encryptedTuyaSecret,
+          tuyaDeviceId: resolvedTuyaDeviceId,
+          tuyaEndpointRegion: resolvedTuyaEndpointRegion,
+          telegramBotToken: encryptedTelegramToken,
+          telegramChatId: resolvedTelegramChatId,
+          whatsappPhoneNumber: resolvedWhatsappPhone,
+          whatsappApiKey: encryptedWhatsAppKey,
+          isNotificationActive: resolvedNotificationActive,
+        },
+      });
+
+      response.status(200).json({
+        success: true,
+        message: "Credenciais e configurações de notificação salvas com sucesso!",
+      });
+      return;
+    } catch (writeError: unknown) {
+      const detail =
+        writeError instanceof Error
+          ? writeError.message
+          : "Erro interno ao cifrar e salvar configurações.";
+      response.status(500).json({
+        success: false,
+        message: detail,
+      });
+      return;
+    }
   }
 
   response.setHeader("Allow", ["GET", "POST"]);

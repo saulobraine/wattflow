@@ -5,6 +5,8 @@ import {
   NotificationDispatcher,
   NotificationPayload,
 } from "../../infrastructure/notifications/NotificationDispatcher";
+import { isUnchangedOrMaskedSecret } from "../../infrastructure/security/encryptionHelper";
+import { decryptAndMigrateConfigurationSecrets } from "../../infrastructure/security/secretMigrationHelper";
 
 interface TestNotificationRequestBody {
   channel: "TELEGRAM" | "WHATSAPP";
@@ -25,6 +27,8 @@ export default async function handleTestNotification(
   request: NextApiRequest,
   response: NextApiResponse<TestNotificationApiResponse>
 ): Promise<void> {
+  response.setHeader("Cache-Control", "no-store");
+
   if (request.method !== "POST") {
     response.setHeader("Allow", ["POST"]);
     response.status(405).json({
@@ -35,7 +39,22 @@ export default async function handleTestNotification(
     return;
   }
 
-  const sessionUser = extractUserFromRequest(request);
+  let sessionUser: ReturnType<typeof extractUserFromRequest> = null;
+  try {
+    sessionUser = extractUserFromRequest(request);
+  } catch (authError: unknown) {
+    const authMessage =
+      authError instanceof Error
+        ? authError.message
+        : "Erro interno de configuração de autenticação.";
+    response.status(500).json({
+      success: false,
+      message: authMessage,
+      channel: "TELEGRAM",
+    });
+    return;
+  }
+
   if (!sessionUser) {
     response.status(401).json({
       success: false,
@@ -57,7 +76,6 @@ export default async function handleTestNotification(
     where: { userId: extractedUserId },
   });
 
-  const isMasked = (value?: string) => !value || value.includes("••••");
   const dispatcher = new NotificationDispatcher();
 
   const dispatchTime = new Date();
@@ -79,11 +97,34 @@ export default async function handleTestNotification(
   };
 
   if (channel === "TELEGRAM") {
-    const effectiveToken = isMasked(body.telegramBotToken)
-      ? savedConfiguration?.telegramBotToken || ""
-      : body.telegramBotToken?.trim() || "";
+    let effectiveToken = "";
+    try {
+      if (isUnchangedOrMaskedSecret(body.telegramBotToken)) {
+        const decryptedSecrets = await decryptAndMigrateConfigurationSecrets(
+          prisma,
+          savedConfiguration
+        );
+        effectiveToken = decryptedSecrets.telegramBotToken;
+      } else {
+        effectiveToken = (body.telegramBotToken as string).trim();
+      }
+    } catch (cryptoError: unknown) {
+      const detail =
+        cryptoError instanceof Error
+          ? cryptoError.message
+          : "Falha ao decifrar token do Telegram armazenado.";
+      response.status(500).json({
+        success: false,
+        message: detail,
+        channel: "TELEGRAM",
+      });
+      return;
+    }
 
-    const effectiveChatId = body.telegramChatId?.trim() || savedConfiguration?.telegramChatId || "";
+    const effectiveChatId =
+      (typeof body.telegramChatId === "string" ? body.telegramChatId.trim() : "") ||
+      savedConfiguration?.telegramChatId ||
+      "";
 
     if (!effectiveToken || !effectiveChatId) {
       response.status(400).json({
@@ -107,13 +148,34 @@ export default async function handleTestNotification(
     return;
   }
 
-  // Canal WHATSAPP
   const effectivePhone =
-    body.whatsappPhoneNumber?.trim() || savedConfiguration?.whatsappPhoneNumber || "";
+    (typeof body.whatsappPhoneNumber === "string" ? body.whatsappPhoneNumber.trim() : "") ||
+    savedConfiguration?.whatsappPhoneNumber ||
+    "";
 
-  const effectiveKey = isMasked(body.whatsappApiKey)
-    ? savedConfiguration?.whatsappApiKey || ""
-    : body.whatsappApiKey?.trim() || "";
+  let effectiveKey = "";
+  try {
+    if (isUnchangedOrMaskedSecret(body.whatsappApiKey)) {
+      const decryptedSecrets = await decryptAndMigrateConfigurationSecrets(
+        prisma,
+        savedConfiguration
+      );
+      effectiveKey = decryptedSecrets.whatsappApiKey;
+    } else {
+      effectiveKey = (body.whatsappApiKey as string).trim();
+    }
+  } catch (cryptoError: unknown) {
+    const detail =
+      cryptoError instanceof Error
+        ? cryptoError.message
+        : "Falha ao decifrar chave do WhatsApp armazenada.";
+    response.status(500).json({
+      success: false,
+      message: detail,
+      channel: "WHATSAPP",
+    });
+    return;
+  }
 
   if (!effectivePhone || !effectiveKey) {
     response.status(400).json({

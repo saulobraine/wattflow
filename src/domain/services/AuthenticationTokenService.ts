@@ -3,14 +3,20 @@ import { UserIdentity } from "../models/UserIdentity";
 import { UserEmail } from "../values/UserEmail";
 import { UserSessionToken } from "../values/UserSessionToken";
 
+type TokenScope = "session" | "2fa_challenge";
+
 interface RawTokenPayload {
   userId: string;
   email: string;
+  scope: TokenScope;
   expiresAt: number;
 }
 
+const FIVE_MINUTES_MS = 5 * 60 * 1000;
+
 /**
- * Serviço de geração e validação de tokens de sessão criptográficos (HMAC-SHA256).
+ * Serviço de geração e validação de tokens criptográficos (HMAC-SHA256)
+ * com separação estrita de escopo ("session" vs "2fa_challenge").
  * Respeita Object Calisthenics:
  * - Apenas 1 variável de instância
  * - 1 ponto por linha
@@ -28,13 +34,27 @@ export class AuthenticationTokenService {
 
   public createSessionToken(userId: string, email: string, validityDays = 7): UserSessionToken {
     const expiresAt = Date.now() + validityDays * 24 * 60 * 60 * 1000;
-    const payload: RawTokenPayload = { userId, email, expiresAt };
-    const payloadJson = JSON.stringify(payload);
-    const base64Payload = Buffer.from(payloadJson).toString("base64url");
-
-    const signature = this.calculateHmac(base64Payload);
-    const serializedToken = `${base64Payload}.${signature}`;
+    const serializedToken = this.signPayload({
+      userId,
+      email,
+      scope: "session",
+      expiresAt,
+    });
     return new UserSessionToken(serializedToken);
+  }
+
+  public createTwoFactorChallengeToken(
+    userId: string,
+    email: string,
+    ttlMilliseconds = FIVE_MINUTES_MS
+  ): string {
+    const expiresAt = Date.now() + ttlMilliseconds;
+    return this.signPayload({
+      userId,
+      email,
+      scope: "2fa_challenge",
+      expiresAt,
+    });
   }
 
   public verifySessionToken(sessionToken: UserSessionToken): UserIdentity | null {
@@ -43,6 +63,26 @@ export class AuthenticationTokenService {
       rawToken = token;
     });
 
+    return this.verifyScopedToken(rawToken, "session");
+  }
+
+  public verifyTwoFactorChallengeToken(rawChallengeToken: string): UserIdentity | null {
+    if (typeof rawChallengeToken !== "string" || rawChallengeToken.trim().length === 0) {
+      return null;
+    }
+
+    return this.verifyScopedToken(rawChallengeToken.trim(), "2fa_challenge");
+  }
+
+  private signPayload(payload: RawTokenPayload): string {
+    const payloadJson = JSON.stringify(payload);
+    const bufferPayload = Buffer.from(payloadJson, "utf8");
+    const base64Payload = bufferPayload.toString("base64url");
+    const signature = this.calculateHmac(base64Payload);
+    return `${base64Payload}.${signature}`;
+  }
+
+  private verifyScopedToken(rawToken: string, requiredScope: TokenScope): UserIdentity | null {
     const tokenParts = rawToken.split(".");
     if (tokenParts.length !== 2) {
       return null;
@@ -50,6 +90,9 @@ export class AuthenticationTokenService {
 
     const base64Payload = tokenParts[0];
     const signature = tokenParts[1];
+    if (!base64Payload || !signature) {
+      return null;
+    }
 
     const expectedSignature = this.calculateHmac(base64Payload);
     const signatureBuffer = Buffer.from(signature);
@@ -64,16 +107,29 @@ export class AuthenticationTokenService {
       return null;
     }
 
-    const payloadJson = Buffer.from(base64Payload, "base64url").toString("utf8");
-    const parsedPayload = JSON.parse(payloadJson) as RawTokenPayload;
-
-    const isExpired = Date.now() > parsedPayload.expiresAt;
-    if (isExpired) {
+    let parsedPayload: RawTokenPayload;
+    try {
+      const decodedBuffer = Buffer.from(base64Payload, "base64url");
+      const payloadJson = decodedBuffer.toString("utf8");
+      parsedPayload = JSON.parse(payloadJson) as RawTokenPayload;
+    } catch {
       return null;
     }
 
-    const emailValue = new UserEmail(parsedPayload.email);
-    return new UserIdentity(parsedPayload.userId, emailValue);
+    if (!parsedPayload || parsedPayload.scope !== requiredScope) {
+      return null;
+    }
+
+    if (typeof parsedPayload.expiresAt !== "number" || Date.now() > parsedPayload.expiresAt) {
+      return null;
+    }
+
+    try {
+      const emailValue = new UserEmail(parsedPayload.email);
+      return new UserIdentity(parsedPayload.userId, emailValue);
+    } catch {
+      return null;
+    }
   }
 
   private calculateHmac(content: string): string {

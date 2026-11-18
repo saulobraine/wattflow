@@ -34,6 +34,19 @@ export default defineConfig({
             process.env.CRON_SECRET_TOKEN.trim().length >= 32
               ? process.env.CRON_SECRET_TOKEN
               : "e2e-cron-secret-token-with-at-least-32-chars",
+          AUTH_SECRET:
+            process.env.AUTH_SECRET &&
+            process.env.AUTH_SECRET.trim().length >= 32
+              ? process.env.AUTH_SECRET
+              : "e2e-auth-secret-token-with-at-least-32-chars",
+          ENCRYPTION_KEY:
+            process.env.ENCRYPTION_KEY &&
+            /^[0-9a-fA-F]{64}$/.test(process.env.ENCRYPTION_KEY.trim()) &&
+            !/^([0-9a-f]{2})\1{31}$/i.test(process.env.ENCRYPTION_KEY.trim()) &&
+            !/^([0-9a-f]{8})\1{7}$/i.test(process.env.ENCRYPTION_KEY.trim()) &&
+            !/^([0-9a-f]{16})\1{3}$/i.test(process.env.ENCRYPTION_KEY.trim())
+              ? process.env.ENCRYPTION_KEY
+              : "4f8a2c1e9d7b6a3f0e5c8d1a2b4c6e8f9a1b3c5d7e9f0a2b4c6d8e0f1a3b5c7d",
         },
       },
 });

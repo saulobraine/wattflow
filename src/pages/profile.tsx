@@ -65,6 +65,7 @@ export default function ProfilePage() {
   const [isSettingUp2FA, setIsSettingUp2FA] = useState(false);
   const [totpSecret, setTotpSecret] = useState("");
   const [totpToken, setTotpToken] = useState("");
+  const [enableTwoFactorPassword, setEnableTwoFactorPassword] = useState("");
   const [qrCodeUrl, setQrCodeUrl] = useState("");
   const [copiedSecret, setCopiedSecret] = useState(false);
   const [isVerifying2FA, setIsVerifying2FA] = useState(false);
@@ -185,6 +186,7 @@ export default function ProfilePage() {
         setQrCodeUrl(result.data.qrCodeDataUrl || "");
         setIsSettingUp2FA(true);
         setTotpToken("");
+        setEnableTwoFactorPassword("");
       } else {
         setTwoFactorFeedback({ type: "error", message: result.message || "Falha ao gerar segredo 2FA." });
       }
@@ -205,8 +207,8 @@ export default function ProfilePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "VERIFY_AND_ENABLE",
-          secret: totpSecret,
           token: totpToken,
+          currentPassword: enableTwoFactorPassword,
         }),
       });
       const result = await response.json();
@@ -217,6 +219,7 @@ export default function ProfilePage() {
         setTotpSecret("");
         setQrCodeUrl("");
         setTotpToken("");
+        setEnableTwoFactorPassword("");
         await fetchProfile();
       } else {
         setTwoFactorFeedback({ type: "error", message: result.message || "Código inválido." });
@@ -760,9 +763,24 @@ export default function ProfilePage() {
                                 placeholder="000000"
                                 className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-center font-mono text-lg tracking-widest text-slate-100 focus:outline-none focus:border-indigo-400 transition-colors"
                               />
+                              <div className="space-y-1">
+                                <label htmlFor="totp-current-password-input" className="text-xs font-semibold text-slate-300 block">
+                                  Confirme sua senha atual para ativar o 2FA:
+                                </label>
+                                <input
+                                  id="totp-current-password-input"
+                                  type="password"
+                                  required
+                                  autoComplete="current-password"
+                                  value={enableTwoFactorPassword}
+                                  onChange={(e) => setEnableTwoFactorPassword(e.target.value)}
+                                  placeholder="Sua senha atual"
+                                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-400 transition-colors"
+                                />
+                              </div>
                               <button
                                 type="submit"
-                                disabled={isVerifying2FA || totpToken.length !== 6}
+                                disabled={isVerifying2FA || totpToken.length !== 6 || !enableTwoFactorPassword}
                                 className="w-full px-5 py-2.5 rounded-xl font-semibold text-xs bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                               >
                                 {isVerifying2FA ? (
@@ -780,6 +798,8 @@ export default function ProfilePage() {
                                   setIsSettingUp2FA(false);
                                   setQrCodeUrl("");
                                   setTotpSecret("");
+                                  setTotpToken("");
+                                  setEnableTwoFactorPassword("");
                                 }}
                                 className="text-xs text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
                               >
@@ -954,7 +974,10 @@ export default function ProfilePage() {
               <div className="flex items-center justify-end gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => setShowDisableModal(false)}
+                  onClick={() => {
+                    setShowDisableModal(false);
+                    setDisablePassword("");
+                  }}
                   className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
                 >
                   Cancelar

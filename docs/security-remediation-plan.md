@@ -31,15 +31,15 @@
 ## Etapa 2 — Crítico: Correção de Bypass 2FA/TOTP e Criptografia BYOK em Repouso
 **Itens:** `SEC-01`, `SEC-03`
 **Responsáveis:** `ApexDev` (Crypto/Backend/Prisma) + `PixelCraft` (UI Login 2FA & Settings)
-- [ ] **SEC-01:** Bloquear emissão de sessão definitiva no `POST /api/auth/login` quando `twoFactorEnabled === true`. Emitir token de desafio (`scope: "2fa_challenge"`, TTL 5m) e validar código TOTP em `/api/auth/login-2fa`. Persistir segredo pendente no `SETUP`, exigir `currentPassword` para alterar/ativar 2FA e rejeitar segredos `< 16 bytes` no `totpHelper.ts`.
-- [ ] **SEC-03:** Implementar criptografia `AES-256-GCM` (`ENCRYPTION_KEY`) para segredos no PostgreSQL (`ecoflowAccessSecret`, `tuyaAccessSecret`, `telegramBotToken`, `whatsappApiKey`, `twoFactorSecret`). Ocultar segredos em texto claro no `GET /api/settings` (retornar flags `has*` e máscara final) + `Cache-Control: no-store`.
-- [ ] **UI (`PixelCraft`):** Adaptar tela de login para etapa de código 2FA e adaptar `/settings` para lidar com chaves mascaradas.
-- [ ] **Portão de Testes (100%):**
+- [x] **SEC-01:** Bloquear emissão de sessão definitiva no `POST /api/auth/login` quando `twoFactorEnabled === true`. Emitir token de desafio (`scope: "2fa_challenge"`, TTL 5m) e validar código TOTP em `/api/auth/login-2fa`. Persistir segredo pendente no `SETUP`, exigir `currentPassword` para alterar/ativar 2FA e rejeitar segredos `< 16 bytes` no `totpHelper.ts`.
+- [x] **SEC-03:** Implementar criptografia `AES-256-GCM` (`ENCRYPTION_KEY`) para segredos no PostgreSQL (`ecoflowAccessSecret`, `tuyaAccessSecret`, `telegramBotToken`, `whatsappApiKey`, `twoFactorSecret`). Ocultar segredos em texto claro no `GET /api/settings` (retornar flags `has*` e máscara final) + `Cache-Control: no-store`.
+- [x] **UI (`PixelCraft`):** Adaptar tela de login para etapa de código 2FA e adaptar `/settings` para lidar com chaves mascaradas.
+- [x] **Portão de Testes (100%):**
   - `UnitTestEngine`: Testes unitários de `AES-256-GCM`, fluxo TOTP completo, bloqueio de bypass e mascaramento.
   - `E2EGuardian`: Fluxo E2E de login com 2FA ativo e verificação visual de segredos mascarados em `/settings`.
   - `Sentinel`: Code Review do diff.
   - `Certifier`: Homologação funcional.
-- [ ] **Commit (`GitOps`):** `fix(auth): corrigir bypass de 2FA e cifrar credenciais BYOK em repouso`
+- [x] **Commit (`GitOps`):** `fix(auth): corrigir bypass de 2FA e cifrar credenciais BYOK em repouso`
 
 ---
 

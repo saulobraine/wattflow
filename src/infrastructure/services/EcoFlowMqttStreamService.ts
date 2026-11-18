@@ -9,6 +9,7 @@ import {
   resolveEcoFlowEndpointRegion,
   validateEcoFlowMqttBroker,
 } from "../security/ecoflowAllowlist";
+import { decryptAndMigrateConfigurationSecrets } from "../security/secretMigrationHelper";
 
 export interface LiveTelemetrySnapshot {
   batteryPercentage: number;
@@ -76,8 +77,12 @@ export class EcoFlowMqttStreamService {
       return;
     }
 
+    const decryptedSecrets = await decryptAndMigrateConfigurationSecrets(
+      databaseClient,
+      activeConfiguration
+    );
     const accessKey = new AccessKey(activeConfiguration.ecoflowAccessKey);
-    const accessSecret = new AccessSecret(activeConfiguration.ecoflowAccessSecret);
+    const accessSecret = new AccessSecret(decryptedSecrets.ecoflowAccessSecret);
     const credentials = new EcoFlowCredentials(accessKey, accessSecret);
     const serialNumber = new DeviceSerialNumber(activeConfiguration.ecoflowSerialNumber);
     const baseApiUrl = resolveEcoFlowEndpointRegion(activeConfiguration.ecoflowEndpointRegion);

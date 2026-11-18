@@ -14,8 +14,6 @@ import {
   Bell,
   MessageSquare,
   Send,
-  Eye,
-  EyeOff,
   ShieldAlert,
   X,
 } from "lucide-react";
@@ -59,10 +57,13 @@ export default function SettingsPage() {
     message: string;
   } | null>(null);
 
-  // Estados de visualização do olho (mostrar/ocultar segredos)
-  const [showTelegramToken, setShowTelegramToken] = useState(false);
-  const [showWhatsappApiKey, setShowWhatsappApiKey] = useState(false);
-  const [showEcoflowSecret, setShowEcoflowSecret] = useState(false);
+  // Indicadores de segredos já configurados e versões mascaradas retornadas pelo GET
+  const [hasEcoflowAccessSecret, setHasEcoflowAccessSecret] = useState(false);
+  const [ecoflowAccessSecretMasked, setEcoflowAccessSecretMasked] = useState("");
+  const [hasTelegramBotToken, setHasTelegramBotToken] = useState(false);
+  const [telegramBotTokenMasked, setTelegramBotTokenMasked] = useState("");
+  const [hasWhatsappApiKey, setHasWhatsappApiKey] = useState(false);
+  const [whatsappApiKeyMasked, setWhatsappApiKeyMasked] = useState("");
 
   // Estados para o Modal de Confirmação com animação de entrada e saída
   const [confirmationModal, setConfirmationModal] = useState<{
@@ -135,28 +136,46 @@ export default function SettingsPage() {
     handleTestControl(target);
   };
 
-  useEffect(() => {
-    async function loadSettings() {
-      try {
-        const response = await fetch("/api/settings");
-        const json = await response.json();
-        if (json.success && json.data) {
-          setEcoflowEndpointRegion(json.data.ecoflowEndpointRegion || "https://api.ecoflow.com");
-          setEcoflowAccessKey(json.data.ecoflowAccessKey || "");
-          setEcoflowAccessSecret(json.data.ecoflowAccessSecret || json.data.ecoflowAccessSecretMasked || "");
-          setEcoflowSerialNumber(json.data.ecoflowSerialNumber || "");
-          setTelegramBotToken(json.data.telegramBotToken || json.data.telegramBotTokenMasked || "");
-          setTelegramChatId(json.data.telegramChatId || "");
-          setWhatsappPhoneNumber(json.data.whatsappPhoneNumber || "");
-          setWhatsappApiKey(json.data.whatsappApiKey || json.data.whatsappApiKeyMasked || "");
-          setIsNotificationActive(json.data.isNotificationActive ?? true);
-        }
-      } catch (err) {
-        console.error("Erro ao carregar configurações:", err);
-      } finally {
-        setIsLoading(false);
+  const loadSettings = async () => {
+    try {
+      const response = await fetch("/api/settings");
+      const json = await response.json();
+      if (!response.ok || !json.success) {
+        setFeedback({
+          type: "error",
+          message: json.message || "Erro ao carregar configurações do servidor.",
+        });
+        return;
       }
+      if (json.data) {
+        setEcoflowEndpointRegion(json.data.ecoflowEndpointRegion || "https://api.ecoflow.com");
+        setEcoflowAccessKey(json.data.ecoflowAccessKey || "");
+        setHasEcoflowAccessSecret(Boolean(json.data.hasEcoflowAccessSecret));
+        setEcoflowAccessSecretMasked(json.data.ecoflowAccessSecretMasked || "");
+        setEcoflowAccessSecret("");
+        setEcoflowSerialNumber(json.data.ecoflowSerialNumber || "");
+        setHasTelegramBotToken(Boolean(json.data.hasTelegramBotToken));
+        setTelegramBotTokenMasked(json.data.telegramBotTokenMasked || "");
+        setTelegramBotToken("");
+        setTelegramChatId(json.data.telegramChatId || "");
+        setWhatsappPhoneNumber(json.data.whatsappPhoneNumber || "");
+        setHasWhatsappApiKey(Boolean(json.data.hasWhatsappApiKey));
+        setWhatsappApiKeyMasked(json.data.whatsappApiKeyMasked || "");
+        setWhatsappApiKey("");
+        setIsNotificationActive(json.data.isNotificationActive ?? true);
+      }
+    } catch (err) {
+      console.error("Erro ao carregar configurações:", err);
+      setFeedback({
+        type: "error",
+        message: "Falha de comunicação ao carregar as configurações salvas.",
+      });
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  useEffect(() => {
     loadSettings();
   }, []);
 
@@ -185,6 +204,7 @@ export default function SettingsPage() {
       const json = await response.json();
       if (json.success) {
         setFeedback({ type: "success", message: "Credenciais e configurações salvas com sucesso!" });
+        await loadSettings();
       } else {
         setFeedback({ type: "error", message: json.message || "Erro ao salvar credenciais." });
       }
@@ -388,33 +408,31 @@ export default function SettingsPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label htmlFor="ecoflow-secret-key-input" className="text-xs font-semibold text-slate-300">
-                  Secret Key
-                </label>
-                <div className="relative">
-                  <input
-                    id="ecoflow-secret-key-input"
-                    type={showEcoflowSecret ? "text" : "password"}
-                    required
-                    placeholder="Ex: sk_live_..."
-                    value={ecoflowAccessSecret}
-                    onChange={(e) => setEcoflowAccessSecret(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-4 pr-11 py-2.5 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-emerald-500 font-mono transition-colors"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowEcoflowSecret((prev) => !prev)}
-                    title={showEcoflowSecret ? "Ocultar Secret Key" : "Visualizar Secret Key"}
-                    aria-label={showEcoflowSecret ? "Ocultar Secret Key da EcoFlow" : "Visualizar Secret Key da EcoFlow"}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-slate-400 hover:text-emerald-300 hover:bg-slate-900/80 transition-colors active:scale-90 cursor-pointer"
-                  >
-                    {showEcoflowSecret ? (
-                      <EyeOff className="w-4 h-4 text-emerald-400" aria-hidden="true" />
-                    ) : (
-                      <Eye className="w-4 h-4 text-slate-400" aria-hidden="true" />
-                    )}
-                  </button>
+                <div className="flex items-center justify-between gap-2">
+                  <label htmlFor="ecoflow-secret-key-input" className="text-xs font-semibold text-slate-300">
+                    Secret Key
+                  </label>
+                  {hasEcoflowAccessSecret && (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">
+                      <ShieldCheck className="w-3 h-3 text-emerald-400" aria-hidden="true" />
+                      Configurada ({ecoflowAccessSecretMasked || "••••••••"})
+                    </span>
+                  )}
                 </div>
+                <input
+                  id="ecoflow-secret-key-input"
+                  type="password"
+                  required={!hasEcoflowAccessSecret}
+                  autoComplete="new-password"
+                  placeholder={
+                    hasEcoflowAccessSecret
+                      ? `${ecoflowAccessSecretMasked || "••••••••"} (deixe em branco para manter)`
+                      : "Ex: sk_live_..."
+                  }
+                  value={ecoflowAccessSecret}
+                  onChange={(e) => setEcoflowAccessSecret(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-emerald-500 font-mono transition-colors"
+                />
               </div>
 
               <div className="space-y-1.5 md:col-span-2">
@@ -484,32 +502,30 @@ export default function SettingsPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label htmlFor="telegram-token-input" className="text-xs font-semibold text-slate-300">
-                    Telegram Bot Token
-                  </label>
-                  <div className="relative">
-                    <input
-                      id="telegram-token-input"
-                      type={showTelegramToken ? "text" : "password"}
-                      placeholder="Ex: 123456789:ABCdefGhIJKlmNoPQRstuVWxyz"
-                      value={telegramBotToken}
-                      onChange={(e) => setTelegramBotToken(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-4 pr-11 py-2.5 text-base sm:text-xs text-slate-200 focus:outline-none focus:border-sky-500 font-mono transition-colors"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowTelegramToken((prev) => !prev)}
-                      title={showTelegramToken ? "Ocultar Bot Token" : "Visualizar Bot Token salvo"}
-                      aria-label={showTelegramToken ? "Ocultar Bot Token do Telegram" : "Visualizar Bot Token do Telegram"}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-slate-400 hover:text-sky-300 hover:bg-slate-800/80 transition-colors active:scale-90 cursor-pointer"
-                    >
-                      {showTelegramToken ? (
-                        <EyeOff className="w-4 h-4 text-sky-400" aria-hidden="true" />
-                      ) : (
-                        <Eye className="w-4 h-4 text-slate-400" aria-hidden="true" />
-                      )}
-                    </button>
+                  <div className="flex items-center justify-between gap-2">
+                    <label htmlFor="telegram-token-input" className="text-xs font-semibold text-slate-300">
+                      Telegram Bot Token
+                    </label>
+                    {hasTelegramBotToken && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-300 border border-sky-500/30">
+                        <ShieldCheck className="w-3 h-3 text-sky-400" aria-hidden="true" />
+                        Configurado ({telegramBotTokenMasked || "••••••••"})
+                      </span>
+                    )}
                   </div>
+                  <input
+                    id="telegram-token-input"
+                    type="password"
+                    autoComplete="new-password"
+                    placeholder={
+                      hasTelegramBotToken
+                        ? `${telegramBotTokenMasked || "••••••••"} (deixe em branco para manter)`
+                        : "Ex: 123456789:ABCdefGhIJKlmNoPQRstuVWxyz"
+                    }
+                    value={telegramBotToken}
+                    onChange={(e) => setTelegramBotToken(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-xs text-slate-200 focus:outline-none focus:border-sky-500 font-mono transition-colors"
+                  />
                 </div>
                 <div className="space-y-1">
                   <label htmlFor="telegram-chat-id-input" className="text-xs font-semibold text-slate-300">
@@ -533,7 +549,7 @@ export default function SettingsPage() {
                 </span>
                 <button
                   type="button"
-                  disabled={isTestingTelegram || !telegramBotToken || !telegramChatId}
+                  disabled={isTestingTelegram || (!telegramBotToken && !hasTelegramBotToken) || !telegramChatId}
                   onClick={handleTestTelegram}
                   aria-label="Testar envio de notificação no Telegram"
                   className="w-full sm:w-auto py-2 px-4 rounded-xl font-semibold text-xs bg-sky-950 hover:bg-sky-900/90 active:scale-95 text-sky-200 border border-sky-700/60 transition-all duration-150 flex items-center justify-center gap-2 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
@@ -598,32 +614,30 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <label htmlFor="whatsapp-api-key-input" className="text-xs font-semibold text-slate-300">
-                    API Key CallMeBot
-                  </label>
-                  <div className="relative">
-                    <input
-                      id="whatsapp-api-key-input"
-                      type={showWhatsappApiKey ? "text" : "password"}
-                      placeholder="Ex: 1234567"
-                      value={whatsappApiKey}
-                      onChange={(e) => setWhatsappApiKey(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-4 pr-11 py-2.5 text-base sm:text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-mono transition-colors"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowWhatsappApiKey((prev) => !prev)}
-                      title={showWhatsappApiKey ? "Ocultar API Key" : "Visualizar API Key salva"}
-                      aria-label={showWhatsappApiKey ? "Ocultar API Key do CallMeBot" : "Visualizar API Key do CallMeBot"}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-slate-400 hover:text-emerald-300 hover:bg-slate-800/80 transition-colors active:scale-90 cursor-pointer"
-                    >
-                      {showWhatsappApiKey ? (
-                        <EyeOff className="w-4 h-4 text-emerald-400" aria-hidden="true" />
-                      ) : (
-                        <Eye className="w-4 h-4 text-slate-400" aria-hidden="true" />
-                      )}
-                    </button>
+                  <div className="flex items-center justify-between gap-2">
+                    <label htmlFor="whatsapp-api-key-input" className="text-xs font-semibold text-slate-300">
+                      API Key CallMeBot
+                    </label>
+                    {hasWhatsappApiKey && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">
+                        <ShieldCheck className="w-3 h-3 text-emerald-400" aria-hidden="true" />
+                        Configurada ({whatsappApiKeyMasked || "••••••••"})
+                      </span>
+                    )}
                   </div>
+                  <input
+                    id="whatsapp-api-key-input"
+                    type="password"
+                    autoComplete="new-password"
+                    placeholder={
+                      hasWhatsappApiKey
+                        ? `${whatsappApiKeyMasked || "••••••••"} (deixe em branco para manter)`
+                        : "Ex: 1234567"
+                    }
+                    value={whatsappApiKey}
+                    onChange={(e) => setWhatsappApiKey(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-mono transition-colors"
+                  />
                 </div>
               </div>
 
@@ -634,7 +648,7 @@ export default function SettingsPage() {
                 </span>
                 <button
                   type="button"
-                  disabled={isTestingWhatsApp || !whatsappPhoneNumber || !whatsappApiKey}
+                  disabled={isTestingWhatsApp || !whatsappPhoneNumber || (!whatsappApiKey && !hasWhatsappApiKey)}
                   onClick={handleTestWhatsApp}
                   aria-label="Testar envio de notificação no WhatsApp"
                   className="w-full sm:w-auto py-2 px-4 rounded-xl font-semibold text-xs bg-emerald-950 hover:bg-emerald-900/90 active:scale-95 text-emerald-200 border border-emerald-700/60 transition-all duration-150 flex items-center justify-center gap-2 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
@@ -709,7 +723,7 @@ export default function SettingsPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <button
               type="button"
-              disabled={isTestingEcoFlow || !ecoflowAccessKey || !ecoflowSerialNumber}
+              disabled={isTestingEcoFlow || !ecoflowAccessKey || (!ecoflowAccessSecret && !hasEcoflowAccessSecret) || !ecoflowSerialNumber}
               onClick={() => requestConfirmation("ECOFLOW_TELEMETRY")}
               aria-label="Solicitar teste de leitura de telemetria da EcoFlow"
               className="py-3 px-4 rounded-xl font-semibold text-xs bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-700 transition-all duration-150 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
@@ -720,7 +734,7 @@ export default function SettingsPage() {
 
             <button
               type="button"
-              disabled={isTestingEcoFlow || !ecoflowAccessKey || !ecoflowSerialNumber}
+              disabled={isTestingEcoFlow || !ecoflowAccessKey || (!ecoflowAccessSecret && !hasEcoflowAccessSecret) || !ecoflowSerialNumber}
               onClick={() => requestConfirmation("ECOFLOW_ON")}
               aria-label="Solicitar teste para ligar saída AC e comutar ATS para bateria"
               className="py-3 px-4 rounded-xl font-semibold text-xs bg-emerald-950/60 hover:bg-emerald-900/80 active:scale-95 text-emerald-200 border border-emerald-800/60 transition-all duration-150 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
@@ -731,7 +745,7 @@ export default function SettingsPage() {
 
             <button
               type="button"
-              disabled={isTestingEcoFlow || !ecoflowAccessKey || !ecoflowSerialNumber}
+              disabled={isTestingEcoFlow || !ecoflowAccessKey || (!ecoflowAccessSecret && !hasEcoflowAccessSecret) || !ecoflowSerialNumber}
               onClick={() => requestConfirmation("ECOFLOW_OFF")}
               aria-label="Solicitar teste para desligar saída AC e comutar ATS para rede"
               className="py-3 px-4 rounded-xl font-semibold text-xs bg-rose-950/60 hover:bg-rose-900/80 active:scale-95 text-rose-200 border border-rose-800/60 transition-all duration-150 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"

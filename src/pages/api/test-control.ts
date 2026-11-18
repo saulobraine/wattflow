@@ -8,6 +8,8 @@ import { EcoFlowCredentials } from "../../domain/models/EcoFlowCredentials";
 import { EcoFlowHttpClient } from "../../infrastructure/http/EcoFlowHttpClient";
 import { EcoFlowTestUseCase, EcoFlowTestResult } from "../../application/EcoFlowTestUseCase";
 import { resolveEcoFlowEndpointRegion } from "../../infrastructure/security/ecoflowAllowlist";
+import { isUnchangedOrMaskedSecret } from "../../infrastructure/security/encryptionHelper";
+import { decryptAndMigrateConfigurationSecrets } from "../../infrastructure/security/secretMigrationHelper";
 
 interface TestControlRequestBody {
   actionTarget: "ECOFLOW_ON" | "ECOFLOW_OFF" | "ECOFLOW_TELEMETRY";
@@ -27,6 +29,8 @@ export default async function handleTestControl(
   request: NextApiRequest,
   response: NextApiResponse<TestControlApiResponse>
 ): Promise<void> {
+  response.setHeader("Cache-Control", "no-store");
+
   if (request.method !== "POST") {
     response.setHeader("Allow", ["POST"]);
     response.status(405).json({
@@ -89,17 +93,34 @@ export default async function handleTestControl(
     where: { userId: extractedUserId },
   });
 
-  const isMaskedSecret = (value?: string) => !value || value.includes("••••");
-
   const effectiveEcoFlowKey =
     (typeof body.ecoflowAccessKey === "string" ? body.ecoflowAccessKey.trim() : "") ||
     savedConfiguration?.ecoflowAccessKey ||
     "";
-  const effectiveEcoFlowSecret = isMaskedSecret(
-    typeof body.ecoflowAccessSecret === "string" ? body.ecoflowAccessSecret : undefined
-  )
-    ? savedConfiguration?.ecoflowAccessSecret || ""
-    : (typeof body.ecoflowAccessSecret === "string" ? body.ecoflowAccessSecret.trim() : "");
+
+  let effectiveEcoFlowSecret = "";
+  try {
+    if (isUnchangedOrMaskedSecret(body.ecoflowAccessSecret)) {
+      const decryptedSecrets = await decryptAndMigrateConfigurationSecrets(
+        prisma,
+        savedConfiguration
+      );
+      effectiveEcoFlowSecret = decryptedSecrets.ecoflowAccessSecret;
+    } else {
+      effectiveEcoFlowSecret = (body.ecoflowAccessSecret as string).trim();
+    }
+  } catch (cryptoError: unknown) {
+    const detail =
+      cryptoError instanceof Error
+        ? cryptoError.message
+        : "Falha ao decifrar credenciais EcoFlow armazenadas.";
+    response.status(500).json({
+      success: false,
+      message: detail,
+    });
+    return;
+  }
+
   const effectiveEcoFlowSerial =
     (typeof body.ecoflowSerialNumber === "string" ? body.ecoflowSerialNumber.trim() : "") ||
     savedConfiguration?.ecoflowSerialNumber ||

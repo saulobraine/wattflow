@@ -1,7 +1,7 @@
 import React, { useState, FormEvent } from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
-import { Zap, Lock, Mail, AlertCircle, ArrowRight } from "lucide-react";
+import { Zap, Lock, Mail, AlertCircle, ArrowRight, ShieldCheck, ArrowLeft } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { TransitionLink } from "../components/TransitionLink";
 import { transitionNavigate } from "../utils/transitionNavigate";
@@ -11,6 +11,8 @@ export default function LoginPage() {
   const { refreshUser } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [challengeToken, setChallengeToken] = useState<string | null>(null);
+  const [totpToken, setTotpToken] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -32,6 +34,12 @@ export default function LoginPage() {
         return;
       }
 
+      if (data.requiresTwoFactor && data.challengeToken) {
+        setChallengeToken(data.challengeToken);
+        setTotpToken("");
+        return;
+      }
+
       await refreshUser();
       transitionNavigate(router, "/");
     } catch {
@@ -39,6 +47,44 @@ export default function LoginPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleTwoFactorSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!challengeToken) return;
+
+    setIsLoading(true);
+    setErrorMessage(null);
+
+    try {
+      const response = await fetch("/api/auth/login-2fa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          challengeToken,
+          token: totpToken,
+        }),
+      });
+
+      const data = await response.json();
+      if (!data.success) {
+        setErrorMessage(data.message || "Código 2FA inválido ou expirado.");
+        return;
+      }
+
+      await refreshUser();
+      transitionNavigate(router, "/");
+    } catch {
+      setErrorMessage("Erro ao validar o código de autenticação.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleBackToLogin = () => {
+    setChallengeToken(null);
+    setTotpToken("");
+    setErrorMessage(null);
   };
 
   return (
@@ -72,55 +118,110 @@ export default function LoginPage() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label htmlFor="login-email-input" className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                  E-mail
-                </label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-3.5 transition-colors" aria-hidden="true" />
+            {challengeToken ? (
+              <form onSubmit={handleTwoFactorSubmit} className="space-y-4">
+                <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-start gap-3">
+                  <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" aria-hidden="true" />
+                  <div className="space-y-0.5">
+                    <div className="text-xs font-semibold text-emerald-300">
+                      Verificação em Duas Etapas (2FA)
+                    </div>
+                    <p className="text-xs text-slate-300">
+                      Informe o código TOTP de 6 dígitos gerado pelo seu aplicativo autenticador.
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="login-totp-input" className="block text-xs font-semibold text-slate-300 uppercase mb-1">
+                    Código TOTP (6 dígitos)
+                  </label>
                   <input
-                    id="login-email-input"
-                    type="email"
+                    id="login-totp-input"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
                     required
-                    autoComplete="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="seu@email.com"
-                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-base sm:text-sm focus:border-emerald-500 focus:outline-none transition-colors"
+                    autoFocus
+                    value={totpToken}
+                    onChange={(e) => setTotpToken(e.target.value.replace(/\D/g, ""))}
+                    placeholder="000000"
+                    className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-center font-mono text-xl tracking-[0.35em] focus:border-emerald-500 focus:outline-none transition-colors"
                   />
                 </div>
-              </div>
 
-              <div>
-                <label htmlFor="login-password-input" className="block text-xs font-semibold text-slate-300 uppercase mb-1">
-                  Senha
-                </label>
-                <div className="relative">
-                  <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3.5 transition-colors" aria-hidden="true" />
-                  <input
-                    id="login-password-input"
-                    type="password"
-                    required
-                    autoComplete="current-password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-base sm:text-sm focus:border-emerald-500 focus:outline-none transition-colors"
-                  />
+                <button
+                  type="submit"
+                  disabled={isLoading || totpToken.length !== 6}
+                  aria-label="Verificar código 2FA e entrar"
+                  className="w-full py-3 px-4 rounded-xl font-semibold text-sm bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all duration-150 shadow-lg shadow-emerald-950 flex items-center justify-center gap-2 disabled:opacity-50 mt-2 cursor-pointer disabled:cursor-not-allowed group"
+                >
+                  <span>{isLoading ? "Verificando..." : "Verificar e Entrar"}</span>
+                  <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" aria-hidden="true" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleBackToLogin}
+                  disabled={isLoading}
+                  className="w-full py-2 px-3 rounded-xl text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span>Voltar ao login</span>
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label htmlFor="login-email-input" className="block text-xs font-semibold text-slate-300 uppercase mb-1">
+                    E-mail
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-3.5 transition-colors" aria-hidden="true" />
+                    <input
+                      id="login-email-input"
+                      type="email"
+                      required
+                      autoComplete="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="seu@email.com"
+                      className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-base sm:text-sm focus:border-emerald-500 focus:outline-none transition-colors"
+                    />
+                  </div>
                 </div>
-              </div>
 
-              <button
-                type="submit"
-                disabled={isLoading}
-                aria-label="Entrar no WattFlow"
-                className="w-full py-3 px-4 rounded-xl font-semibold text-sm bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all duration-150 shadow-lg shadow-emerald-950 flex items-center justify-center gap-2 disabled:opacity-50 mt-2 cursor-pointer disabled:cursor-not-allowed group"
-              >
-                <span>{isLoading ? "Entrando..." : "Entrar no WattFlow"}</span>
-                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" aria-hidden="true" />
-              </button>
-            </form>
+                <div>
+                  <label htmlFor="login-password-input" className="block text-xs font-semibold text-slate-300 uppercase mb-1">
+                    Senha
+                  </label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3.5 transition-colors" aria-hidden="true" />
+                    <input
+                      id="login-password-input"
+                      type="password"
+                      required
+                      autoComplete="current-password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-base sm:text-sm focus:border-emerald-500 focus:outline-none transition-colors"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  aria-label="Entrar no WattFlow"
+                  className="w-full py-3 px-4 rounded-xl font-semibold text-sm bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all duration-150 shadow-lg shadow-emerald-950 flex items-center justify-center gap-2 disabled:opacity-50 mt-2 cursor-pointer disabled:cursor-not-allowed group"
+                >
+                  <span>{isLoading ? "Entrando..." : "Entrar no WattFlow"}</span>
+                  <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" aria-hidden="true" />
+                </button>
+              </form>
+            )}
 
             <div className="border-t border-slate-800 pt-4 text-center text-xs text-slate-400">
               Ainda não possui uma conta?{" "}

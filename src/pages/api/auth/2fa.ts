@@ -7,6 +7,8 @@ import {
   verifyTotpCode,
   buildOtpAuthUrl,
 } from "../../../infrastructure/auth/totpHelper";
+import { encryptSecret } from "../../../infrastructure/security/encryptionHelper";
+import { decryptAndMigrateUserTotpSecret } from "../../../infrastructure/security/secretMigrationHelper";
 import { HashedPassword } from "../../../domain/values/HashedPassword";
 import { RawPassword } from "../../../domain/values/RawPassword";
 
@@ -21,10 +23,25 @@ interface TwoFactorResponseBody {
   };
 }
 
+function verifyUserPassword(passwordHash: string, candidatePassword: unknown): boolean {
+  if (typeof candidatePassword !== "string" || candidatePassword.length === 0) {
+    return false;
+  }
+  const currentHashed = new HashedPassword(passwordHash);
+  try {
+    const rawCandidate = new RawPassword(candidatePassword);
+    return currentHashed.matchesRawPassword(rawCandidate);
+  } catch {
+    return false;
+  }
+}
+
 export default async function handleTwoFactor(
   request: NextApiRequest,
   response: NextApiResponse<TwoFactorResponseBody>
 ): Promise<void> {
+  response.setHeader("Cache-Control", "no-store");
+
   if (request.method !== "POST") {
     response.setHeader("Allow", ["POST"]);
     response.status(405).json({
@@ -34,7 +51,21 @@ export default async function handleTwoFactor(
     return;
   }
 
-  const sessionUser = extractUserFromRequest(request);
+  let sessionUser: ReturnType<typeof extractUserFromRequest> = null;
+  try {
+    sessionUser = extractUserFromRequest(request);
+  } catch (authError: unknown) {
+    const authMessage =
+      authError instanceof Error
+        ? authError.message
+        : "Erro interno de configuração de autenticação.";
+    response.status(500).json({
+      success: false,
+      message: authMessage,
+    });
+    return;
+  }
+
   if (!sessionUser) {
     response.status(401).json({
       success: false,
@@ -48,7 +79,8 @@ export default async function handleTwoFactor(
     extractedUserId = userId;
   });
 
-  const { action, secret, token, currentPassword } = request.body || {};
+  const body = (request.body ?? {}) as Record<string, unknown>;
+  const { action, secret, token, currentPassword } = body;
 
   try {
     const user = await prisma.user.findUnique({
@@ -64,7 +96,24 @@ export default async function handleTwoFactor(
     }
 
     if (action === "SETUP") {
+      if (user.twoFactorEnabled) {
+        response.status(409).json({
+          success: false,
+          message: "A autenticação em duas etapas já está ativa. Desative-a antes de configurar um novo segredo.",
+        });
+        return;
+      }
+
       const generatedSecret = generateBase32Secret(20);
+      const encryptedPendingSecret = encryptSecret(generatedSecret);
+
+      await prisma.user.update({
+        where: { id: extractedUserId },
+        data: {
+          pendingTwoFactorSecret: encryptedPendingSecret,
+        },
+      });
+
       const otpauthUrl = buildOtpAuthUrl(user.email, generatedSecret);
       const qrCodeDataUrl = await QRCode.toDataURL(otpauthUrl, {
         errorCorrectionLevel: "M",
@@ -83,22 +132,68 @@ export default async function handleTwoFactor(
           secret: generatedSecret,
           otpauthUrl,
           qrCodeDataUrl,
-          twoFactorEnabled: user.twoFactorEnabled,
+          twoFactorEnabled: false,
         },
       });
       return;
     }
 
     if (action === "VERIFY_AND_ENABLE") {
-      if (!secret || !token) {
-        response.status(400).json({
+      if (user.twoFactorEnabled) {
+        response.status(409).json({
           success: false,
-          message: "O segredo e o código de verificação de 6 dígitos são obrigatórios.",
+          message: "A autenticação em duas etapas já está ativa.",
         });
         return;
       }
 
-      const isValidToken = verifyTotpCode(String(secret), String(token));
+      if (secret !== undefined) {
+        response.status(400).json({
+          success: false,
+          message: "O parâmetro 'secret' não é aceito; utilize o segredo pendente gerado no SETUP.",
+        });
+        return;
+      }
+
+      if (typeof currentPassword !== "string" || currentPassword.length === 0) {
+        response.status(400).json({
+          success: false,
+          message: "A senha atual é obrigatória para ativar o 2FA.",
+        });
+        return;
+      }
+
+      if (!verifyUserPassword(user.passwordHash, currentPassword)) {
+        response.status(401).json({
+          success: false,
+          message: "Senha atual incorreta.",
+        });
+        return;
+      }
+
+      if (!user.pendingTwoFactorSecret) {
+        response.status(400).json({
+          success: false,
+          message: "Nenhuma configuração pendente de 2FA encontrada. Execute o SETUP primeiro.",
+        });
+        return;
+      }
+
+      if (typeof token !== "string" || token.trim().length === 0) {
+        response.status(400).json({
+          success: false,
+          message: "O código de verificação de 6 dígitos é obrigatório.",
+        });
+        return;
+      }
+
+      const plainPendingSecret = await decryptAndMigrateUserTotpSecret(
+        prisma,
+        extractedUserId,
+        "pendingTwoFactorSecret",
+        user.pendingTwoFactorSecret
+      );
+      const isValidToken = verifyTotpCode(plainPendingSecret, token);
       if (!isValidToken) {
         response.status(400).json({
           success: false,
@@ -111,7 +206,8 @@ export default async function handleTwoFactor(
         where: { id: extractedUserId },
         data: {
           twoFactorEnabled: true,
-          twoFactorSecret: String(secret),
+          twoFactorSecret: encryptSecret(plainPendingSecret),
+          pendingTwoFactorSecret: null,
         },
       });
 
@@ -126,7 +222,7 @@ export default async function handleTwoFactor(
     }
 
     if (action === "DISABLE") {
-      if (!currentPassword) {
+      if (typeof currentPassword !== "string" || currentPassword.length === 0) {
         response.status(400).json({
           success: false,
           message: "A senha atual é obrigatória para desativar o 2FA.",
@@ -134,20 +230,8 @@ export default async function handleTwoFactor(
         return;
       }
 
-      const currentHashed = new HashedPassword(user.passwordHash);
-      let rawCandidate: RawPassword;
-      try {
-        rawCandidate = new RawPassword(String(currentPassword));
-      } catch {
-        response.status(400).json({
-          success: false,
-          message: "Senha atual incorreta.",
-        });
-        return;
-      }
-
-      if (!currentHashed.matchesRawPassword(rawCandidate)) {
-        response.status(400).json({
+      if (!verifyUserPassword(user.passwordHash, currentPassword)) {
+        response.status(401).json({
           success: false,
           message: "Senha atual incorreta.",
         });
@@ -159,6 +243,7 @@ export default async function handleTwoFactor(
         data: {
           twoFactorEnabled: false,
           twoFactorSecret: null,
+          pendingTwoFactorSecret: null,
         },
       });
 
@@ -176,11 +261,11 @@ export default async function handleTwoFactor(
       success: false,
       message: "Ação de 2FA inválida.",
     });
-  } catch (error) {
-    console.error("Erro no processamento de 2FA:", error);
+  } catch (error: unknown) {
+    const detail = error instanceof Error ? error.message : "Erro interno no servidor de 2FA.";
     response.status(500).json({
       success: false,
-      message: "Erro interno no servidor de 2FA.",
+      message: detail,
     });
   }
 }

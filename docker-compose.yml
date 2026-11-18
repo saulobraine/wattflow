@@ -50,6 +50,7 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-wattflow}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-wattflow}?schema=public
       DIRECT_URL: postgresql://${POSTGRES_USER:-wattflow}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-wattflow}?schema=public
       AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET is required}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
       CRON_SECRET_TOKEN: ${CRON_SECRET_TOKEN:?CRON_SECRET_TOKEN is required}
       PORT: 3000
     healthcheck:

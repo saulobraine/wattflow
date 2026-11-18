@@ -3,11 +3,16 @@ import { prisma } from "../../../infrastructure/database/prismaClient";
 import { UserEmail } from "../../../domain/values/UserEmail";
 import { RawPassword } from "../../../domain/values/RawPassword";
 import { HashedPassword } from "../../../domain/values/HashedPassword";
-import { getAuthenticationTokenService, setSessionCookie } from "../../../infrastructure/auth/sessionHelper";
+import {
+  getAuthenticationTokenService,
+  setSessionCookie,
+} from "../../../infrastructure/auth/sessionHelper";
 
 interface LoginResponseBody {
   success: boolean;
   message: string;
+  requiresTwoFactor?: boolean;
+  challengeToken?: string;
   user?: {
     id: string;
     email: string;
@@ -19,13 +24,30 @@ export default async function handleLogin(
   request: NextApiRequest,
   response: NextApiResponse<LoginResponseBody>
 ): Promise<void> {
+  response.setHeader("Cache-Control", "no-store");
+
   if (request.method !== "POST") {
     response.setHeader("Allow", ["POST"]);
     response.status(405).json({ success: false, message: "Método não permitido." });
     return;
   }
 
-  const { email, password } = request.body;
+  let tokenService: ReturnType<typeof getAuthenticationTokenService>;
+  try {
+    tokenService = getAuthenticationTokenService();
+  } catch (authConfigError: unknown) {
+    const errorMessage =
+      authConfigError instanceof Error
+        ? authConfigError.message
+        : "Erro de configuração de autenticação no servidor.";
+    response.status(500).json({
+      success: false,
+      message: errorMessage,
+    });
+    return;
+  }
+
+  const { email, password } = request.body ?? {};
 
   let userEmail: UserEmail;
   let candidatePassword: RawPassword;
@@ -69,12 +91,23 @@ export default async function handleLogin(
     return;
   }
 
-  const tokenService = getAuthenticationTokenService();
+  if (user.twoFactorEnabled) {
+    const challengeToken = tokenService.createTwoFactorChallengeToken(user.id, user.email);
+    response.status(200).json({
+      success: true,
+      requiresTwoFactor: true,
+      challengeToken,
+      message: "Verificação em duas etapas necessária. Informe o código de 6 dígitos do autenticador.",
+    });
+    return;
+  }
+
   const sessionToken = tokenService.createSessionToken(user.id, user.email);
   setSessionCookie(response, sessionToken);
 
   response.status(200).json({
     success: true,
+    requiresTwoFactor: false,
     message: "Autenticação realizada com sucesso.",
     user: {
       id: user.id,

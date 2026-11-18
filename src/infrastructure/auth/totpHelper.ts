@@ -1,8 +1,16 @@
-import { randomBytes, createHmac } from "node:crypto";
+import { randomBytes, createHmac, timingSafeEqual } from "node:crypto";
 
 const BASE32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+const MIN_TOTP_SECRET_BYTES = 16;
+const BASE32_VALID_PATTERN = /^[A-Z2-7]+={0,6}$/;
 
 export function generateBase32Secret(byteLength = 20): string {
+  if (!Number.isInteger(byteLength) || byteLength < MIN_TOTP_SECRET_BYTES) {
+    throw new Error(
+      `O segredo TOTP deve possuir no mínimo ${MIN_TOTP_SECRET_BYTES} bytes de entropia.`
+    );
+  }
+
   const bytes = randomBytes(byteLength);
   let bits = 0;
   let value = 0;
@@ -25,25 +33,29 @@ export function generateBase32Secret(byteLength = 20): string {
 }
 
 export function decodeBase32(input: string): Buffer {
-  if (typeof input !== "string" || input.length > 256) {
-    return Buffer.alloc(0);
+  if (typeof input !== "string") {
+    throw new Error("Segredo TOTP inválido: esperado formato string Base32.");
   }
 
-  let cleaned = input.toUpperCase().replace(/\s+/g, "");
-  while (cleaned.endsWith("=")) {
-    cleaned = cleaned.slice(0, -1);
+  const withoutSpaces = input.trim().replace(/\s+/g, "").toUpperCase();
+  if (withoutSpaces.length === 0 || withoutSpaces.length > 256) {
+    throw new Error("Segredo TOTP Base32 ausente ou excede o tamanho máximo.");
   }
 
+  if (!BASE32_VALID_PATTERN.test(withoutSpaces)) {
+    throw new Error("Segredo TOTP contém caracteres Base32 inválidos.");
+  }
+
+  const cleaned = withoutSpaces.replace(/=+$/, "");
   let bits = 0;
   let value = 0;
   const bytes: number[] = [];
-  const maxIterations = Math.min(cleaned.length, 256);
 
-  for (let i = 0; i < maxIterations; i++) {
+  for (let i = 0; i < cleaned.length; i++) {
     const char = cleaned[i];
     const index = BASE32_ALPHABET.indexOf(char);
     if (index === -1) {
-      continue;
+      throw new Error("Segredo TOTP contém caracteres Base32 inválidos.");
     }
     value = (value << 5) | index;
     bits += 5;
@@ -54,7 +66,14 @@ export function decodeBase32(input: string): Buffer {
     }
   }
 
-  return Buffer.from(bytes);
+  const decodedBuffer = Buffer.from(bytes);
+  if (decodedBuffer.byteLength < MIN_TOTP_SECRET_BYTES) {
+    throw new Error(
+      `Segredo TOTP insuficiente: mínimo de ${MIN_TOTP_SECRET_BYTES} bytes decodificados exigido.`
+    );
+  }
+
+  return decodedBuffer;
 }
 
 export function generateTotpCode(secretBase32: string, stepOffset = 0): string {
@@ -81,15 +100,28 @@ export function generateTotpCode(secretBase32: string, stepOffset = 0): string {
 }
 
 export function verifyTotpCode(secretBase32: string, candidateCode: string): boolean {
+  // Valida o segredo Base32 e entropia >= 16 bytes imediatamente (fail-closed)
+  decodeBase32(secretBase32);
+
+  if (typeof candidateCode !== "string") {
+    return false;
+  }
+
   const normalizedCandidate = candidateCode.trim().replace(/\s/g, "");
   if (!/^\d{6}$/.test(normalizedCandidate)) {
     return false;
   }
 
+  const candidateBuffer = Buffer.from(normalizedCandidate, "utf8");
+
   // Permite tolerância de ±1 ciclo (30s antes ou 30s depois) para compensar desvios de relógio
   for (const offset of [0, -1, 1]) {
     const validCode = generateTotpCode(secretBase32, offset);
-    if (validCode === normalizedCandidate) {
+    const validBuffer = Buffer.from(validCode, "utf8");
+    if (
+      candidateBuffer.byteLength === validBuffer.byteLength &&
+      timingSafeEqual(candidateBuffer, validBuffer)
+    ) {
       return true;
     }
   }
@@ -98,6 +130,8 @@ export function verifyTotpCode(secretBase32: string, candidateCode: string): boo
 }
 
 export function buildOtpAuthUrl(email: string, secretBase32: string): string {
+  decodeBase32(secretBase32);
+  const normalizedSecret = secretBase32.trim().replace(/\s+/g, "").toUpperCase().replace(/=+$/, "");
   const cleanEmail = encodeURIComponent(email);
-  return `otpauth://totp/WattFlow:${cleanEmail}?secret=${secretBase32}&issuer=WattFlow&algorithm=SHA1&digits=6&period=30`;
+  return `otpauth://totp/WattFlow:${cleanEmail}?secret=${normalizedSecret}&issuer=WattFlow&algorithm=SHA1&digits=6&period=30`;
 }
