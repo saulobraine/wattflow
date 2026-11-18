@@ -12,10 +12,10 @@ WORKDIR /app
 FROM base AS deps
 WORKDIR /app
 
-COPY package.json package-lock.json* ./
+COPY package.json package-lock.json ./
 COPY prisma ./prisma/
 
-RUN npm install
+RUN npm ci
 
 # 3. Compilação da aplicação Next.js (Standalone)
 FROM base AS builder
@@ -48,14 +48,14 @@ RUN apk add --no-cache curl openssl && \
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
-# Configura permissões do cache do Next.js
-RUN mkdir -p .next && chown -R nextjs:nodejs .next
-
-# Copia os artefatos compilados standalone, estáticos e schema prisma
+# Copia os artefatos compilados standalone, estáticos e schema prisma (root:root, somente leitura para nextjs)
 COPY --from=builder /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/prisma ./prisma
+
+# Mantém gravável para o usuário nextjs apenas o diretório de cache do Next.js
+RUN mkdir -p .next/cache && chown -R nextjs:nodejs .next/cache
 
 # Script de entrada para sincronização automática do banco
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh

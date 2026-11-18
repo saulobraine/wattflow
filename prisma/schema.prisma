@@ -10,16 +10,19 @@ generator client {
 }
 
 model User {
-  id                String             @id @default(uuid())
-  email             String             @unique
-  passwordHash      String
-  fullName          String?
-  twoFactorEnabled  Boolean            @default(false)
-  twoFactorSecret   String?
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  userConfiguration UserConfiguration?
-  passkeys          UserPasskey[]
+  id                      String             @id @default(uuid())
+  email                   String             @unique
+  passwordHash            String
+  fullName                String?
+  twoFactorEnabled        Boolean            @default(false)
+  twoFactorSecret         String?
+  pendingTwoFactorSecret  String?
+  lastTotpCounter         Int?
+  tokenVersion            Int                @default(0)
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
+  userConfiguration       UserConfiguration?
+  passkeys                UserPasskey[]
 
   @@map("users")
 }

@@ -10,7 +10,7 @@ services:
       - wattflow_isolated_net
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-wattflow}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-wattflow_password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       POSTGRES_DB: ${POSTGRES_DB:-wattflow}
     # Sem exposição de portas no host: o banco só aceita conexões da rede interna wattflow_isolated_net
     # Caso precise inspecionar via tunnel SSH local, descomente a linha abaixo:
@@ -47,10 +47,11 @@ services:
       - "${APP_BIND_IP:-127.0.0.1}:${APP_HOST_PORT:-3050}:3000"
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://${POSTGRES_USER:-wattflow}:${POSTGRES_PASSWORD:-wattflow_password}@postgres:5432/${POSTGRES_DB:-wattflow}?schema=public
-      DIRECT_URL: postgresql://${POSTGRES_USER:-wattflow}:${POSTGRES_PASSWORD:-wattflow_password}@postgres:5432/${POSTGRES_DB:-wattflow}?schema=public
-      AUTH_SECRET: ${AUTH_SECRET:-wattflow_secure_production_auth_secret_key_random_64_bits_abc123}
-      CRON_SECRET_TOKEN: ${CRON_SECRET_TOKEN:-wattflow_secret_token_123}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-wattflow}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-wattflow}?schema=public
+      DIRECT_URL: postgresql://${POSTGRES_USER:-wattflow}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-wattflow}?schema=public
+      AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET is required}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
+      CRON_SECRET_TOKEN: ${CRON_SECRET_TOKEN:?CRON_SECRET_TOKEN is required}
       PORT: 3000
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
@@ -67,9 +68,12 @@ services:
   # 3. Agendador Automático do Cron Job (Sync Periódico de Energia)
   # -------------------------------------------------------------------------
   cron-scheduler:
-    image: alpine:latest
+    image: alpine:3.20
     container_name: wattflow_cron
     restart: unless-stopped
+    user: "65534:65534"
+    security_opt:
+      - no-new-privileges:true
     networks:
       - wattflow_isolated_net
     depends_on:
@@ -77,7 +81,7 @@ services:
         condition: service_healthy
     environment:
       SYNC_INTERVAL_SECONDS: ${SYNC_INTERVAL_SECONDS:-2}
-      CRON_SECRET_TOKEN: ${CRON_SECRET_TOKEN:-wattflow_secret_token_123}
+      CRON_SECRET_TOKEN: ${CRON_SECRET_TOKEN:?CRON_SECRET_TOKEN is required}
     command:
       - /bin/sh
       - -c
@@ -86,7 +90,7 @@ services:
         while true; do
           sleep $${SYNC_INTERVAL_SECONDS:-2}
           echo "Disparando sincronizacao de energia..."
-          wget -q -O - "http://app:3000/api/sync?token=$${CRON_SECRET_TOKEN}" || echo "Falha ao acionar rota /api/sync"
+          wget -q -O - --header="Authorization: Bearer $${CRON_SECRET_TOKEN}" "http://app:3000/api/sync" || echo "Falha ao acionar rota /api/sync"
           echo ""
         done
     deploy:

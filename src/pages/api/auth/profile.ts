@@ -1,7 +1,22 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../../infrastructure/database/prismaClient";
-import { extractUserFromRequest } from "../../../infrastructure/auth/sessionHelper";
+import {
+  enforceCsrfProtection,
+  extractUserFromRequest,
+  getAuthenticationTokenService,
+  setSessionCookie,
+} from "../../../infrastructure/auth/sessionHelper";
 import { UserEmail } from "../../../domain/values/UserEmail";
+import { HashedPassword } from "../../../domain/values/HashedPassword";
+import {
+  checkRateLimit,
+  extractClientIp,
+  sendRateLimitExceeded,
+} from "../../../infrastructure/security/rateLimiter";
+import { profilePatchBodySchema } from "../../../infrastructure/security/apiSchemas";
+
+const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
+const MAX_EMAIL_CHANGE_PER_USER = 5;
 
 interface ProfileResponseBody {
   success: boolean;
@@ -26,13 +41,35 @@ export default async function handleProfile(
   request: NextApiRequest,
   response: NextApiResponse<ProfileResponseBody>
 ): Promise<void> {
-  const sessionUser = extractUserFromRequest(request);
+  response.setHeader("Cache-Control", "no-store");
+
+  let sessionUser: Awaited<ReturnType<typeof extractUserFromRequest>> = null;
+  try {
+    sessionUser = await extractUserFromRequest(request);
+  } catch (authError: unknown) {
+    const authMessage =
+      authError instanceof Error
+        ? authError.message
+        : "Erro interno de configuração de autenticação.";
+    response.status(500).json({
+      success: false,
+      message: authMessage,
+    });
+    return;
+  }
+
   if (!sessionUser) {
     response.status(401).json({
       success: false,
       message: "Usuário não autenticado.",
     });
     return;
+  }
+
+  if (request.method === "PATCH") {
+    if (!enforceCsrfProtection(request, response)) {
+      return;
+    }
   }
 
   let extractedUserId = "";
@@ -95,19 +132,46 @@ export default async function handleProfile(
   }
 
   if (request.method === "PATCH") {
-    const { email, fullName } = request.body || {};
+    const parsedBody = profilePatchBodySchema.safeParse(request.body ?? {});
+    if (!parsedBody.success) {
+      const issueMessage = parsedBody.error.issues[0]?.message || "Dados de perfil inválidos.";
+      response.status(400).json({
+        success: false,
+        message: issueMessage,
+      });
+      return;
+    }
+
+    const { email, fullName, currentPassword } = parsedBody.data;
 
     try {
-      const dataToUpdate: { email?: string; fullName?: string | null } = {};
+      const currentUser = await prisma.user.findUnique({
+        where: { id: extractedUserId },
+      });
+
+      if (!currentUser) {
+        response.status(404).json({
+          success: false,
+          message: "Usuário não encontrado.",
+        });
+        return;
+      }
+
+      const dataToUpdate: {
+        email?: string;
+        fullName?: string | null;
+        tokenVersion?: { increment: number };
+      } = {};
+      let isEmailChanging = false;
 
       if (fullName !== undefined) {
-        dataToUpdate.fullName = typeof fullName === "string" ? fullName.trim() : null;
+        dataToUpdate.fullName = typeof fullName === "string" ? fullName : null;
       }
 
       if (email !== undefined) {
         let validatedEmail = "";
         try {
-          const userEmail = new UserEmail(String(email));
+          const userEmail = new UserEmail(email);
           userEmail.transferEmail((e) => {
             validatedEmail = e;
           });
@@ -119,20 +183,52 @@ export default async function handleProfile(
           return;
         }
 
-        // Verifica se o novo e-mail já pertence a outro usuário
-        const existingWithEmail = await prisma.user.findUnique({
-          where: { email: validatedEmail },
-        });
+        if (validatedEmail !== currentUser.email) {
+          const clientIp = extractClientIp(request);
+          const rateCheck = checkRateLimit(
+            `profile-email:${extractedUserId}:${clientIp}`,
+            MAX_EMAIL_CHANGE_PER_USER,
+            FIFTEEN_MINUTES_MS
+          );
+          if (!rateCheck.allowed) {
+            sendRateLimitExceeded(response, rateCheck.retryAfterSeconds);
+            return;
+          }
 
-        if (existingWithEmail && existingWithEmail.id !== extractedUserId) {
-          response.status(409).json({
-            success: false,
-            message: "Este endereço de e-mail já está em uso por outra conta.",
+          if (typeof currentPassword !== "string" || currentPassword.length === 0) {
+            response.status(400).json({
+              success: false,
+              message: "A senha atual é obrigatória para alterar o endereço de e-mail.",
+            });
+            return;
+          }
+
+          const currentHashed = new HashedPassword(currentUser.passwordHash);
+          const isPasswordValid = await currentHashed.matchesPlaintextCandidate(currentPassword);
+          if (!isPasswordValid) {
+            response.status(401).json({
+              success: false,
+              message: "Senha atual incorreta.",
+            });
+            return;
+          }
+
+          const existingWithEmail = await prisma.user.findUnique({
+            where: { email: validatedEmail },
           });
-          return;
-        }
 
-        dataToUpdate.email = validatedEmail;
+          if (existingWithEmail && existingWithEmail.id !== extractedUserId) {
+            response.status(409).json({
+              success: false,
+              message: "Este endereço de e-mail já está em uso por outra conta.",
+            });
+            return;
+          }
+
+          dataToUpdate.email = validatedEmail;
+          dataToUpdate.tokenVersion = { increment: 1 };
+          isEmailChanging = true;
+        }
       }
 
       const updatedUser = await prisma.user.update({
@@ -144,6 +240,18 @@ export default async function handleProfile(
           },
         },
       });
+
+      if (isEmailChanging) {
+        const nextTokenVersion = updatedUser.tokenVersion ?? (currentUser.tokenVersion ?? 0) + 1;
+        const tokenService = getAuthenticationTokenService();
+        const rotatedSessionToken = tokenService.createSessionToken(
+          updatedUser.id,
+          updatedUser.email,
+          7,
+          nextTokenVersion
+        );
+        setSessionCookie(response, rotatedSessionToken);
+      }
 
       response.status(200).json({
         success: true,
