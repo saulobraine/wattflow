@@ -11,7 +11,10 @@ export class UserEmail {
 
   constructor(emailCandidate: string) {
     const trimmed = emailCandidate.trim().toLowerCase();
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (trimmed.length > 254) {
+      throw new Error("Formato de e-mail inválido.");
+    }
+    const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
     if (!emailRegex.test(trimmed)) {
       throw new Error("Formato de e-mail inválido.");
     }
