@@ -107,12 +107,17 @@ export class NotificationDispatcher {
     htmlText: string
   ): Promise<{ isSuccess: boolean; errorMessage?: string }> {
     try {
-      const endpoint = `https://api.telegram.org/bot${botToken}/sendMessage`;
+      const sanitizedToken = botToken.trim();
+      if (!/^[0-9]+:[a-zA-Z0-9_-]+$/.test(sanitizedToken)) {
+        return { isSuccess: false, errorMessage: "Token do bot do Telegram inválido." };
+      }
+
+      const endpoint = `https://api.telegram.org/bot${encodeURIComponent(sanitizedToken)}/sendMessage`;
       const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          chat_id: chatId,
+          chat_id: chatId.trim(),
           text: htmlText,
           parse_mode: "HTML",
         }),
@@ -140,10 +145,12 @@ export class NotificationDispatcher {
   ): Promise<{ isSuccess: boolean; errorMessage?: string }> {
     try {
       const cleanPhone = phone.replace(/[^0-9]/g, "");
-      const encodedText = encodeURIComponent(plainText);
-      const url = `https://api.callmebot.com/whatsapp.php?phone=${cleanPhone}&text=${encodedText}&apikey=${apiKey}`;
+      const callMeBotUrl = new URL("https://api.callmebot.com/whatsapp.php");
+      callMeBotUrl.searchParams.set("phone", cleanPhone);
+      callMeBotUrl.searchParams.set("text", plainText);
+      callMeBotUrl.searchParams.set("apikey", apiKey.trim());
 
-      const response = await fetch(url, { method: "GET" });
+      const response = await fetch(callMeBotUrl.toString(), { method: "GET" });
       const textResponse = await response.text();
 
       const isSuccessful =
