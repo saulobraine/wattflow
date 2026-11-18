@@ -20,8 +20,8 @@ export class AuthenticationTokenService {
   private readonly secretKey: string;
 
   constructor(secretKey: string) {
-    if (secretKey.length < 16) {
-      throw new Error("O segredo de autenticação deve possuir no mínimo 16 caracteres.");
+    if (!secretKey || secretKey.trim().length < 32) {
+      throw new Error("O segredo de autenticação deve possuir no mínimo 32 caracteres.");
     }
     this.secretKey = secretKey;
   }

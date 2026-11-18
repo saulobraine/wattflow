@@ -7,6 +7,7 @@ import { DeviceSerialNumber } from "../../domain/values/DeviceSerialNumber";
 import { EcoFlowCredentials } from "../../domain/models/EcoFlowCredentials";
 import { EcoFlowHttpClient } from "../../infrastructure/http/EcoFlowHttpClient";
 import { EcoFlowTestUseCase, EcoFlowTestResult } from "../../application/EcoFlowTestUseCase";
+import { resolveEcoFlowEndpointRegion } from "../../infrastructure/security/ecoflowAllowlist";
 
 interface TestControlRequestBody {
   actionTarget: "ECOFLOW_ON" | "ECOFLOW_OFF" | "ECOFLOW_TELEMETRY";
@@ -35,7 +36,21 @@ export default async function handleTestControl(
     return;
   }
 
-  const sessionUser = extractUserFromRequest(request);
+  let sessionUser: ReturnType<typeof extractUserFromRequest> = null;
+  try {
+    sessionUser = extractUserFromRequest(request);
+  } catch (authError: unknown) {
+    const authMessage =
+      authError instanceof Error
+        ? authError.message
+        : "Erro interno na configuração de autenticação do servidor.";
+    response.status(500).json({
+      success: false,
+      message: authMessage,
+    });
+    return;
+  }
+
   if (!sessionUser) {
     response.status(401).json({
       success: false,
@@ -61,19 +76,51 @@ export default async function handleTestControl(
     return;
   }
 
+  if (body.ecoflowEndpointRegion !== undefined && typeof body.ecoflowEndpointRegion !== "string") {
+    response.status(400).json({
+      success: false,
+      message:
+        "Região de endpoint EcoFlow inválida. Utilize apenas https://api.ecoflow.com ou https://api-e.ecoflow.com.",
+    });
+    return;
+  }
+
   const savedConfiguration = await prisma.userConfiguration.findUnique({
     where: { userId: extractedUserId },
   });
 
   const isMaskedSecret = (value?: string) => !value || value.includes("••••");
 
-  const effectiveEcoFlowKey = body.ecoflowAccessKey?.trim() || savedConfiguration?.ecoflowAccessKey || "";
-  const effectiveEcoFlowSecret = isMaskedSecret(body.ecoflowAccessSecret)
+  const effectiveEcoFlowKey =
+    (typeof body.ecoflowAccessKey === "string" ? body.ecoflowAccessKey.trim() : "") ||
+    savedConfiguration?.ecoflowAccessKey ||
+    "";
+  const effectiveEcoFlowSecret = isMaskedSecret(
+    typeof body.ecoflowAccessSecret === "string" ? body.ecoflowAccessSecret : undefined
+  )
     ? savedConfiguration?.ecoflowAccessSecret || ""
-    : body.ecoflowAccessSecret?.trim() || "";
-  const effectiveEcoFlowSerial = body.ecoflowSerialNumber?.trim() || savedConfiguration?.ecoflowSerialNumber || "";
-  const effectiveEcoFlowRegion =
-    body.ecoflowEndpointRegion?.trim() || savedConfiguration?.ecoflowEndpointRegion || "https://api.ecoflow.com";
+    : (typeof body.ecoflowAccessSecret === "string" ? body.ecoflowAccessSecret.trim() : "");
+  const effectiveEcoFlowSerial =
+    (typeof body.ecoflowSerialNumber === "string" ? body.ecoflowSerialNumber.trim() : "") ||
+    savedConfiguration?.ecoflowSerialNumber ||
+    "";
+
+  const candidateRegion =
+    typeof body.ecoflowEndpointRegion === "string" && body.ecoflowEndpointRegion !== ""
+      ? body.ecoflowEndpointRegion
+      : savedConfiguration?.ecoflowEndpointRegion;
+
+  let effectiveEcoFlowRegion: string;
+  try {
+    effectiveEcoFlowRegion = resolveEcoFlowEndpointRegion(candidateRegion);
+  } catch {
+    response.status(400).json({
+      success: false,
+      message:
+        "Região de endpoint EcoFlow inválida. Utilize apenas https://api.ecoflow.com ou https://api-e.ecoflow.com.",
+    });
+    return;
+  }
 
   const hasCompleteEcoFlow = effectiveEcoFlowKey && effectiveEcoFlowSecret && effectiveEcoFlowSerial;
 

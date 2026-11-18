@@ -5,6 +5,10 @@ import { EcoFlowCredentials } from "../../domain/models/EcoFlowCredentials";
 import { DeviceSerialNumber } from "../../domain/values/DeviceSerialNumber";
 import { AccessKey } from "../../domain/values/AccessKey";
 import { AccessSecret } from "../../domain/values/AccessSecret";
+import {
+  resolveEcoFlowEndpointRegion,
+  validateEcoFlowMqttBroker,
+} from "../security/ecoflowAllowlist";
 
 export interface LiveTelemetrySnapshot {
   batteryPercentage: number;
@@ -76,7 +80,7 @@ export class EcoFlowMqttStreamService {
     const accessSecret = new AccessSecret(activeConfiguration.ecoflowAccessSecret);
     const credentials = new EcoFlowCredentials(accessKey, accessSecret);
     const serialNumber = new DeviceSerialNumber(activeConfiguration.ecoflowSerialNumber);
-    const baseApiUrl = activeConfiguration.ecoflowEndpointRegion || "https://api.ecoflow.com";
+    const baseApiUrl = resolveEcoFlowEndpointRegion(activeConfiguration.ecoflowEndpointRegion);
 
     await this.startStream({
       credentials,
@@ -107,13 +111,12 @@ export class EcoFlowMqttStreamService {
         rawSerialNumber = serialString;
       });
 
-      const httpClient = new EcoFlowHttpClient(streamConfig.credentials, streamConfig.baseApiUrl);
+      const validatedApiUrl = resolveEcoFlowEndpointRegion(streamConfig.baseApiUrl);
+      const httpClient = new EcoFlowHttpClient(streamConfig.credentials, validatedApiUrl);
       const certification = await httpClient.fetchMqttCertification();
 
-      const brokerProtocol = certification.protocol || "mqtts";
-      const brokerPort = certification.port || 8883;
-      const brokerHost = certification.url || "mqtt.ecoflow.com";
-      const brokerUrl = `${brokerProtocol}://${brokerHost}:${brokerPort}`;
+      const validatedBroker = validateEcoFlowMqttBroker(certification);
+      const brokerUrl = `${validatedBroker.protocol}://${validatedBroker.host}:${validatedBroker.port}`;
 
       const targetTopic = `/open/${certification.certificateAccount}/${rawSerialNumber}/quota`;
       this.currentSubscribedTopic = targetTopic;
@@ -138,6 +141,7 @@ export class EcoFlowMqttStreamService {
       this.isConnecting = false;
       const detail = connectionError instanceof Error ? connectionError.message : "falha desconhecida";
       console.error("[EcoFlow MQTT] Falha ao inicializar stream:", detail);
+      throw connectionError;
     }
   }
 

@@ -1,6 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../infrastructure/database/prismaClient";
 import { extractUserFromRequest } from "../../infrastructure/auth/sessionHelper";
+import {
+  isAllowedEcoFlowEndpointRegion,
+  resolveEcoFlowEndpointRegion,
+} from "../../infrastructure/security/ecoflowAllowlist";
 
 interface SettingsResponseBody {
   success: boolean;
@@ -25,7 +29,21 @@ export default async function handleSettings(
   request: NextApiRequest,
   response: NextApiResponse<SettingsResponseBody>
 ): Promise<void> {
-  const sessionUser = extractUserFromRequest(request);
+  let sessionUser: ReturnType<typeof extractUserFromRequest> = null;
+  try {
+    sessionUser = extractUserFromRequest(request);
+  } catch (authError: unknown) {
+    const authMessage =
+      authError instanceof Error
+        ? authError.message
+        : "Erro interno na configuração de autenticação do servidor.";
+    response.status(500).json({
+      success: false,
+      message: authMessage,
+    });
+    return;
+  }
+
   if (!sessionUser) {
     response.status(401).json({
       success: false,
@@ -94,6 +112,21 @@ export default async function handleSettings(
       return;
     }
 
+    if (
+      ecoflowEndpointRegion !== undefined &&
+      ecoflowEndpointRegion !== "" &&
+      !isAllowedEcoFlowEndpointRegion(ecoflowEndpointRegion)
+    ) {
+      response.status(400).json({
+        success: false,
+        message:
+          "Região de endpoint EcoFlow inválida. Utilize apenas https://api.ecoflow.com ou https://api-e.ecoflow.com.",
+      });
+      return;
+    }
+
+    const validatedEndpointRegion = resolveEcoFlowEndpointRegion(ecoflowEndpointRegion);
+
     const isMasked = (value?: string) => !value || value.includes("••••");
 
     const existingConfig = await prisma.userConfiguration.findUnique({
@@ -115,7 +148,7 @@ export default async function handleSettings(
     await prisma.userConfiguration.upsert({
       where: { userId: extractedUserId },
       update: {
-        ecoflowEndpointRegion: ecoflowEndpointRegion || "https://api.ecoflow.com",
+        ecoflowEndpointRegion: validatedEndpointRegion,
         ecoflowAccessKey: ecoflowAccessKey.trim(),
         ecoflowAccessSecret: finalEcoFlowSecret,
         ecoflowSerialNumber: ecoflowSerialNumber.trim(),
@@ -127,7 +160,7 @@ export default async function handleSettings(
       },
       create: {
         userId: extractedUserId,
-        ecoflowEndpointRegion: ecoflowEndpointRegion || "https://api.ecoflow.com",
+        ecoflowEndpointRegion: validatedEndpointRegion,
         ecoflowAccessKey: ecoflowAccessKey.trim(),
         ecoflowAccessSecret: finalEcoFlowSecret,
         ecoflowSerialNumber: ecoflowSerialNumber.trim(),

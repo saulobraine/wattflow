@@ -3,6 +3,7 @@ import { DeviceSerialNumber } from "../../domain/values/DeviceSerialNumber";
 import { EcoFlowCredentials } from "../../domain/models/EcoFlowCredentials";
 import { SolarGenerationWatts } from "../../domain/values/SolarGenerationWatts";
 import { EcoFlowSignatureCalculator } from "../../domain/services/EcoFlowSignatureCalculator";
+import { validateEcoFlowMqttBroker } from "../security/ecoflowAllowlist";
 
 interface EcoFlowQuotaResponseJson {
   code: string;
@@ -162,16 +163,25 @@ export class EcoFlowHttpClient {
     }
 
     const data = responseJson.data;
-    const rawPort = data.port;
-    const parsedPort = typeof rawPort === "string" ? parseInt(rawPort, 10) : (rawPort ?? 8883);
-    const resolvedPort = isNaN(parsedPort) ? 8883 : parsedPort;
+    const validatedBroker = validateEcoFlowMqttBroker({
+      protocol: data.protocol,
+      url: data.url,
+      port: data.port,
+    });
+
+    const rawAccount = typeof data.certificateAccount === "string" ? data.certificateAccount.trim() : "";
+    const rawPassword = typeof data.certificatePassword === "string" ? data.certificatePassword.trim() : "";
+
+    if (!rawAccount || !rawPassword) {
+      throw new Error("[EcoFlow] Credenciais de certificação MQTT ausentes ou vazias na resposta da API.");
+    }
 
     return {
-      url: data.url ?? "mqtt.ecoflow.com",
-      port: resolvedPort,
-      certificateAccount: data.certificateAccount ?? "",
-      certificatePassword: data.certificatePassword ?? "",
-      protocol: data.protocol ?? "mqtts",
+      url: validatedBroker.host,
+      port: validatedBroker.port,
+      certificateAccount: rawAccount,
+      certificatePassword: data.certificatePassword as string,
+      protocol: validatedBroker.protocol,
     };
   }
 

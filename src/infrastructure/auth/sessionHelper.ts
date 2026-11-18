@@ -5,8 +5,15 @@ import { UserIdentity } from "../../domain/models/UserIdentity";
 
 export const SESSION_COOKIE_NAME = "wattflow_session";
 
+const MIN_AUTH_SECRET_LENGTH = 32;
+
 export function getAuthenticationTokenService(): AuthenticationTokenService {
-  const secret = process.env.AUTH_SECRET || "wattflow_secure_authentication_secret_key_32chars";
+  const secret = process.env.AUTH_SECRET;
+  if (!secret || secret.trim().length < MIN_AUTH_SECRET_LENGTH) {
+    throw new Error(
+      `Variável de ambiente AUTH_SECRET obrigatória ausente ou com menos de ${MIN_AUTH_SECRET_LENGTH} caracteres.`
+    );
+  }
   return new AuthenticationTokenService(secret);
 }
 

@@ -10,6 +10,8 @@ interface SyncApiResponseData {
   data?: SyncExecutionResult | SyncExecutionResult[];
 }
 
+const MIN_CRON_SECRET_LENGTH = 32;
+
 export default async function handleSync(
   request: NextApiRequest,
   response: NextApiResponse<SyncApiResponseData>
@@ -24,17 +26,47 @@ export default async function handleSync(
     return;
   }
 
-  const sessionUser = extractUserFromRequest(request);
   const configuredCronSecret = process.env.CRON_SECRET_TOKEN;
-  const authorizationHeader = request.headers.authorization;
-  const bearerExpected = `Bearer ${configuredCronSecret}`;
-  const queryToken = request.query.token;
+  const hasValidCronSecret = Boolean(
+    configuredCronSecret && configuredCronSecret.trim().length >= MIN_CRON_SECRET_LENGTH
+  );
 
-  const isCronAuthorized =
-    Boolean(configuredCronSecret) &&
-    (authorizationHeader === bearerExpected || queryToken === configuredCronSecret);
+  let isCronAuthorized = false;
+  if (hasValidCronSecret) {
+    const authorizationHeader = request.headers.authorization;
+    const bearerExpected = `Bearer ${configuredCronSecret}`;
+    const rawQueryToken = request.query.token;
+    const queryToken = Array.isArray(rawQueryToken) ? rawQueryToken[0] : rawQueryToken;
+    isCronAuthorized =
+      authorizationHeader === bearerExpected || queryToken === configuredCronSecret;
+  }
+
+  let sessionUser: ReturnType<typeof extractUserFromRequest> = null;
+  if (!isCronAuthorized) {
+    try {
+      sessionUser = extractUserFromRequest(request);
+    } catch (authError: unknown) {
+      const authMessage =
+        authError instanceof Error
+          ? authError.message
+          : "Erro interno na configuração de autenticação do servidor.";
+      response.status(500).json({
+        success: false,
+        message: authMessage,
+      });
+      return;
+    }
+  }
 
   if (!sessionUser && !isCronAuthorized) {
+    if (!hasValidCronSecret) {
+      response.status(500).json({
+        success: false,
+        message: "Variável de ambiente CRON_SECRET_TOKEN obrigatória não configurada ou com menos de 32 caracteres.",
+      });
+      return;
+    }
+
     response.status(401).json({
       success: false,
       message: "Não autorizado. Forneça o token do Cron ou realize login na plataforma.",
