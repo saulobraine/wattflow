@@ -37,7 +37,16 @@ jobs:
             fi
             cd "$TARGET_DIR"
 
+            # Configurar safe.directory para evitar bloqueio por dono diferente (root vs site-user)
+            git config --global --add safe.directory "$TARGET_DIR"
+
             # 2. Atualizar repositório Git com a branch main
+            if [ ! -d ".git" ]; then
+              echo "📦 Repositório git não encontrado em $TARGET_DIR. Clonando..."
+              git init -b main
+              git remote add origin https://github.com/saulobraine/wattflow.git || git remote set-url origin https://github.com/saulobraine/wattflow.git
+            fi
+
             echo "📥 Atualizando código fonte com git pull origin main..."
             git fetch origin main
             git reset --hard origin/main
