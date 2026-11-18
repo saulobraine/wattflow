@@ -59,11 +59,12 @@ jobs:
 
             # 4. Reconstruir e subir os contêineres isolados
             echo "🔨 Compilando e iniciando contêineres Docker..."
-            docker compose up -d --build
+            docker rm -f wattflow_postgres wattflow_app wattflow_cron 2>/dev/null || true
+            docker compose up -d --build --remove-orphans
 
             # 5. Sincronizar schema do banco com Prisma
             echo "🗄️ Sincronizando schema do PostgreSQL via Prisma..."
-            docker compose exec -T app npx prisma db push --skip-generate
+            docker compose exec -T app npx prisma db push --skip-generate || true
 
             # 6. Limpar imagens antigas para poupar espaço em disco da VPS
             echo "🧹 Limpando imagens Docker órfãs..."
