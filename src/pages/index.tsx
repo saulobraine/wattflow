@@ -314,9 +314,9 @@ export default function DashboardPage() {
 
               <div className="text-sm font-semibold text-slate-200 mt-1">
                 {isSolarBatteryMode
-                  ? "EcoFlow AC Ligada &bull; ATS no Inversor"
+                  ? "EcoFlow AC Ligada • ATS no Inversor"
                   : isGridMode
-                  ? "EcoFlow AC Desligada &bull; ATS na Rede"
+                  ? "EcoFlow AC Desligada • ATS na Rede"
                   : "Aguardando Leitura"}
               </div>
               <p className="text-xs text-slate-400 mt-1">

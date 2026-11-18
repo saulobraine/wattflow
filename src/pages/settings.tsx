@@ -760,12 +760,12 @@ export default function SettingsPage() {
                 <span>{testFeedback.summary}</span>
               </div>
               <div className="text-slate-300 pl-6 border-l-2 border-slate-700/60 mt-2 space-y-1">
-                <div>&bull; EcoFlow: {testFeedback.ecoflowMessage}</div>
+                <div>• EcoFlow: {testFeedback.ecoflowMessage}</div>
                 {testFeedback.batteryPercentage !== undefined && (
-                  <div>&bull; Nível de Bateria: {testFeedback.batteryPercentage}%</div>
+                  <div>• Nível de Bateria: {testFeedback.batteryPercentage}%</div>
                 )}
                 {testFeedback.solarWatts !== undefined && (
-                  <div>&bull; Potência Solar: {testFeedback.solarWatts}W</div>
+                  <div>• Potência Solar: {testFeedback.solarWatts}W</div>
                 )}
               </div>
             </div>
