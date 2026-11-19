@@ -363,7 +363,7 @@ export default function SettingsPage() {
         {/* Formulário Principal */}
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* 1. EcoFlow Developer Open API */}
-          <div className="animate-card stagger-2 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-5">
+          <div className="animate-card stagger-2 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-5">
             <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
               <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
                 <Cpu className="w-5 h-5" aria-hidden="true" />
@@ -408,7 +408,7 @@ export default function SettingsPage() {
               </div>
 
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-1 sm:gap-2">
                   <label htmlFor="ecoflow-secret-key-input" className="text-xs font-semibold text-slate-300">
                     Secret Key
                   </label>
@@ -456,8 +456,8 @@ export default function SettingsPage() {
           </div>
 
           {/* 2. Notificações Telegram & WhatsApp (Separados) */}
-          <div className="animate-card stagger-3 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+          <div className="animate-card stagger-3 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-cyan-500/10 text-cyan-400">
                   <Bell className="w-5 h-5" aria-hidden="true" />
@@ -470,7 +470,7 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <label htmlFor="notifications-active-checkbox" className="flex items-center gap-2 cursor-pointer group">
+              <label htmlFor="notifications-active-checkbox" className="flex items-center gap-2 cursor-pointer group self-start sm:self-auto">
                 <span className="text-xs font-semibold text-slate-300 group-hover:text-cyan-300 transition-colors">
                   Notificações Ativas
                 </span>
@@ -485,7 +485,7 @@ export default function SettingsPage() {
             </div>
 
             {/* Subseção Telegram com Botão de Teste Próprio */}
-            <div className="space-y-4 p-5 rounded-xl bg-slate-950 border border-sky-900/30 transition-all hover:border-sky-850">
+            <div className="space-y-4 p-4 sm:p-5 rounded-xl bg-slate-950 border border-sky-900/30 transition-all hover:border-sky-850">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Send className="w-4 h-4 text-sky-400" aria-hidden="true" />
@@ -502,7 +502,7 @@ export default function SettingsPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center justify-between gap-1 sm:gap-2">
                     <label htmlFor="telegram-token-input" className="text-xs font-semibold text-slate-300">
                       Telegram Bot Token
                     </label>
@@ -524,7 +524,7 @@ export default function SettingsPage() {
                     }
                     value={telegramBotToken}
                     onChange={(e) => setTelegramBotToken(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-xs text-slate-200 focus:outline-none focus:border-sky-500 font-mono transition-colors"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-sky-500 font-mono transition-colors"
                   />
                 </div>
                 <div className="space-y-1">
@@ -537,7 +537,7 @@ export default function SettingsPage() {
                     placeholder="Ex: 987654321 ou -100123456"
                     value={telegramChatId}
                     onChange={(e) => setTelegramChatId(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-xs text-slate-200 focus:outline-none focus:border-sky-500 font-mono transition-colors"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-sky-500 font-mono transition-colors"
                   />
                 </div>
               </div>
@@ -552,7 +552,7 @@ export default function SettingsPage() {
                   disabled={isTestingTelegram || (!telegramBotToken && !hasTelegramBotToken) || !telegramChatId}
                   onClick={handleTestTelegram}
                   aria-label="Testar envio de notificação no Telegram"
-                  className="w-full sm:w-auto py-2 px-4 rounded-xl font-semibold text-xs bg-sky-950 hover:bg-sky-900/90 active:scale-95 text-sky-200 border border-sky-700/60 transition-all duration-150 flex items-center justify-center gap-2 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                  className="w-full sm:w-auto py-2.5 px-4 rounded-xl font-semibold text-xs bg-sky-950 hover:bg-sky-900/90 active:scale-95 text-sky-200 border border-sky-700/60 transition-all duration-150 flex items-center justify-center gap-2 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
                 >
                   {isTestingTelegram ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin text-sky-400" aria-hidden="true" />
@@ -584,7 +584,7 @@ export default function SettingsPage() {
             </div>
 
             {/* Subseção WhatsApp com Botão de Teste Próprio */}
-            <div className="space-y-4 p-5 rounded-xl bg-slate-950 border border-emerald-900/30 transition-all hover:border-emerald-850">
+            <div className="space-y-4 p-4 sm:p-5 rounded-xl bg-slate-950 border border-emerald-900/30 transition-all hover:border-emerald-850">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <MessageSquare className="w-4 h-4 text-emerald-400" aria-hidden="true" />
@@ -610,11 +610,11 @@ export default function SettingsPage() {
                     placeholder="Ex: +5511999999999"
                     value={whatsappPhoneNumber}
                     onChange={(e) => setWhatsappPhoneNumber(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-mono transition-colors"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-emerald-500 font-mono transition-colors"
                   />
                 </div>
                 <div className="space-y-1">
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center justify-between gap-1 sm:gap-2">
                     <label htmlFor="whatsapp-api-key-input" className="text-xs font-semibold text-slate-300">
                       API Key CallMeBot
                     </label>
@@ -636,7 +636,7 @@ export default function SettingsPage() {
                     }
                     value={whatsappApiKey}
                     onChange={(e) => setWhatsappApiKey(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-mono transition-colors"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-emerald-500 font-mono transition-colors"
                   />
                 </div>
               </div>
@@ -651,7 +651,7 @@ export default function SettingsPage() {
                   disabled={isTestingWhatsApp || !whatsappPhoneNumber || (!whatsappApiKey && !hasWhatsappApiKey)}
                   onClick={handleTestWhatsApp}
                   aria-label="Testar envio de notificação no WhatsApp"
-                  className="w-full sm:w-auto py-2 px-4 rounded-xl font-semibold text-xs bg-emerald-950 hover:bg-emerald-900/90 active:scale-95 text-emerald-200 border border-emerald-700/60 transition-all duration-150 flex items-center justify-center gap-2 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                  className="w-full sm:w-auto py-2.5 px-4 rounded-xl font-semibold text-xs bg-emerald-950 hover:bg-emerald-900/90 active:scale-95 text-emerald-200 border border-emerald-700/60 transition-all duration-150 flex items-center justify-center gap-2 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
                 >
                   {isTestingWhatsApp ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" aria-hidden="true" />
@@ -687,7 +687,7 @@ export default function SettingsPage() {
             <button
               type="submit"
               disabled={isSaving || isLoading}
-              className="py-3 px-8 rounded-xl font-semibold text-sm bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all duration-150 shadow-lg shadow-emerald-950 disabled:opacity-50 flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed"
+              className="w-full sm:w-auto py-3 px-8 rounded-xl font-semibold text-sm bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all duration-150 shadow-lg shadow-emerald-950 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
             >
               {isSaving ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="w-4 h-4" aria-hidden="true" />}
               {isSaving ? "Salvando..." : "Salvar Configurações"}
@@ -698,7 +698,7 @@ export default function SettingsPage() {
         {/* Painel de Validação e Teste do Acionamento AC */}
         <section
           aria-label="Painel de Testes e Validação Direta"
-          className="animate-card stagger-4 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-5"
+          className="animate-card stagger-4 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-5"
         >
           <div className="flex items-center justify-between border-b border-slate-800 pb-4">
             <div className="flex items-center gap-3">
@@ -720,7 +720,7 @@ export default function SettingsPage() {
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <button
               type="button"
               disabled={isTestingEcoFlow || !ecoflowAccessKey || (!ecoflowAccessSecret && !hasEcoflowAccessSecret) || !ecoflowSerialNumber}
@@ -864,11 +864,11 @@ export default function SettingsPage() {
               />
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-2">
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3 pt-2">
               <button
                 type="button"
                 onClick={closeModal}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800 active:scale-95 transition-all cursor-pointer"
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800 active:scale-95 transition-all cursor-pointer text-center"
               >
                 Cancelar
               </button>
@@ -877,7 +877,7 @@ export default function SettingsPage() {
                 disabled={confirmationInput.trim().toUpperCase() !== confirmationModal.expectedWord}
                 onClick={executeConfirmedAction}
                 aria-label={`Confirmar e executar ${confirmationModal.actionTitle}`}
-                className={`px-5 py-2.5 rounded-xl text-xs font-semibold active:scale-95 transition-all shadow-md flex items-center gap-2 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer ${confirmationModal.confirmButtonColor}`}
+                className={`w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-semibold active:scale-95 transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer ${confirmationModal.confirmButtonColor}`}
               >
                 <Zap className="w-4 h-4" aria-hidden="true" />
                 Confirmar e Executar

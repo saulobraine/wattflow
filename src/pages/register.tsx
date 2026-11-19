@@ -1,12 +1,25 @@
 import React, { useState, FormEvent } from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
-import { Zap, Lock, Mail, User, AlertCircle, ArrowRight } from "lucide-react";
+import { GetServerSideProps } from "next";
+import { Zap, Lock, Mail, User, AlertCircle, ArrowRight, ShieldOff } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { TransitionLink } from "../components/TransitionLink";
 import { transitionNavigate } from "../utils/transitionNavigate";
 
-export default function RegisterPage() {
+interface RegisterPageProps {
+  isRegistrationEnabled: boolean;
+}
+
+export const getServerSideProps: GetServerSideProps<RegisterPageProps> = async () => {
+  return {
+    props: {
+      isRegistrationEnabled: process.env.ALLOW_PUBLIC_REGISTRATION === "true",
+    },
+  };
+};
+
+export default function RegisterPage({ isRegistrationEnabled }: RegisterPageProps) {
   const router = useRouter();
   const { refreshUser } = useAuth();
   const [fullName, setFullName] = useState("");
@@ -61,7 +74,7 @@ export default function RegisterPage() {
       <Head>
         <title>Criar Conta | WattFlow</title>
       </Head>
-      <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center px-4 py-12 animate-fade-in">
+      <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center px-4 py-8 sm:py-12 animate-fade-in overflow-x-hidden">
         <div className="w-full max-w-md space-y-8 animate-card stagger-1">
           <div className="text-center space-y-2">
             <div className="inline-flex p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 mb-2 shadow-lg shadow-emerald-950/40 animate-float">
@@ -75,7 +88,21 @@ export default function RegisterPage() {
             </p>
           </div>
 
-          <div className="p-8 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl space-y-6 interactive-card">
+          <div className="p-5 sm:p-8 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl space-y-6 interactive-card">
+            {!isRegistrationEnabled && (
+              <div
+                role="alert"
+                aria-live="polite"
+                className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/40 text-amber-300 flex items-start gap-3 text-sm shadow-md shadow-amber-950/20"
+              >
+                <ShieldOff className="w-5 h-5 shrink-0 text-amber-400 mt-0.5" aria-hidden="true" />
+                <div className="space-y-1">
+                  <p className="font-semibold text-amber-200">Cadastros desabilitados</p>
+                  <p>O cadastro público de novas contas está desativado neste servidor.</p>
+                </div>
+              </div>
+            )}
+
             {errorMessage && (
               <div
                 role="alert"
@@ -98,10 +125,11 @@ export default function RegisterPage() {
                     id="register-name-input"
                     type="text"
                     autoComplete="name"
+                    disabled={!isRegistrationEnabled}
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     placeholder="Seu Nome"
-                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-base sm:text-sm focus:border-emerald-500 focus:outline-none transition-colors"
+                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-base sm:text-sm focus:border-emerald-500 focus:outline-none transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -115,12 +143,13 @@ export default function RegisterPage() {
                   <input
                     id="register-email-input"
                     type="email"
-                    required
+                    required={isRegistrationEnabled}
                     autoComplete="email"
+                    disabled={!isRegistrationEnabled}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="seu@email.com"
-                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-base sm:text-sm focus:border-emerald-500 focus:outline-none transition-colors"
+                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-base sm:text-sm focus:border-emerald-500 focus:outline-none transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -134,27 +163,38 @@ export default function RegisterPage() {
                   <input
                     id="register-password-input"
                     type="password"
-                    required
+                    required={isRegistrationEnabled}
                     minLength={12}
                     maxLength={128}
                     autoComplete="new-password"
+                    disabled={!isRegistrationEnabled}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Entre 12 e 128 caracteres"
-                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-base sm:text-sm focus:border-emerald-500 focus:outline-none transition-colors"
+                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-base sm:text-sm focus:border-emerald-500 focus:outline-none transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
 
-              <button
-                type="submit"
-                disabled={isLoading}
-                aria-label="Registrar conta e entrar"
-                className="w-full py-3 px-4 rounded-xl font-semibold text-sm bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all duration-150 shadow-lg shadow-emerald-950 flex items-center justify-center gap-2 disabled:opacity-50 mt-2 cursor-pointer disabled:cursor-not-allowed group"
-              >
-                <span>{isLoading ? "Criando Conta..." : "Registrar e Entrar"}</span>
-                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" aria-hidden="true" />
-              </button>
+              {isRegistrationEnabled ? (
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  aria-label="Registrar conta e entrar"
+                  className="w-full py-3 px-4 rounded-xl font-semibold text-sm bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all duration-150 shadow-lg shadow-emerald-950 flex items-center justify-center gap-2 disabled:opacity-50 mt-2 cursor-pointer disabled:cursor-not-allowed group"
+                >
+                  <span>{isLoading ? "Criando Conta..." : "Registrar e Entrar"}</span>
+                  <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" aria-hidden="true" />
+                </button>
+              ) : (
+                <TransitionLink
+                  href="/login"
+                  className="w-full py-3 px-4 rounded-xl font-semibold text-sm bg-slate-700 hover:bg-slate-600 active:scale-95 text-slate-100 transition-all duration-150 shadow-lg flex items-center justify-center gap-2 mt-2 cursor-pointer group"
+                >
+                  <span>Ir para Login</span>
+                  <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" aria-hidden="true" />
+                </TransitionLink>
+              )}
             </form>
 
             <div className="border-t border-slate-800 pt-4 text-center text-xs text-slate-400">

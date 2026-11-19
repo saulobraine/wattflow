@@ -81,7 +81,7 @@ services:
       app:
         condition: service_healthy
     environment:
-      SYNC_INTERVAL_SECONDS: ${SYNC_INTERVAL_SECONDS:-2}
+      WATCHDOG_INTERVAL_SECONDS: ${WATCHDOG_INTERVAL_SECONDS:-300}
       CRON_SECRET_TOKEN: ${CRON_SECRET_TOKEN:?CRON_SECRET_TOKEN is required}
       DISABLE_LOCAL_CRON: ${DISABLE_LOCAL_CRON:-false}
     command:
@@ -93,10 +93,12 @@ services:
           echo "Cron desativado via DISABLE_LOCAL_CRON=true"
           exec sleep infinity
         fi
+        echo "Disparando inicializacao do stream MQTT..."
+        wget -q -O - --header="Authorization: Bearer $${CRON_SECRET_TOKEN}" "http://app:3000/api/mqtt-stream" || echo "Falha ao inicializar stream MQTT"
         while true; do
-          sleep $${SYNC_INTERVAL_SECONDS:-2}
-          echo "Disparando sincronizacao de energia..."
-          wget -q -O - --header="Authorization: Bearer $${CRON_SECRET_TOKEN}" "http://app:3000/api/sync" || echo "Falha ao acionar rota /api/sync"
+          sleep $${WATCHDOG_INTERVAL_SECONDS:-300}
+          echo "Watchdog: verificando/reiniciando stream MQTT..."
+          wget -q -O - --header="Authorization: Bearer $${CRON_SECRET_TOKEN}" "http://app:3000/api/mqtt-stream" || echo "Falha ao acionar rota /api/mqtt-stream"
           echo ""
         done
     deploy:

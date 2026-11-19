@@ -421,20 +421,20 @@ export default function ProfilePage() {
     <Layout title="Perfil e Segurança">
       <div className="space-y-8">
         {/* Cabeçalho de Boas-vindas da Conta */}
-        <div className="animate-card stagger-1 interactive-card flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/80 p-6 rounded-2xl border border-slate-800 shadow-xl backdrop-blur">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-slate-950 font-bold text-2xl shadow-lg shadow-emerald-950/40">
+        <div className="animate-card stagger-1 interactive-card flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/80 p-4 sm:p-6 rounded-2xl border border-slate-800 shadow-xl backdrop-blur">
+          <div className="flex items-center gap-3.5 sm:gap-4">
+            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-slate-950 font-bold text-xl sm:text-2xl shadow-lg shadow-emerald-950/40 shrink-0">
               {(fullName || user?.email || "U").charAt(0).toUpperCase()}
             </div>
-            <div>
-              <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+            <div className="min-w-0">
+              <h2 className="text-lg sm:text-xl font-bold text-slate-100 flex items-center gap-2 truncate">
                 {fullName || "Usuário WattFlow"}
               </h2>
-              <p className="text-xs text-slate-400 font-mono mt-0.5">{email || user?.email}</p>
+              <p className="text-xs text-slate-400 font-mono mt-0.5 truncate">{email || user?.email}</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 self-start sm:self-auto">
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
             <span
               className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
                 profileData?.twoFactorEnabled
@@ -458,7 +458,7 @@ export default function ProfilePage() {
           {/* Coluna 1: Dados Pessoais & Senha */}
           <div className="space-y-8">
             {/* 1. Card de Dados Pessoais e Troca de E-mail */}
-            <section className="animate-card stagger-2 interactive-card bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
+            <section className="animate-card stagger-2 interactive-card bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-xl space-y-5">
               <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
                 <User className="w-5 h-5 text-emerald-400" aria-hidden="true" />
                 <h3 className="font-bold text-slate-100 text-base">Dados Pessoais e E-mail</h3>
@@ -495,7 +495,7 @@ export default function ProfilePage() {
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     placeholder="Seu nome"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 transition-colors"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-emerald-500 transition-colors"
                   />
                 </div>
 
@@ -516,7 +516,7 @@ export default function ProfilePage() {
                       }
                     }}
                     placeholder="seu@email.com"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 transition-colors font-mono"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-emerald-500 transition-colors font-mono"
                   />
                 </div>
 
@@ -534,7 +534,7 @@ export default function ProfilePage() {
                       value={profileCurrentPassword}
                       onChange={(e) => setProfileCurrentPassword(e.target.value)}
                       placeholder="Digite sua senha atual"
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-amber-400 transition-colors"
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-amber-400 transition-colors"
                     />
                   </div>
                 )}
@@ -543,7 +543,7 @@ export default function ProfilePage() {
                   <button
                     type="submit"
                     disabled={isUpdatingProfile || (isEmailChanged && !profileCurrentPassword)}
-                    className="px-5 py-2.5 rounded-xl font-semibold text-xs bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all flex items-center gap-2 shadow-lg shadow-emerald-950/40 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl font-semibold text-xs bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isUpdatingProfile ? (
                       <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
@@ -557,7 +557,7 @@ export default function ProfilePage() {
             </section>
 
             {/* 2. Card de Alteração de Senha */}
-            <section className="animate-card stagger-3 interactive-card bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
+            <section className="animate-card stagger-3 interactive-card bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-xl space-y-5">
               <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
                 <Lock className="w-5 h-5 text-amber-400" aria-hidden="true" />
                 <h3 className="font-bold text-slate-100 text-base">Segurança &amp; Alteração de Senha</h3>
@@ -595,7 +595,7 @@ export default function ProfilePage() {
                       value={currentPassword}
                       onChange={(e) => setCurrentPassword(e.target.value)}
                       placeholder="Digite sua senha atual"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 pr-10 text-sm text-slate-200 focus:outline-none focus:border-amber-400 transition-colors"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 pr-10 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-amber-400 transition-colors"
                     />
                     <button
                       type="button"
@@ -621,7 +621,7 @@ export default function ProfilePage() {
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder="Entre 12 e 128 caracteres"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 pr-10 text-sm text-slate-200 focus:outline-none focus:border-amber-400 transition-colors"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 pr-10 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-amber-400 transition-colors"
                     />
                     <button
                       type="button"
@@ -644,7 +644,7 @@ export default function ProfilePage() {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="Repita a nova senha"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-amber-400 transition-colors"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-amber-400 transition-colors"
                   />
                 </div>
 
@@ -652,7 +652,7 @@ export default function ProfilePage() {
                   <button
                     type="submit"
                     disabled={isChangingPassword || !currentPassword || !newPassword}
-                    className="px-5 py-2.5 rounded-xl font-semibold text-xs bg-amber-600 hover:bg-amber-500 active:scale-95 text-white transition-all flex items-center gap-2 shadow-lg shadow-amber-950/40 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl font-semibold text-xs bg-amber-600 hover:bg-amber-500 active:scale-95 text-white transition-all flex items-center justify-center gap-2 shadow-lg shadow-amber-950/40 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isChangingPassword ? (
                       <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
@@ -669,7 +669,7 @@ export default function ProfilePage() {
           {/* Coluna 2: Fatores de Autenticação (2FA & Passkeys) */}
           <div className="space-y-8">
             {/* 3. Card de Autenticação em Duas Etapas (2FA / TOTP) */}
-            <section className="animate-card stagger-4 interactive-card bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
+            <section className="animate-card stagger-4 interactive-card bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-xl space-y-5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
                 <div className="flex items-center gap-2">
                   <Smartphone className="w-5 h-5 text-indigo-400" aria-hidden="true" />
@@ -715,13 +715,13 @@ export default function ProfilePage() {
                     <button
                       type="button"
                       onClick={handleStart2FASetup}
-                      className="px-5 py-2.5 rounded-xl font-semibold text-xs bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white transition-all flex items-center gap-2 shadow-lg shadow-indigo-950/40 cursor-pointer"
+                      className="w-full sm:w-auto px-5 py-2.5 rounded-xl font-semibold text-xs bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-950/40 cursor-pointer"
                     >
                       <ShieldCheck className="w-4 h-4" aria-hidden="true" />
                       Configurar Autenticação em 2 Etapas
                     </button>
                   ) : (
-                    <div className="p-5 sm:p-6 rounded-2xl bg-slate-950/80 border border-indigo-900/40 space-y-6 animate-in fade-in-0 shadow-2xl overflow-hidden">
+                    <div className="p-4 sm:p-6 rounded-2xl bg-slate-950/80 border border-indigo-900/40 space-y-6 animate-in fade-in-0 shadow-2xl overflow-hidden">
                       <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                         <div className="space-y-0.5">
                           <h4 className="text-sm font-bold text-slate-100 flex items-center gap-2">
@@ -745,11 +745,11 @@ export default function ProfilePage() {
                                 alt="QR Code de Autenticação 2FA"
                                 width={160}
                                 height={160}
-                                className="w-36 h-36 sm:w-40 sm:h-40 block object-contain"
+                                className="w-36 h-36 sm:w-44 sm:h-44 block object-contain"
                               />
                             </div>
                           ) : (
-                            <div className="w-40 h-40 bg-slate-800 rounded-xl flex items-center justify-center text-slate-500 text-xs">
+                            <div className="w-36 h-36 sm:w-44 sm:h-44 bg-slate-800 rounded-xl flex items-center justify-center text-slate-500 text-xs">
                               <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
                             </div>
                           )}
@@ -764,15 +764,15 @@ export default function ProfilePage() {
                             <span className="text-xs font-semibold text-slate-300 block">
                               Ou insira a chave secreta manualmente:
                             </span>
-                            <div className="flex items-center gap-2 bg-slate-900 p-2.5 rounded-xl border border-slate-800 min-w-0">
-                              <span className="font-mono text-indigo-300 font-bold tracking-widest text-xs flex-1 truncate select-all min-w-0">
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-slate-900 p-2.5 rounded-xl border border-slate-800 min-w-0">
+                              <span className="font-mono text-indigo-300 font-bold tracking-wider text-xs flex-1 break-all select-all min-w-0 px-1 py-1">
                                 {totpSecret}
                               </span>
                               <button
                                 type="button"
                                 onClick={() => copyToClipboard(totpSecret)}
                                 aria-label="Copiar chave secreta"
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors cursor-pointer shrink-0"
+                                className="flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors cursor-pointer shrink-0 min-h-[40px] sm:min-h-0"
                               >
                                 {copiedSecret ? (
                                   <>
@@ -819,7 +819,7 @@ export default function ProfilePage() {
                                   value={enableTwoFactorPassword}
                                   onChange={(e) => setEnableTwoFactorPassword(e.target.value)}
                                   placeholder="Sua senha atual"
-                                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-400 transition-colors"
+                                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-slate-100 focus:outline-none focus:border-indigo-400 transition-colors"
                                 />
                               </div>
                               <button
@@ -845,7 +845,7 @@ export default function ProfilePage() {
                                   setTotpToken("");
                                   setEnableTwoFactorPassword("");
                                 }}
-                                className="text-xs text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+                                className="text-xs text-slate-400 hover:text-slate-200 transition-colors cursor-pointer py-1"
                               >
                                 Cancelar configuração
                               </button>
@@ -871,7 +871,7 @@ export default function ProfilePage() {
                   <button
                     type="button"
                     onClick={() => setShowDisableModal(true)}
-                    className="px-4 py-2 rounded-xl font-semibold text-xs text-rose-400 hover:bg-rose-500/10 border border-rose-500/30 active:scale-95 transition-all cursor-pointer"
+                    className="w-full sm:w-auto px-4 py-2 rounded-xl font-semibold text-xs text-rose-400 hover:bg-rose-500/10 border border-rose-500/30 active:scale-95 transition-all cursor-pointer text-center"
                   >
                     Desativar 2FA
                   </button>
@@ -880,7 +880,7 @@ export default function ProfilePage() {
             </section>
 
             {/* 4. Card de Passkeys (Biometria / WebAuthn) */}
-            <section className="animate-card stagger-5 interactive-card bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
+            <section className="animate-card stagger-5 interactive-card bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-xl space-y-5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
                 <div className="flex items-center gap-2">
                   <Fingerprint className="w-5 h-5 text-teal-400" aria-hidden="true" />
@@ -945,7 +945,7 @@ export default function ProfilePage() {
                           onClick={() => handleDeletePasskey(pk.id)}
                           title="Excluir Passkey"
                           aria-label={`Excluir passkey ${pk.name}`}
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer disabled:opacity-40"
+                          className="p-2 sm:p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer disabled:opacity-40 min-h-[44px] min-w-[44px] flex items-center justify-center shrink-0"
                         >
                           {deletingPasskeyId === pk.id ? (
                             <Loader2 className="w-4 h-4 animate-spin text-rose-400" />
@@ -967,21 +967,21 @@ export default function ProfilePage() {
                     O cadastro de novas Passkeys está temporariamente desabilitado até a conclusão da validação FIDO2 completa no servidor. Você ainda pode remover chaves já registradas acima.
                   </span>
                 </div>
-                <div className="p-4 rounded-xl bg-slate-950 border border-slate-800/90 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 opacity-60">
+                <div className="p-3.5 sm:p-4 rounded-xl bg-slate-950 border border-slate-800/90 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 opacity-60">
                   <input
                     type="text"
                     disabled
                     value={passkeyName}
                     onChange={(e) => setPasskeyName(e.target.value)}
                     placeholder="Nome da chave (indisponível temporariamente)"
-                    className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-400 focus:outline-none transition-colors flex-1 cursor-not-allowed"
+                    className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-base sm:text-xs text-slate-400 focus:outline-none transition-colors flex-1 cursor-not-allowed"
                   />
                   <button
                     type="button"
                     disabled
                     aria-disabled="true"
                     title="Cadastro de novas Passkeys temporariamente desabilitado até validação FIDO2 completa"
-                    className="px-4 py-2.5 rounded-xl font-semibold text-xs bg-teal-600 text-white transition-all flex items-center justify-center gap-2 shadow-lg shadow-teal-950/40 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl font-semibold text-xs bg-teal-600 text-white transition-all flex items-center justify-center gap-2 shadow-lg shadow-teal-950/40 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                   >
                     <Plus className="w-4 h-4" aria-hidden="true" />
                     Criar Nova Passkey
@@ -1000,7 +1000,7 @@ export default function ProfilePage() {
           aria-modal="true"
           className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm"
         >
-          <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl p-6 shadow-2xl space-y-4">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl p-4 sm:p-6 shadow-2xl space-y-4">
             <div className="flex items-center gap-3 text-rose-400">
               <ShieldAlert className="w-6 h-6" />
               <h3 className="text-base font-bold text-slate-100">Desativar Autenticação em 2 Etapas</h3>
@@ -1018,24 +1018,24 @@ export default function ProfilePage() {
                 placeholder="Sua senha atual"
                 value={disablePassword}
                 onChange={(e) => setDisablePassword(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-rose-400 transition-colors"
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-base sm:text-sm text-slate-100 focus:outline-none focus:border-rose-400 transition-colors"
               />
 
-              <div className="flex items-center justify-end gap-3 pt-2">
+              <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => {
                     setShowDisableModal(false);
                     setDisablePassword("");
                   }}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors cursor-pointer text-center"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={isDisabling2FA || !disablePassword}
-                  className="px-5 py-2.5 rounded-xl text-xs font-semibold bg-rose-600 hover:bg-rose-500 active:scale-95 text-white transition-all shadow-md cursor-pointer disabled:opacity-40"
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-semibold bg-rose-600 hover:bg-rose-500 active:scale-95 text-white transition-all shadow-md cursor-pointer disabled:opacity-40 text-center"
                 >
                   {isDisabling2FA ? "Desativando..." : "Confirmar e Desativar"}
                 </button>

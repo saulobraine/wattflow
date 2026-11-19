@@ -15,6 +15,7 @@ import {
   ArrowLeftRight,
   Inbox,
   Activity,
+  Sliders,
 } from "lucide-react";
 
 interface SyncLogItem {
@@ -96,35 +97,35 @@ export default function DashboardPage() {
     data?.lastAction === "BATTERY_LOW_RECHARGE" ||
     data?.lastAction === "TURN_ON";
 
-  const renderActionBadge = (action: string) => {
+  const renderActionBadge = (action: string, isCompact = false) => {
     if (action === "ENABLE_ECOFLOW_AC" || action === "BATTERY_HIGH_DISCHARGE" || action === "TURN_OFF") {
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition-all">
-          <ArrowUpRight className="w-3 h-3 text-emerald-400" aria-hidden="true" />
-          ATS no EcoFlow (Solar/Bateria)
+          <ArrowUpRight className="w-3 h-3 text-emerald-400 shrink-0" aria-hidden="true" />
+          <span className="truncate">{isCompact ? "Solar / Bateria" : "ATS no EcoFlow (Solar/Bateria)"}</span>
         </span>
       );
     }
     if (action === "DISABLE_ECOFLOW_AC" || action === "BATTERY_LOW_RECHARGE" || action === "TURN_ON") {
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30 transition-all">
-          <ArrowDownRight className="w-3 h-3 text-rose-400" aria-hidden="true" />
-          ATS na Concessionária (Rede)
+          <ArrowDownRight className="w-3 h-3 text-rose-400 shrink-0" aria-hidden="true" />
+          <span className="truncate">{isCompact ? "Rede Elétrica" : "ATS na Concessionária (Rede)"}</span>
         </span>
       );
     }
     if (action === "MONITORAMENTO") {
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 transition-all">
-          <Activity className="w-3 h-3 text-cyan-400" aria-hidden="true" />
-          Monitoramento (Telemetria)
+          <Activity className="w-3 h-3 text-cyan-400 shrink-0" aria-hidden="true" />
+          <span className="truncate">{isCompact ? "Telemetria" : "Monitoramento (Telemetria)"}</span>
         </span>
       );
     }
     return (
       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30 transition-all">
-        <Clock className="w-3 h-3 text-amber-400" aria-hidden="true" />
-        Histerese (Estado Mantido)
+        <Clock className="w-3 h-3 text-amber-400 shrink-0" aria-hidden="true" />
+        <span className="truncate">{isCompact ? "Histerese" : "Histerese (Estado Mantido)"}</span>
       </span>
     );
   };
@@ -135,7 +136,7 @@ export default function DashboardPage() {
         {/* Banner de Boas-vindas e Status do Sistema */}
         <section
           aria-label="Status Geral do Sistema"
-          className="animate-card stagger-1 interactive-card flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/90 border border-slate-800 p-6 rounded-2xl shadow-xl"
+          className="animate-card stagger-1 interactive-card flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/90 border border-slate-800 p-4 sm:p-6 rounded-2xl shadow-xl"
         >
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-100 flex items-center gap-2">
@@ -198,141 +199,157 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Grade de Indicadores Principais */}
-        <section aria-label="Indicadores Operacionais" className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* 1. Nível de Bateria EcoFlow */}
-          <div className="animate-card stagger-2 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl flex flex-col justify-between group">
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <BatteryCharging className="w-4 h-4 text-emerald-400 transition-transform group-hover:scale-110" aria-hidden="true" />
-                  Bateria EcoFlow
-                </span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
-                  SOC
-                </span>
+        {/* Grade de Indicadores Principais (3 colunas com design minimalista nativo) */}
+        <section aria-label="Indicadores Operacionais" className="grid grid-cols-3 gap-2 sm:gap-4 lg:gap-5">
+          {/* Card 1: Bateria (SOC %) */}
+          <div className="animate-card stagger-2 interactive-card min-h-[105px] sm:min-h-[125px] flex flex-col justify-between p-3 sm:p-4 rounded-xl border border-slate-800/80 bg-slate-900/90 hover:border-slate-700 transition-all shadow-md group">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
+                <BatteryCharging className="w-4 h-4" aria-hidden="true" />
               </div>
-
-              <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-extrabold tracking-tight text-slate-100 font-mono transition-colors">
-                  {data?.lastBatteryPercentage !== null && data?.lastBatteryPercentage !== undefined
-                    ? `${battery}%`
-                    : "--"}
-                </span>
-              </div>
-
-              {/* Barra de Progresso com Transição Fluida e ARIA */}
-              <div
-                role="progressbar"
-                aria-valuenow={battery}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-label="Nível de Bateria EcoFlow"
-                className="w-full bg-slate-800 h-2.5 rounded-full mt-3 overflow-hidden p-0.5 border border-slate-700/50"
-              >
-                <div
-                  className={`h-full rounded-full transition-all duration-700 ease-out ${
-                    battery >= (data?.turnOnThreshold ?? 90)
-                      ? "bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.5)]"
-                      : battery <= (data?.turnOffThreshold ?? 30)
-                      ? "bg-rose-500 shadow-[0_0_12px_rgba(244,63,94,0.5)]"
-                      : "bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.4)]"
-                  }`}
-                  style={{ width: `${Math.min(Math.max(battery, 0), 100)}%` }}
-                />
-              </div>
+              <span className="text-[11px] sm:text-xs text-slate-400 font-medium truncate">
+                Bateria
+              </span>
             </div>
 
-            <div className="flex justify-between text-[11px] text-slate-400 mt-3 font-mono border-t border-slate-800/80 pt-2">
-              <span>Corte (&le; {data?.turnOffThreshold ?? 30}%): Rede</span>
-              <span>Ativação (&ge; {data?.turnOnThreshold ?? 90}%): Bateria</span>
+            <div className="text-xl sm:text-2xl font-bold font-mono text-slate-100 truncate my-1">
+              {data?.lastBatteryPercentage !== null && data?.lastBatteryPercentage !== undefined
+                ? `${battery}%`
+                : "--"}
+            </div>
+
+            <div className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20 w-fit max-w-full truncate">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" aria-hidden="true" />
+              <span className="truncate">SOC Bateria</span>
             </div>
           </div>
 
-          {/* 2. Geração Solar EcoFlow (PV Input) */}
-          <div className="animate-card stagger-3 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl flex flex-col justify-between group">
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Sun className="w-4 h-4 text-amber-400 transition-transform group-hover:rotate-45 duration-300" aria-hidden="true" />
-                  Geração Solar
-                </span>
-                <span
-                  className={`text-[10px] px-2 py-0.5 rounded-full font-bold border transition-all ${
-                    (data?.lastSolarWatts ?? 0) > 0
-                      ? "bg-amber-500/20 text-amber-300 border-amber-500/30 animate-pulse-glow"
-                      : "bg-slate-800 text-slate-400 border-slate-700"
-                  }`}
-                >
-                  {(data?.lastSolarWatts ?? 0) > 0 ? "GERANDO" : "0 W"}
-                </span>
+          {/* Card 2: Geração Solar (PV Input) */}
+          <div className="animate-card stagger-2 interactive-card min-h-[105px] sm:min-h-[125px] flex flex-col justify-between p-3 sm:p-4 rounded-xl border border-slate-800/80 bg-slate-900/90 hover:border-slate-700 transition-all shadow-md group">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 transition-transform group-hover:rotate-45 duration-300">
+                <Sun className="w-4 h-4" aria-hidden="true" />
               </div>
-
-              <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-extrabold tracking-tight text-amber-400 font-mono">
-                  {data?.lastSolarWatts !== null && data?.lastSolarWatts !== undefined
-                    ? `${data.lastSolarWatts}`
-                    : "--"}
-                </span>
-                <span className="text-slate-400 font-medium text-sm">W</span>
-              </div>
-
-              <p className="text-xs text-slate-400 mt-2">
-                {(data?.lastSolarWatts ?? 0) > 0
-                  ? "Entrada solar conectada fornecendo energia limpa."
-                  : "Sem captação fotovoltaica direta no momento."}
-              </p>
+              <span className="text-[11px] sm:text-xs text-slate-400 font-medium truncate">
+                Solar PV
+              </span>
             </div>
 
-            <div className="text-[11px] text-amber-400/90 border-t border-slate-800/80 pt-2 font-medium">
-              <TransitionLink href="/statistics" className="hover:underline flex items-center gap-1 transition-all group-hover:translate-x-0.5">
-                Ver Estatísticas Completas &rarr;
-              </TransitionLink>
+            <div className="text-xl sm:text-2xl font-bold font-mono text-amber-400 truncate my-1">
+              {data?.lastSolarWatts !== null && data?.lastSolarWatts !== undefined
+                ? `${data.lastSolarWatts} W`
+                : "-- W"}
+            </div>
+
+            <div className={`inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-medium px-2 py-0.5 rounded-md border w-fit max-w-full truncate ${
+              (data?.lastSolarWatts ?? 0) > 0
+                ? "text-amber-400 bg-amber-500/10 border-amber-500/20"
+                : "text-slate-400 bg-slate-800/80 border-slate-700/60"
+            }`}>
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                (data?.lastSolarWatts ?? 0) > 0 ? "bg-amber-400 animate-pulse" : "bg-slate-500"
+              }`} aria-hidden="true" />
+              <span className="truncate">{(data?.lastSolarWatts ?? 0) > 0 ? "Geração Ativa" : "Standby"}</span>
             </div>
           </div>
 
-          {/* 3. Chave de Transferência Automática (ATS) & Saída AC EcoFlow */}
-          <div className="animate-card stagger-4 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl flex flex-col justify-between group">
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <ArrowLeftRight className="w-4 h-4 text-cyan-400 transition-transform group-hover:scale-110" aria-hidden="true" />
-                  Fonte Ativa (ATS)
-                </span>
-                <span
-                  className={`text-[10px] px-2 py-0.5 rounded-full font-bold border transition-all ${
-                    isSolarBatteryMode
-                      ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
-                      : isGridMode
-                      ? "bg-rose-500/20 text-rose-300 border-rose-500/30"
-                      : "bg-slate-800 text-slate-400 border-slate-700"
-                  }`}
-                >
-                  {isSolarBatteryMode ? "SOLAR / BATERIA" : isGridMode ? "CONCESSIONÁRIA" : "STANDBY"}
-                </span>
+          {/* Card 3: Fonte Ativa (ATS) */}
+          <div className="animate-card stagger-3 interactive-card min-h-[105px] sm:min-h-[125px] flex flex-col justify-between p-3 sm:p-4 rounded-xl border border-slate-800/80 bg-slate-900/90 hover:border-slate-700 transition-all shadow-md group">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
+                <ArrowLeftRight className="w-4 h-4" aria-hidden="true" />
               </div>
-
-              <div className="text-sm font-semibold text-slate-200 mt-1">
-                {isSolarBatteryMode
-                  ? "EcoFlow AC Ligada • ATS no Inversor"
-                  : isGridMode
-                  ? "EcoFlow AC Desligada • ATS na Rede"
-                  : "Aguardando Leitura"}
-              </div>
-              <p className="text-xs text-slate-400 mt-1">
-                {isSolarBatteryMode
-                  ? "Cargas alimentadas pela estação EcoFlow com energia limpa."
-                  : isGridMode
-                  ? "Cargas alimentadas pela rede da concessionária com a bateria protegida."
-                  : "Histerese ativa entre os limites configurados."}
-              </p>
+              <span className="text-[11px] sm:text-xs text-slate-400 font-medium truncate">
+                Fonte ATS
+              </span>
             </div>
 
-            <div className="text-[11px] text-slate-400 border-t border-slate-800/80 pt-2 font-mono flex items-center justify-between">
-              <span>Automação: {data?.isAutomationActive ? "Ativa" : "Pausada"}</span>
-              <TransitionLink href="/automations" className="text-emerald-400 hover:underline transition-colors">
-                Ajustar &rarr;
-              </TransitionLink>
+            <div className={`text-xl sm:text-2xl font-bold font-mono truncate my-1 ${
+              isSolarBatteryMode
+                ? "text-emerald-400"
+                : isGridMode
+                ? "text-rose-400"
+                : "text-slate-200"
+            }`}>
+              {isSolarBatteryMode ? "SOLAR" : isGridMode ? "REDE" : "--"}
+            </div>
+
+            <div className={`inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-medium px-2 py-0.5 rounded-md border w-fit max-w-full truncate ${
+              isSolarBatteryMode
+                ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
+                : isGridMode
+                ? "text-rose-400 bg-rose-500/10 border-rose-500/20"
+                : "text-slate-400 bg-slate-800/80 border-slate-700/60"
+            }`}>
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                isSolarBatteryMode ? "bg-emerald-400" : isGridMode ? "bg-rose-400" : "bg-slate-500"
+              }`} aria-hidden="true" />
+              <span className="truncate">{isSolarBatteryMode ? "Inversor ATS" : isGridMode ? "Rede ATS" : "Standby"}</span>
+            </div>
+          </div>
+
+          {/* Card 4: Automação */}
+          <div className="animate-card stagger-3 interactive-card min-h-[105px] sm:min-h-[125px] flex flex-col justify-between p-3 sm:p-4 rounded-xl border border-slate-800/80 bg-slate-900/90 hover:border-slate-700 transition-all shadow-md group">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
+                <Sliders className="w-4 h-4" aria-hidden="true" />
+              </div>
+              <span className="text-[11px] sm:text-xs text-slate-400 font-medium truncate">
+                Automação
+              </span>
+            </div>
+
+            <div className={`text-xl sm:text-2xl font-bold font-mono truncate my-1 ${
+              data?.isAutomationActive ? "text-indigo-300" : "text-amber-400"
+            }`}>
+              {data?.isAutomationActive ? "ATIVA" : "PAUSA"}
+            </div>
+
+            <div className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-medium text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-500/20 w-fit max-w-full truncate">
+              <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" aria-hidden="true" />
+              <span className="truncate">Loop 24/7</span>
+            </div>
+          </div>
+
+          {/* Card 5: Limiar Corte */}
+          <div className="animate-card stagger-4 interactive-card min-h-[105px] sm:min-h-[125px] flex flex-col justify-between p-3 sm:p-4 rounded-xl border border-slate-800/80 bg-slate-900/90 hover:border-slate-700 transition-all shadow-md group">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
+                <Power className="w-4 h-4" aria-hidden="true" />
+              </div>
+              <span className="text-[11px] sm:text-xs text-slate-400 font-medium truncate">
+                Corte
+              </span>
+            </div>
+
+            <div className="text-xl sm:text-2xl font-bold font-mono text-rose-400 truncate my-1">
+              &le; {data?.turnOffThreshold ?? 30}%
+            </div>
+
+            <div className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-medium text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/20 w-fit max-w-full truncate">
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0" aria-hidden="true" />
+              <span className="truncate">Corte Rede</span>
+            </div>
+          </div>
+
+          {/* Card 6: Limiar Ativação */}
+          <div className="animate-card stagger-4 interactive-card min-h-[105px] sm:min-h-[125px] flex flex-col justify-between p-3 sm:p-4 rounded-xl border border-slate-800/80 bg-slate-900/90 hover:border-slate-700 transition-all shadow-md group">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
+                <Zap className="w-4 h-4" aria-hidden="true" />
+              </div>
+              <span className="text-[11px] sm:text-xs text-slate-400 font-medium truncate">
+                Ativação
+              </span>
+            </div>
+
+            <div className="text-xl sm:text-2xl font-bold font-mono text-emerald-400 truncate my-1">
+              &ge; {data?.turnOnThreshold ?? 90}%
+            </div>
+
+            <div className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20 w-fit max-w-full truncate">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" aria-hidden="true" />
+              <span className="truncate">Chaveia Solar</span>
             </div>
           </div>
         </section>
@@ -340,7 +357,7 @@ export default function DashboardPage() {
         {/* Tabela de Execuções e Logs Recentes */}
         <section
           aria-label="Histórico de Logs Recentes"
-          className="animate-card stagger-5 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4"
+          className="animate-card stagger-5 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4"
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-4">
             <div>
@@ -356,7 +373,70 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* Mobile View: Feed de Cards Verticais / Timeline (< sm) */}
+          <div className="sm:hidden space-y-2.5">
+            {data?.logs && data.logs.length > 0 ? (
+              data.logs.map((log) => (
+                <div
+                  key={log.id}
+                  className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/80 shadow-sm space-y-2 animate-fade-in"
+                >
+                  {/* Topo do card: Horário legível à esquerda + Badge da Ação à direita */}
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-mono text-slate-400 flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-slate-500 shrink-0" aria-hidden="true" />
+                      {new Date(log.executedAt).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        second: "2-digit",
+                      })}
+                    </span>
+                    <div className="shrink-0">{renderActionBadge(log.actionTriggered, true)}</div>
+                  </div>
+
+                  {/* Métricas em pills lado a lado */}
+                  <div className="flex items-center gap-2 pt-0.5">
+                    {/* Bateria */}
+                    <div
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-semibold border ${
+                        log.batteryPercentage >= (data?.turnOnThreshold ?? 90)
+                          ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/20"
+                          : log.batteryPercentage <= (data?.turnOffThreshold ?? 30)
+                          ? "bg-rose-500/10 text-rose-300 border-rose-500/20"
+                          : "bg-slate-900 text-slate-200 border-slate-800"
+                      }`}
+                    >
+                      <BatteryCharging className="w-3.5 h-3.5 text-emerald-400 shrink-0" aria-hidden="true" />
+                      <span>{log.batteryPercentage}%</span>
+                    </div>
+
+                    {/* Solar */}
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                      <Sun className="w-3.5 h-3.5 text-amber-400 shrink-0" aria-hidden="true" />
+                      <span>{log.solarInputWatts ?? 0} W</span>
+                    </div>
+                  </div>
+
+                  {/* Detalhes da Execução */}
+                  {log.executionDetails && (
+                    <div className="text-xs text-slate-300 font-sans break-words bg-slate-900/80 p-2 rounded-lg border border-slate-800/50 leading-relaxed">
+                      {log.executionDetails}
+                    </div>
+                  )}
+                </div>
+              ))
+            ) : (
+              <div className="py-6 text-center text-slate-500 font-sans">
+                <div className="flex flex-col items-center justify-center gap-2">
+                  <Inbox className="w-7 h-7 text-slate-600" aria-hidden="true" />
+                  <span className="text-xs font-medium text-slate-400">Nenhum registro encontrado</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Desktop & Tablet View: Tabela Tradicional Densa (>= sm) */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-left text-xs" aria-label="Tabela de logs recentes de comutação da chave ATS">
               <thead className="bg-slate-950/60 text-slate-400 uppercase font-semibold border-b border-slate-800">
                 <tr>
