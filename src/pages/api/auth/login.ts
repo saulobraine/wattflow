@@ -2,9 +2,12 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../../infrastructure/database/prismaClient";
 import { UserEmail } from "../../../domain/values/UserEmail";
 import { HashedPassword } from "../../../domain/values/HashedPassword";
+import { DEFAULT_SESSION_VALIDITY_DAYS } from "../../../domain/services/AuthenticationTokenService";
 import {
   getAuthenticationTokenService,
+  PERSISTENT_SESSION_MAX_AGE_SECONDS,
   setSessionCookie,
+  SHORT_SESSION_MAX_AGE_SECONDS,
 } from "../../../infrastructure/auth/sessionHelper";
 import {
   checkRateLimit,
@@ -82,6 +85,7 @@ export default async function handleLogin(
   }
 
   const { email, password } = parsedBody.data;
+  const rememberMe = parsedBody.data.rememberMe !== false;
 
   let userEmail: UserEmail;
   try {
@@ -155,13 +159,18 @@ export default async function handleLogin(
     return;
   }
 
+  const validityDays = rememberMe ? DEFAULT_SESSION_VALIDITY_DAYS : 1;
+  const maxAgeSeconds = rememberMe
+    ? PERSISTENT_SESSION_MAX_AGE_SECONDS
+    : SHORT_SESSION_MAX_AGE_SECONDS;
+
   const sessionToken = tokenService.createSessionToken(
     user.id,
     user.email,
-    7,
+    validityDays,
     currentTokenVersion
   );
-  setSessionCookie(response, sessionToken);
+  setSessionCookie(response, sessionToken, maxAgeSeconds);
 
   response.status(200).json({
     success: true,

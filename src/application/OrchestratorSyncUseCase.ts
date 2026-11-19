@@ -138,7 +138,7 @@ export class OrchestratorSyncUseCase {
         });
       }
 
-      await this.repository.recordExecutionLog(
+      await this.recordExecutionLogThrottled(
         databaseRecordId,
         numericBattery,
         actionName,
@@ -170,6 +170,77 @@ export class OrchestratorSyncUseCase {
 
       throw executionError;
     }
+  }
+
+  private static readonly lastLoggedStatesByRecordId = new Map<
+    string,
+    { batteryPercentage: number; actionTriggered: string; loggedAtMs: number }
+  >();
+
+  public static resetLoggedStatesForTests(): void {
+    OrchestratorSyncUseCase.lastLoggedStatesByRecordId.clear();
+  }
+
+  private async recordExecutionLogThrottled(
+    databaseRecordId: string,
+    numericBattery: number,
+    actionName: string,
+    actionResult: string,
+    numericSolarWatts: number,
+    outputWatts: number
+  ): Promise<void> {
+    const isAtsAction =
+      actionName === "ENABLE_ECOFLOW_AC" ||
+      actionName === "DISABLE_ECOFLOW_AC" ||
+      actionName === "BATTERY_HIGH_DISCHARGE" ||
+      actionName === "BATTERY_LOW_RECHARGE";
+
+    let lastState = OrchestratorSyncUseCase.lastLoggedStatesByRecordId.get(databaseRecordId);
+    if (!lastState && typeof this.repository.findLatestExecutionLog === "function") {
+      const latestDbLog = await this.repository.findLatestExecutionLog(databaseRecordId);
+      if (latestDbLog) {
+        lastState = {
+          batteryPercentage: latestDbLog.batteryPercentage,
+          actionTriggered: latestDbLog.actionTriggered,
+          loggedAtMs: latestDbLog.executedAt.getTime(),
+        };
+        OrchestratorSyncUseCase.lastLoggedStatesByRecordId.set(databaseRecordId, lastState);
+      }
+    }
+
+    const now = Date.now();
+    let shouldRecord = isAtsAction || !lastState;
+
+    if (!shouldRecord && lastState) {
+      const batteryDifference = Math.abs(numericBattery - lastState.batteryPercentage);
+      const isActionChanged = actionName !== lastState.actionTriggered;
+      const elapsedSinceLastLogMs = now - lastState.loggedAtMs;
+      const MAX_IDLE_LOG_INTERVAL_MS = 300_000;
+
+      shouldRecord =
+        isActionChanged ||
+        batteryDifference >= 1 ||
+        elapsedSinceLastLogMs >= MAX_IDLE_LOG_INTERVAL_MS;
+    }
+
+    if (!shouldRecord) {
+      return;
+    }
+
+    OrchestratorSyncUseCase.lastLoggedStatesByRecordId.set(databaseRecordId, {
+      batteryPercentage: numericBattery,
+      actionTriggered: actionName,
+      loggedAtMs: now,
+    });
+
+    await this.repository.recordExecutionLog(
+      databaseRecordId,
+      numericBattery,
+      actionName,
+      actionResult,
+      numericSolarWatts,
+      outputWatts
+    );
   }
 
   private async dispatchEcoFlowAcAction(

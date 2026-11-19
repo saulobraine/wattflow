@@ -125,15 +125,15 @@ export default function StatisticsPage() {
     <Layout title="Estatísticas de Geração e Consumo">
       <div className="space-y-8 max-w-6xl mx-auto">
         {/* Cabeçalho da Seção */}
-        <div className="animate-card stagger-1 interactive-card flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/60 p-6 rounded-2xl border border-slate-800 backdrop-blur shadow-xl">
+        <div className="animate-card stagger-1 interactive-card flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/60 p-4 sm:p-6 rounded-2xl border border-slate-800 backdrop-blur shadow-xl">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <Sun className="w-5 h-5 text-amber-400 animate-float" />
-              <h2 className="text-xl font-bold text-slate-100">
+              <h2 className="text-lg sm:text-xl font-bold text-slate-100">
                 Balanço Energético EcoFlow (Últimos 30 Minutos)
               </h2>
             </div>
-            <p className="text-sm text-slate-400">
+            <p className="text-xs sm:text-sm text-slate-400">
               Histórico dos últimos 30 minutos agrupados pela média de 5 em 5 minutos, comparando geração fotovoltaica, consumo e saldo líquido.
             </p>
           </div>
@@ -141,7 +141,7 @@ export default function StatisticsPage() {
           <button
             onClick={handleRefresh}
             disabled={isRefreshing || isLoading}
-            className="self-start sm:self-auto px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all duration-150 flex items-center gap-2 shadow-lg shadow-emerald-950/40 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+            className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all duration-150 flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed shrink-0"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
             {isRefreshing ? "Atualizando..." : "Atualizar Estatísticas"}
@@ -155,9 +155,9 @@ export default function StatisticsPage() {
             <span>Potência Instantânea (Ao Vivo)</span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-5">
             {/* Geração Solar Instantânea */}
-            <div className="animate-card stagger-2 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl relative overflow-hidden flex flex-col justify-between group">
+            <div className="animate-card stagger-2 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl relative overflow-hidden flex flex-col justify-between group">
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
@@ -176,7 +176,7 @@ export default function StatisticsPage() {
                 </div>
 
                 <div className="flex items-baseline gap-2">
-                  <span className="text-4xl font-extrabold tracking-tight text-slate-100 font-mono">
+                  <span className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-100 font-mono">
                     {data?.currentWatts ?? 0}
                   </span>
                   <span className="text-slate-400 font-medium text-sm">W</span>
@@ -191,7 +191,7 @@ export default function StatisticsPage() {
             </div>
 
             {/* Consumo Instantâneo */}
-            <div className="animate-card stagger-3 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl relative overflow-hidden flex flex-col justify-between group">
+            <div className="animate-card stagger-3 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl relative overflow-hidden flex flex-col justify-between group">
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
@@ -210,7 +210,7 @@ export default function StatisticsPage() {
                 </div>
 
                 <div className="flex items-baseline gap-2">
-                  <span className="text-4xl font-extrabold tracking-tight text-sky-300 font-mono">
+                  <span className="text-3xl sm:text-4xl font-extrabold tracking-tight text-sky-300 font-mono">
                     {data?.currentOutputWatts ?? 0}
                   </span>
                   <span className="text-slate-400 font-medium text-sm">W</span>
@@ -223,7 +223,7 @@ export default function StatisticsPage() {
             </div>
 
             {/* Balanço Instantâneo (Diferença) */}
-            <div className="animate-card stagger-4 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl relative overflow-hidden flex flex-col justify-between group">
+            <div className="animate-card stagger-4 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl relative overflow-hidden flex flex-col justify-between group">
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
@@ -253,7 +253,7 @@ export default function StatisticsPage() {
 
                 <div className="flex items-baseline gap-2">
                   <span
-                    className={`text-4xl font-extrabold tracking-tight font-mono ${
+                    className={`text-3xl sm:text-4xl font-extrabold tracking-tight font-mono ${
                       isInstantNetPositive ? "text-emerald-400" : "text-amber-400"
                     }`}
                   >
@@ -283,9 +283,9 @@ export default function StatisticsPage() {
             <span>Gasto & Balanço Energético Acumulado (Últimas 24 Horas)</span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-5">
             {/* Energia Solar Gerada (24h) */}
-            <div className="animate-card stagger-4 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl flex flex-col justify-between group">
+            <div className="animate-card stagger-4 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl flex flex-col justify-between group">
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
@@ -298,7 +298,7 @@ export default function StatisticsPage() {
                 </div>
 
                 <div className="flex items-baseline gap-2">
-                  <span className="text-4xl font-extrabold tracking-tight text-amber-300 font-mono">
+                  <span className="text-3xl sm:text-4xl font-extrabold tracking-tight text-amber-300 font-mono">
                     {data?.estimatedEnergyKwh !== undefined ? data.estimatedEnergyKwh.toFixed(3) : "0.000"}
                   </span>
                   <span className="text-slate-400 font-medium text-sm">kWh</span>
@@ -314,7 +314,7 @@ export default function StatisticsPage() {
             </div>
 
             {/* Gasto Energético Acumulado (Energia Consumida 24h) */}
-            <div className="animate-card stagger-5 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl flex flex-col justify-between group">
+            <div className="animate-card stagger-5 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl flex flex-col justify-between group">
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
@@ -327,7 +327,7 @@ export default function StatisticsPage() {
                 </div>
 
                 <div className="flex items-baseline gap-2">
-                  <span className="text-4xl font-extrabold tracking-tight text-sky-300 font-mono">
+                  <span className="text-3xl sm:text-4xl font-extrabold tracking-tight text-sky-300 font-mono">
                     {data?.estimatedConsumedKwh !== undefined ? data.estimatedConsumedKwh.toFixed(3) : "0.000"}
                   </span>
                   <span className="text-slate-400 font-medium text-sm">kWh</span>
@@ -343,7 +343,7 @@ export default function StatisticsPage() {
             </div>
 
             {/* Saldo Energético Líquido do Período (24h) */}
-            <div className="animate-card stagger-6 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl flex flex-col justify-between group">
+            <div className="animate-card stagger-6 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl flex flex-col justify-between group">
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
@@ -367,7 +367,7 @@ export default function StatisticsPage() {
 
                 <div className="flex items-baseline gap-2">
                   <span
-                    className={`text-4xl font-extrabold tracking-tight font-mono ${
+                    className={`text-3xl sm:text-4xl font-extrabold tracking-tight font-mono ${
                       isPeriodNetPositive ? "text-emerald-400" : "text-amber-400"
                     }`}
                   >
@@ -396,7 +396,7 @@ export default function StatisticsPage() {
         {/* 3. Gráfico SVG de Linhas dos Últimos 30 Minutos (Média de 5 em 5 min) */}
         <section
           aria-label="Gráfico dos Últimos 30 Minutos com Média de 5 em 5 min"
-          className="animate-card stagger-5 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4"
+          className="animate-card stagger-5 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4"
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2">
@@ -637,7 +637,7 @@ export default function StatisticsPage() {
                       })}
                     </svg>
 
-                    {/* Fatias transparentes para captura de hover e exibição de tooltip */}
+                    {/* Fatias transparentes para captura de hover/touch e exibição de tooltip */}
                     <div className="absolute inset-0 pt-6 pb-6 px-1 flex items-stretch justify-between z-20">
                       {points.map((point, index) => {
                         const isNetPositive = point.netWatts >= 0;
@@ -647,6 +647,8 @@ export default function StatisticsPage() {
                             key={index}
                             onMouseEnter={() => setHoveredPoint(point)}
                             onMouseLeave={() => setHoveredPoint(null)}
+                            onTouchStart={() => setHoveredPoint(point)}
+                            onClick={() => setHoveredPoint(point)}
                             className="flex-1 h-full relative cursor-pointer group flex items-start justify-center"
                           >
                             {/* Tooltip flutuante indicando a média do intervalo de 5 minutos */}
@@ -720,100 +722,207 @@ export default function StatisticsPage() {
           </div>
 
           {!data?.recentLogs || data.recentLogs.length === 0 ? (
-            <div className="text-center py-8 text-slate-500 text-sm">
+            <div className="text-center py-6 sm:py-8 text-slate-500 text-sm">
               Nenhuma amostra salva no banco de dados.
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm text-slate-300" aria-label="Histórico detalhado de amostras de telemetria">
-                <thead className="text-xs uppercase bg-slate-800/60 text-slate-400 border-b border-slate-800">
-                  <tr>
-                    <th scope="col" className="py-3 px-4">Horário</th>
-                    <th scope="col" className="py-3 px-4">Entrada Solar (PV)</th>
-                    <th scope="col" className="py-3 px-4">Saída / Consumo</th>
-                    <th scope="col" className="py-3 px-4">Saldo Líquido</th>
-                    <th scope="col" className="py-3 px-4">Bateria (SOC)</th>
-                    <th scope="col" className="py-3 px-4">Decisão de Automação</th>
-                    <th scope="col" className="py-3 px-4">Status dos Dispositivos</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60">
-                  {data.recentLogs.map((log) => {
-                    const hasSolar = log.solarInputWatts > 0;
-                    const hasOutput = (log.outputWatts ?? 0) > 0;
-                    const net = log.solarInputWatts - (log.outputWatts ?? 0);
-                    const isNetPositive = net >= 0;
+            <>
+              {/* Mobile View: Cards Verticais / Timeline (< sm) */}
+              <div className="sm:hidden space-y-2.5">
+                {data.recentLogs.map((log) => {
+                  const hasSolar = log.solarInputWatts > 0;
+                  const hasOutput = (log.outputWatts ?? 0) > 0;
+                  const net = log.solarInputWatts - (log.outputWatts ?? 0);
+                  const isNetPositive = net >= 0;
 
-                    return (
-                      <tr key={log.id} className="hover:bg-slate-800/40 transition-colors duration-150">
-                        <td className="py-3 px-4 text-xs font-mono text-slate-400 whitespace-nowrap">
-                          {new Date(log.executedAt).toLocaleString("pt-BR")}
-                        </td>
-                        <td className="py-3 px-4 whitespace-nowrap">
-                          <span
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-bold transition-all ${
-                              hasSolar
-                                ? "bg-amber-500/15 text-amber-300 border border-amber-500/30"
-                                : "bg-slate-800 text-slate-400"
-                            }`}
-                          >
-                            <Sun className="w-3 h-3 text-amber-400" aria-hidden="true" />
-                            {log.solarInputWatts} W
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 whitespace-nowrap">
-                          <span
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-bold transition-all ${
-                              hasOutput
-                                ? "bg-sky-500/15 text-sky-300 border border-sky-500/30"
-                                : "bg-slate-800 text-slate-400"
-                            }`}
-                          >
-                            <Zap className="w-3 h-3 text-sky-400" aria-hidden="true" />
-                            {log.outputWatts ?? 0} W
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 whitespace-nowrap">
-                          <span
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-bold border transition-all ${
-                              isNetPositive
-                                ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
-                                : "bg-amber-500/15 text-amber-300 border-amber-500/30"
-                            }`}
-                          >
-                            {isNetPositive ? "+" : ""}
-                            {net} W
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 font-mono font-semibold whitespace-nowrap">
-                          {log.batteryPercentage}%
-                        </td>
-                        <td className="py-3 px-4 text-xs whitespace-nowrap">
+                  return (
+                    <div
+                      key={log.id}
+                      className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/80 shadow-sm space-y-2 animate-fade-in"
+                    >
+                      {/* Topo do card: Horário legível à esquerda + Decisão à direita */}
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-mono text-slate-400 flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-slate-500 shrink-0" aria-hidden="true" />
+                          {new Date(log.executedAt).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            second: "2-digit",
+                          })}
+                        </span>
+
+                        <div className="shrink-0">
                           {log.actionTriggered === "BATTERY_HIGH_DISCHARGE" && (
-                            <span className="text-emerald-400 font-semibold inline-flex items-center gap-1">
-                              <ArrowUpRight className="w-3 h-3" aria-hidden="true" />
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                              <ArrowUpRight className="w-3 h-3 text-emerald-400 shrink-0" aria-hidden="true" />
                               Modo Bateria
                             </span>
                           )}
                           {log.actionTriggered === "BATTERY_LOW_RECHARGE" && (
-                            <span className="text-amber-400 font-semibold inline-flex items-center gap-1">
-                              <ArrowDownRight className="w-3 h-3" aria-hidden="true" />
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                              <ArrowDownRight className="w-3 h-3 text-amber-400 shrink-0" aria-hidden="true" />
                               Modo Recarga
                             </span>
                           )}
                           {log.actionTriggered === "HOLD_CURRENT_STATE" && (
-                            <span className="text-slate-400">Estável (Histerese)</span>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">
+                              <Clock className="w-3 h-3 text-slate-400 shrink-0" aria-hidden="true" />
+                              Estável (Histerese)
+                            </span>
                           )}
-                        </td>
-                        <td className="py-3 px-4 text-xs text-slate-400 truncate max-w-sm">
-                          {log.executionDetails || "-"}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                          {log.actionTriggered !== "BATTERY_HIGH_DISCHARGE" &&
+                            log.actionTriggered !== "BATTERY_LOW_RECHARGE" &&
+                            log.actionTriggered !== "HOLD_CURRENT_STATE" && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">
+                                {log.actionTriggered}
+                              </span>
+                            )}
+                        </div>
+                      </div>
+
+                      {/* Métricas em pills */}
+                      <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                        <div
+                          className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-mono font-semibold border ${
+                            hasSolar
+                              ? "bg-amber-500/10 text-amber-300 border-amber-500/20"
+                              : "bg-slate-900 text-slate-400 border-slate-800"
+                          }`}
+                        >
+                          <Sun className="w-3.5 h-3.5 text-amber-400 shrink-0" aria-hidden="true" />
+                          <span className="truncate">Solar: {log.solarInputWatts} W</span>
+                        </div>
+
+                        <div
+                          className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-mono font-semibold border ${
+                            hasOutput
+                              ? "bg-sky-500/10 text-sky-300 border-sky-500/20"
+                              : "bg-slate-900 text-slate-400 border-slate-800"
+                          }`}
+                        >
+                          <Zap className="w-3.5 h-3.5 text-sky-400 shrink-0" aria-hidden="true" />
+                          <span className="truncate">Saída: {log.outputWatts ?? 0} W</span>
+                        </div>
+
+                        <div
+                          className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-mono font-semibold border ${
+                            isNetPositive
+                              ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/20"
+                              : "bg-amber-500/10 text-amber-300 border-amber-500/20"
+                          }`}
+                        >
+                          <span className="truncate">Líquido: {isNetPositive ? "+" : ""}{net} W</span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-mono font-semibold bg-slate-900 text-slate-200 border border-slate-800">
+                          <BatteryCharging className="w-3.5 h-3.5 text-emerald-400 shrink-0" aria-hidden="true" />
+                          <span className="truncate">SOC: {log.batteryPercentage}%</span>
+                        </div>
+                      </div>
+
+                      {/* Status / Detalhes dos dispositivos */}
+                      {log.executionDetails && (
+                        <div className="text-xs text-slate-300 font-sans break-words bg-slate-900/80 p-2 rounded-lg border border-slate-800/50 leading-relaxed">
+                          {log.executionDetails}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop & Tablet View: Tabela Tradicional Densa (>= sm) */}
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="w-full text-left text-sm text-slate-300" aria-label="Histórico detalhado de amostras de telemetria">
+                  <thead className="text-xs uppercase bg-slate-800/60 text-slate-400 border-b border-slate-800">
+                    <tr>
+                      <th scope="col" className="py-3 px-4">Horário</th>
+                      <th scope="col" className="py-3 px-4">Entrada Solar (PV)</th>
+                      <th scope="col" className="py-3 px-4">Saída / Consumo</th>
+                      <th scope="col" className="py-3 px-4">Saldo Líquido</th>
+                      <th scope="col" className="py-3 px-4">Bateria (SOC)</th>
+                      <th scope="col" className="py-3 px-4">Decisão de Automação</th>
+                      <th scope="col" className="py-3 px-4">Status dos Dispositivos</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {data.recentLogs.map((log) => {
+                      const hasSolar = log.solarInputWatts > 0;
+                      const hasOutput = (log.outputWatts ?? 0) > 0;
+                      const net = log.solarInputWatts - (log.outputWatts ?? 0);
+                      const isNetPositive = net >= 0;
+
+                      return (
+                        <tr key={log.id} className="hover:bg-slate-800/40 transition-colors duration-150">
+                          <td className="py-3 px-4 text-xs font-mono text-slate-400 whitespace-nowrap">
+                            {new Date(log.executedAt).toLocaleString("pt-BR")}
+                          </td>
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-bold transition-all ${
+                                hasSolar
+                                  ? "bg-amber-500/15 text-amber-300 border border-amber-500/30"
+                                  : "bg-slate-800 text-slate-400"
+                              }`}
+                            >
+                              <Sun className="w-3 h-3 text-amber-400" aria-hidden="true" />
+                              {log.solarInputWatts} W
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-bold transition-all ${
+                                hasOutput
+                                  ? "bg-sky-500/15 text-sky-300 border border-sky-500/30"
+                                  : "bg-slate-800 text-slate-400"
+                              }`}
+                            >
+                              <Zap className="w-3 h-3 text-sky-400" aria-hidden="true" />
+                              {log.outputWatts ?? 0} W
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono font-bold border transition-all ${
+                                isNetPositive
+                                  ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
+                                  : "bg-amber-500/15 text-amber-300 border-amber-500/30"
+                              }`}
+                            >
+                              {isNetPositive ? "+" : ""}
+                              {net} W
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 font-mono font-semibold whitespace-nowrap">
+                            {log.batteryPercentage}%
+                          </td>
+                          <td className="py-3 px-4 text-xs whitespace-nowrap">
+                            {log.actionTriggered === "BATTERY_HIGH_DISCHARGE" && (
+                              <span className="text-emerald-400 font-semibold inline-flex items-center gap-1">
+                                <ArrowUpRight className="w-3 h-3" aria-hidden="true" />
+                                Modo Bateria
+                              </span>
+                            )}
+                            {log.actionTriggered === "BATTERY_LOW_RECHARGE" && (
+                              <span className="text-amber-400 font-semibold inline-flex items-center gap-1">
+                                <ArrowDownRight className="w-3 h-3" aria-hidden="true" />
+                                Modo Recarga
+                              </span>
+                            )}
+                            {log.actionTriggered === "HOLD_CURRENT_STATE" && (
+                              <span className="text-slate-400">Estável (Histerese)</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-xs text-slate-400 truncate max-w-sm">
+                            {log.executionDetails || "-"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </section>
       </div>

@@ -6,6 +6,66 @@ import { useAuth } from "../context/AuthContext";
 import { TransitionLink } from "./TransitionLink";
 import { Tooltip, TooltipTrigger, TooltipContent } from "./ui/tooltip";
 
+// Bottom nav visible only on mobile (< 640px / sm breakpoint)
+const BottomNav = ({
+  navItems,
+  pathname,
+}: {
+  navItems: { href: string; label: string; icon: React.ElementType }[];
+  pathname: string;
+}) => (
+  <nav
+    role="navigation"
+    aria-label="Navegação Mobile Inferior"
+    className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-lg border-t border-slate-800/90 shadow-2xl"
+    style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+  >
+    <div className="flex items-stretch justify-around h-16 max-w-md mx-auto px-1">
+      {navItems.map((item) => {
+        const Icon = item.icon;
+        const isActive = pathname === item.href;
+        return (
+          <TransitionLink
+            key={item.href}
+            href={item.href}
+            aria-current={isActive ? "page" : undefined}
+            aria-label={item.label}
+            className={`relative flex flex-1 flex-col items-center justify-center py-1 gap-0.5 text-[10px] font-medium transition-all duration-200 active:scale-95 ${
+              isActive
+                ? "text-emerald-400 font-semibold"
+                : "text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            {isActive && (
+              <span
+                className="absolute top-0 inset-x-2 h-0.5 bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-500 rounded-full shadow-sm shadow-emerald-500/50"
+                aria-hidden="true"
+              />
+            )}
+            <div
+              className={`p-1 rounded-xl transition-all duration-200 ${
+                isActive
+                  ? "bg-emerald-500/15 text-emerald-400 shadow-sm shadow-emerald-950/40"
+                  : "text-slate-400"
+              }`}
+            >
+              <Icon
+                className={`w-5 h-5 transition-transform duration-200 ${
+                  isActive ? "scale-110" : ""
+                }`}
+                aria-hidden="true"
+              />
+            </div>
+            <span className="leading-tight truncate max-w-[76px] text-center">
+              {item.label}
+            </span>
+          </TransitionLink>
+        );
+      })}
+    </div>
+  </nav>
+);
+
 interface LayoutProps {
   children: ReactNode;
   title?: string;
@@ -65,7 +125,7 @@ export function Layout({ children, title }: LayoutProps) {
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <link rel="alternate icon" href="/favicon.ico" />
       </Head>
-      <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100">
+      <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 overflow-x-hidden">
         <header
           role="banner"
           className={`site-header border-b border-slate-800/90 backdrop-blur-md sticky top-0 z-40 transition-all duration-300 ease-in-out ${
@@ -82,7 +142,7 @@ export function Layout({ children, title }: LayoutProps) {
             <TransitionLink
               href="/"
               aria-label="WattFlow Início"
-              className="flex items-center gap-2 group transition-transform active:scale-95 duration-150"
+              className="flex items-center gap-2 group transition-transform active:scale-95 duration-150 shrink-0"
             >
               <div
                 className={`rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 group-hover:scale-105 group-hover:bg-emerald-500/20 group-hover:border-emerald-500/50 transition-all duration-300 shadow-sm shadow-emerald-950 ${
@@ -110,24 +170,26 @@ export function Layout({ children, title }: LayoutProps) {
               </div>
             </TransitionLink>
 
-            <div className="flex items-center gap-2 sm:gap-4">
+            <div className="flex items-center gap-2 sm:gap-3 lg:gap-4">
               <nav
                 role="navigation"
                 aria-label="Navegação Principal"
-                className="flex items-center gap-1 sm:gap-1.5"
+                className="hidden sm:flex items-center gap-1 sm:gap-1.5"
               >
                 {navItems.map((item) => {
                   const Icon = item.icon;
                   const isActive = router.pathname === item.href;
                   return (
-                    <Tooltip key={item.href} enabled={isScrolled}>
+                    <Tooltip key={item.href} enabled={true}>
                       <TooltipTrigger asChild>
                         <TransitionLink
                           href={item.href}
                           aria-current={isActive ? "page" : undefined}
                           aria-label={item.label}
                           className={`flex items-center rounded-lg font-medium transition-all duration-300 active:scale-95 ${
-                            isScrolled ? "px-2.5 py-1.5 text-xs gap-1.5" : "px-3 py-2 text-sm gap-2"
+                            isScrolled
+                              ? "px-2.5 py-1.5 text-xs gap-1.5"
+                              : "px-2.5 sm:px-3 py-2 text-sm gap-2"
                           } ${
                             isActive
                               ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 shadow-sm shadow-emerald-950"
@@ -141,7 +203,7 @@ export function Layout({ children, title }: LayoutProps) {
                             aria-hidden="true"
                           />
                           <span
-                            className={`hidden sm:inline overflow-hidden whitespace-nowrap transition-all duration-300 ease-in-out ${
+                            className={`hidden lg:inline overflow-hidden whitespace-nowrap transition-all duration-300 ease-in-out ${
                               isScrolled ? "max-w-0 opacity-0 -ml-0.5" : "max-w-[160px] opacity-100 ml-0"
                             }`}
                           >
@@ -149,15 +211,17 @@ export function Layout({ children, title }: LayoutProps) {
                           </span>
                         </TransitionLink>
                       </TooltipTrigger>
-                      <TooltipContent side="bottom">{item.label}</TooltipContent>
+                      <TooltipContent side="bottom" className={isScrolled ? "" : "lg:hidden"}>
+                        {item.label}
+                      </TooltipContent>
                     </Tooltip>
                   );
                 })}
               </nav>
 
               {user && (
-                <div className="flex items-center gap-2 sm:gap-3 border-l border-slate-800/80 pl-2 sm:pl-3">
-                  <Tooltip enabled={isScrolled}>
+                <div className="flex items-center gap-2 sm:gap-3 sm:border-l sm:border-slate-800/80 sm:pl-3">
+                  <Tooltip enabled={true}>
                     <TooltipTrigger asChild>
                       <TransitionLink
                         href="/profile"
@@ -186,10 +250,12 @@ export function Layout({ children, title }: LayoutProps) {
                         </span>
                       </TransitionLink>
                     </TooltipTrigger>
-                    <TooltipContent side="bottom">Meu Perfil e Segurança</TooltipContent>
+                    <TooltipContent side="bottom" className="md:hidden">
+                      {user.fullName || user.email}
+                    </TooltipContent>
                   </Tooltip>
 
-                  <Tooltip enabled={isScrolled}>
+                  <Tooltip enabled={true}>
                     <TooltipTrigger asChild>
                       <button
                         onClick={logout}
@@ -211,10 +277,10 @@ export function Layout({ children, title }: LayoutProps) {
 
         <main
           role="main"
-          className="flex-1 max-w-6xl w-full mx-auto px-4 py-8 page-content animate-fade-in"
+          className="max-w-6xl w-full mx-auto px-4 py-4 sm:py-6 page-content animate-fade-in"
         >
           {title && (
-            <div className="mb-8 animate-slide-down">
+            <div className="mb-6 animate-slide-down">
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-100">{title}</h1>
             </div>
           )}
@@ -223,10 +289,12 @@ export function Layout({ children, title }: LayoutProps) {
 
         <footer
           role="contentinfo"
-          className="border-t border-slate-800/80 py-6 text-center text-xs text-slate-500"
+          className="mt-6 border-t border-slate-800/80 py-5 text-center text-xs text-slate-500 pb-20 sm:pb-5"
         >
           <p><strong className="font-semibold text-slate-400">wattflow</strong> - desenvolvido com ♥ por Braine</p>
         </footer>
+
+        <BottomNav navItems={navItems} pathname={router.pathname} />
       </div>
     </>
   );

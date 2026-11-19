@@ -33,6 +33,7 @@ interface UserMqttStreamState {
   latestTelemetry: LiveTelemetrySnapshot | null;
   subscribedTopic: string | null;
   lastPersistTimeMs: number;
+  lastPersistedAcState: boolean | null;
   isConnecting: boolean;
 }
 
@@ -208,7 +209,7 @@ export class EcoFlowMqttStreamService {
     previousClient.end(true);
   }
 
-  public getLatestTelemetry(userId?: string): LiveTelemetrySnapshot | null {
+  public getLatestTelemetry(userId?: string, maxAgeMs = 300000): LiveTelemetrySnapshot | null {
     if (!userId || userId.trim().length === 0) {
       return null;
     }
@@ -219,7 +220,7 @@ export class EcoFlowMqttStreamService {
     }
 
     const elapsedMs = Date.now() - state.latestTelemetry.updatedAt.getTime();
-    if (elapsedMs > 15000) {
+    if (elapsedMs > maxAgeMs) {
       return null;
     }
 
@@ -256,6 +257,7 @@ export class EcoFlowMqttStreamService {
       latestTelemetry: null,
       subscribedTopic: null,
       lastPersistTimeMs: 0,
+      lastPersistedAcState: null,
       isConnecting: false,
     };
     this.streamsByUser.set(userId, created);
@@ -424,12 +426,35 @@ export class EcoFlowMqttStreamService {
 
     const now = Date.now();
     const elapsedSinceLastPersist = now - userState.lastPersistTimeMs;
-    if (elapsedSinceLastPersist < 2000) {
+    const currentSnapshot = userState.latestTelemetry;
+
+    const hasAcStateChanged =
+      userState.lastPersistedAcState !== null &&
+      currentSnapshot.isAcOutputEnabled !== null &&
+      currentSnapshot.isAcOutputEnabled !== userState.lastPersistedAcState;
+
+    const STATIC_PERSIST_THROTTLE_MS = 300_000;
+    const shouldPersist =
+      userState.lastPersistTimeMs === 0 ||
+      hasAcStateChanged ||
+      elapsedSinceLastPersist >= STATIC_PERSIST_THROTTLE_MS;
+
+    if (!shouldPersist) {
       return;
     }
 
     userState.lastPersistTimeMs = now;
-    const currentSnapshot = userState.latestTelemetry;
+    userState.lastPersistedAcState = currentSnapshot.isAcOutputEnabled;
+
+    const actionTriggered = hasAcStateChanged
+      ? currentSnapshot.isAcOutputEnabled
+        ? "ENABLE_ECOFLOW_AC"
+        : "DISABLE_ECOFLOW_AC"
+      : "MQTT_STREAM";
+
+    const executionDetails = hasAcStateChanged
+      ? `Comutação da saída AC detectada via stream MQTT (novo estado: ${currentSnapshot.isAcOutputEnabled ? "LIGADA" : "DESLIGADA"}).`
+      : "Telemetria consolidada em tempo real via stream MQTT oficial EcoFlow (amostragem periódica 5m).";
 
     databaseClient.syncExecutionLog
       .create({
@@ -438,9 +463,8 @@ export class EcoFlowMqttStreamService {
           batteryPercentage: currentSnapshot.batteryPercentage,
           solarInputWatts: currentSnapshot.solarInputWatts,
           outputWatts: currentSnapshot.outputWatts,
-          actionTriggered: "MQTT_STREAM",
-          executionDetails:
-            "Telemetria recebida em tempo real via stream MQTT oficial EcoFlow (keep-alive ativo).",
+          actionTriggered,
+          executionDetails,
           executedAt: new Date(),
         },
       })

@@ -14,6 +14,7 @@ import {
 
 interface SyncApiResponseData {
   success: boolean;
+  skipped?: boolean;
   message: string;
   data?: SyncExecutionResult | SyncExecutionResult[];
 }
@@ -109,6 +110,16 @@ export default async function handleSync(
   }
 
   try {
+    if (isCronAuthorized && process.env.DISABLE_LOCAL_CRON === "true") {
+      response.status(200).json({
+        success: true,
+        skipped: true,
+        message: "Sincronizacao automatica local desativada (DISABLE_LOCAL_CRON=true).",
+        data: [],
+      });
+      return;
+    }
+
     const repository = new ConfigurationRepository(prisma);
     const useCase = new OrchestratorSyncUseCase(repository);
 

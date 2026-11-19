@@ -114,6 +114,22 @@ export class ConfigurationRepository {
     });
   }
 
+  public async findLatestExecutionLog(configurationId: string): Promise<{
+    batteryPercentage: number;
+    actionTriggered: string;
+    executedAt: Date;
+  } | null> {
+    return this.databaseClient.syncExecutionLog.findFirst({
+      where: { userConfigurationId: configurationId },
+      orderBy: { executedAt: "desc" },
+      select: {
+        batteryPercentage: true,
+        actionTriggered: true,
+        executedAt: true,
+      },
+    });
+  }
+
   private async appendMappedRecordSafely(
     record: PrismaUserConfiguration,
     accumulator: RetrievedConfigurationRecord[]
