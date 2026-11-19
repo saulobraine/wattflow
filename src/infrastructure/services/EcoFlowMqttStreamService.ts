@@ -340,7 +340,7 @@ export class EcoFlowMqttStreamService {
       const parsedJson = JSON.parse(rawText) as Record<string, unknown>;
 
       const quotaData = this.resolveQuotaPayload(parsedJson);
-      this.updateUserSnapshot(userState, quotaData);
+      this.updateUserSnapshot(userState, quotaData, parsedJson);
 
       const hasDatabaseContext = streamConfig.databaseClient && streamConfig.userConfigurationId;
       if (hasDatabaseContext) {
@@ -367,33 +367,13 @@ export class EcoFlowMqttStreamService {
 
   private updateUserSnapshot(
     userState: UserMqttStreamState,
-    quotaData: Record<string, unknown>
+    quotaData: Record<string, unknown>,
+    parsedJson?: Record<string, unknown>
   ): void {
-    const extractedBattery = this.extractNumberFromCandidates(quotaData, [
-      "bmsMaster.soc",
-      "bmsMaster.f32ShowSoc",
-      "pd.soc",
-      "pd.bpPowerSoc",
-      "ems.soc",
-      "soc",
-    ]);
-
-    const extractedSolarWatts = this.extractNumberFromCandidates(quotaData, [
-      "mppt.inWatts",
-      "mppt.pvInWatts",
-      "mppt.solarInWatts",
-      "mppt.pv2InWatts",
-      "mppt.outWatts",
-      "pd.pvInWatts",
-      "pd.chgPowerDc",
-      "pd.carWatts",
-      "solarInWatts",
-      "pvInWatts",
-      "bmsMaster.inputWatts",
-    ]);
-
-    const extractedOutputWatts = this.extractOutputWatts(quotaData);
-    const extractedAcState = this.extractAcState(quotaData);
+    const extractedBattery = this.extractBattery(quotaData, parsedJson);
+    const extractedSolarWatts = this.extractSolarWatts(quotaData, parsedJson);
+    const extractedOutputWatts = this.extractOutputWatts(quotaData, parsedJson);
+    const extractedAcState = this.extractAcState(quotaData, parsedJson);
 
     const previousSnapshot = userState.latestTelemetry;
 
@@ -473,52 +453,306 @@ export class EcoFlowMqttStreamService {
       });
   }
 
-  private extractOutputWatts(quotaData: Record<string, unknown>): number | null {
-    const primaryCandidate = quotaData["pd.wattsOutSum"] ?? quotaData["wattsOutSum"];
-    const parsedPrimary = this.parseNumericCandidate(primaryCandidate);
-    if (parsedPrimary !== null && parsedPrimary >= 0) {
-      return Math.round(parsedPrimary);
+  private extractBattery(
+    quotaData: Record<string, unknown>,
+    parsedJson?: Record<string, unknown>
+  ): number | null {
+    const candidateKeys = [
+      "bmsMaster.soc",
+      "bmsMaster.f32ShowSoc",
+      "pd.soc",
+      "pd.bpPowerSoc",
+      "ems.soc",
+      "soc",
+    ];
+
+    const flatBattery = this.extractNumberFromCandidates(quotaData, candidateKeys);
+    if (flatBattery !== null) {
+      return flatBattery;
     }
 
-    const isAcEnabled = this.extractAcState(quotaData);
-    if (isAcEnabled === false) {
-      return 0;
+    const nestedContainers = ["bmsMaster", "bms", "ems", "pd"];
+    for (const container of nestedContainers) {
+      const nestedObj = quotaData[container];
+      if (typeof nestedObj === "object" && nestedObj !== null) {
+        const nestedRec = nestedObj as Record<string, unknown>;
+        const nestedSoc = this.parseNumericCandidate(
+          nestedRec["soc"] ?? nestedRec["f32ShowSoc"] ?? nestedRec["bpPowerSoc"]
+        );
+        if (nestedSoc !== null && nestedSoc >= 0) {
+          return Math.round(nestedSoc);
+        }
+      }
     }
 
-    const candidateKeys = ["inv.outputWatts", "inv.outWatts", "outputWatts"];
-    for (const key of candidateKeys) {
-      const candidateValue = quotaData[key];
-      const parsedValue = this.parseNumericCandidate(candidateValue);
-      if (parsedValue !== null && parsedValue >= 0) {
-        return Math.round(parsedValue);
+    const typeCode =
+      typeof parsedJson?.["typeCode"] === "string"
+        ? (parsedJson["typeCode"] as string).toLowerCase()
+        : "";
+    const moduleType = parsedJson?.["moduleType"];
+    const isBmsContext = typeCode.includes("bms") || moduleType === 2 || moduleType === "2";
+    if (isBmsContext) {
+      const directSoc = this.parseNumericCandidate(quotaData["soc"] ?? quotaData["f32ShowSoc"]);
+      if (directSoc !== null && directSoc >= 0) {
+        return Math.round(directSoc);
       }
     }
 
     return null;
   }
 
-  private extractAcState(quotaData: Record<string, unknown>): boolean | null {
+  private extractSolarWatts(
+    quotaData: Record<string, unknown>,
+    parsedJson?: Record<string, unknown>
+  ): number | null {
+    const typeCode =
+      typeof parsedJson?.["typeCode"] === "string"
+        ? (parsedJson["typeCode"] as string).toLowerCase()
+        : "";
+    const moduleType = parsedJson?.["moduleType"];
+    const isMpptContext =
+      typeCode.includes("mppt") || moduleType === 5 || moduleType === "5";
+
+    // 1. Objeto aninhado: { mppt: { inWatts: 200, pv2InWatts: 150 } }
+    const mpptNested = quotaData["mppt"];
+    if (typeof mpptNested === "object" && mpptNested !== null) {
+      const mpptRec = mpptNested as Record<string, unknown>;
+      const pv1 = this.parseNumericCandidate(
+        mpptRec["inWatts"] ??
+          mpptRec["pvInWatts"] ??
+          mpptRec["solarInWatts"] ??
+          mpptRec["outWatts"]
+      );
+      const pv2 = this.parseNumericCandidate(mpptRec["pv2InWatts"]);
+      if (pv1 !== null || pv2 !== null) {
+        return Math.round((pv1 ?? 0) + (pv2 ?? 0));
+      }
+    }
+
+    // 2. Chaves diretas no pacote modular MPPT: { inWatts: 240, pv2InWatts: 60 }
+    if (isMpptContext) {
+      const directPv1 = this.parseNumericCandidate(
+        quotaData["inWatts"] ??
+          quotaData["pvInWatts"] ??
+          quotaData["solarInWatts"] ??
+          quotaData["outWatts"]
+      );
+      const directPv2 = this.parseNumericCandidate(quotaData["pv2InWatts"]);
+      if (directPv1 !== null || directPv2 !== null) {
+        return Math.round((directPv1 ?? 0) + (directPv2 ?? 0));
+      }
+    }
+
+    // 3. Chaves planas pontuadas ou unificadas
+    const flatPv1 = this.parseNumericCandidate(
+      quotaData["mppt.inWatts"] ??
+        quotaData["mppt.pvInWatts"] ??
+        quotaData["mppt.solarInWatts"] ??
+        quotaData["mppt.outWatts"] ??
+        quotaData["pd.pvInWatts"] ??
+        quotaData["pd.chgPowerDc"] ??
+        quotaData["pd.carWatts"] ??
+        quotaData["solarInWatts"] ??
+        quotaData["pvInWatts"]
+    );
+    const flatPv2 = this.parseNumericCandidate(
+      quotaData["mppt.pv2InWatts"] ?? quotaData["pv2InWatts"]
+    );
+
+    if (flatPv1 !== null || flatPv2 !== null) {
+      return Math.round((flatPv1 ?? 0) + (flatPv2 ?? 0));
+    }
+
+    // 4. Fallback: bmsMaster.inputWatts se disponível
+    const bmsInput = this.parseNumericCandidate(quotaData["bmsMaster.inputWatts"]);
+    if (bmsInput !== null && bmsInput >= 0) {
+      return Math.round(bmsInput);
+    }
+
+    return null;
+  }
+
+  private extractOutputWatts(
+    quotaData: Record<string, unknown>,
+    parsedJson?: Record<string, unknown>
+  ): number | null {
+    const typeCode =
+      typeof parsedJson?.["typeCode"] === "string"
+        ? (parsedJson["typeCode"] as string).toLowerCase()
+        : "";
+    const moduleType = parsedJson?.["moduleType"];
+    const isMpptContext =
+      typeCode.includes("mppt") || moduleType === 5 || moduleType === "5";
+    const isInvContext =
+      typeCode.includes("inv") || moduleType === 3 || moduleType === "3";
+    const isPdContext =
+      typeCode.includes("pd") || moduleType === 1 || moduleType === "1";
+
+    // 1. Objeto aninhado inv ou pd
+    const invNested = quotaData["inv"];
+    if (typeof invNested === "object" && invNested !== null) {
+      const invRec = invNested as Record<string, unknown>;
+      const parsedInv = this.parseNumericCandidate(
+        invRec["outputWatts"] ?? invRec["outWatts"] ?? invRec["invOutWatts"]
+      );
+      if (parsedInv !== null && parsedInv >= 0) {
+        return Math.round(parsedInv);
+      }
+    }
+
+    const pdNested = quotaData["pd"];
+    if (typeof pdNested === "object" && pdNested !== null) {
+      const pdRec = pdNested as Record<string, unknown>;
+      const parsedPd = this.parseNumericCandidate(
+        pdRec["wattsOutSum"] ?? pdRec["outWatts"]
+      );
+      if (parsedPd !== null && parsedPd >= 0) {
+        return Math.round(parsedPd);
+      }
+    }
+
+    // 2. Chaves diretas no pacote modular Inversor ou PD
+    if (isInvContext) {
+      const directInv = this.parseNumericCandidate(
+        quotaData["outputWatts"] ?? quotaData["outWatts"] ?? quotaData["invOutWatts"]
+      );
+      if (directInv !== null && directInv >= 0) {
+        return Math.round(directInv);
+      }
+    }
+
+    if (isPdContext) {
+      const directPd = this.parseNumericCandidate(
+        quotaData["wattsOutSum"] ?? quotaData["outWatts"]
+      );
+      if (directPd !== null && directPd >= 0) {
+        return Math.round(directPd);
+      }
+    }
+
+    // 3. Chave primária pd.wattsOutSum ou wattsOutSum
+    const primaryCandidate = quotaData["pd.wattsOutSum"] ?? quotaData["wattsOutSum"];
+    const parsedPrimary = this.parseNumericCandidate(primaryCandidate);
+    if (parsedPrimary !== null && parsedPrimary >= 0) {
+      return Math.round(parsedPrimary);
+    }
+
+    const isAcEnabled = this.extractAcState(quotaData, parsedJson);
+    if (isAcEnabled === false && (isInvContext || isPdContext)) {
+      return 0;
+    }
+
+    // 4. Chaves planas para saída de inversor (exceto em contexto MPPT onde outWatts é carga DC da bateria)
+    if (!isMpptContext) {
+      const candidateKeys = ["inv.outputWatts", "inv.outWatts", "invOutWatts", "outputWatts"];
+      for (const key of candidateKeys) {
+        const candidateValue = quotaData[key];
+        const parsedValue = this.parseNumericCandidate(candidateValue);
+        if (parsedValue !== null && parsedValue >= 0) {
+          return Math.round(parsedValue);
+        }
+      }
+    }
+
+    return null;
+  }
+
+  private extractAcState(
+    quotaData: Record<string, unknown>,
+    parsedJson?: Record<string, unknown>
+  ): boolean | null {
+    // 1. Objetos aninhados
+    const invNested = quotaData["inv"];
+    if (typeof invNested === "object" && invNested !== null) {
+      const invRec = invNested as Record<string, unknown>;
+      const state = this.resolveBooleanState(
+        invRec["cfgAcEnabled"] ?? invRec["acOutState"] ?? invRec["acState"]
+      );
+      if (state !== null) {
+        return state;
+      }
+    }
+
+    const pdNested = quotaData["pd"];
+    if (typeof pdNested === "object" && pdNested !== null) {
+      const pdRec = pdNested as Record<string, unknown>;
+      const state = this.resolveBooleanState(
+        pdRec["acOutCfg"] ?? pdRec["acOutState"] ?? pdRec["acState"]
+      );
+      if (state !== null) {
+        return state;
+      }
+    }
+
+    const mpptNested = quotaData["mppt"];
+    if (typeof mpptNested === "object" && mpptNested !== null) {
+      const mpptRec = mpptNested as Record<string, unknown>;
+      const state = this.resolveBooleanState(mpptRec["cfgAcEnabled"]);
+      if (state !== null) {
+        return state;
+      }
+    }
+
+    // 2. Chaves diretas em mensagens modulares
+    const typeCode =
+      typeof parsedJson?.["typeCode"] === "string"
+        ? (parsedJson["typeCode"] as string).toLowerCase()
+        : "";
+    const moduleType = parsedJson?.["moduleType"];
+    const isRelevantModule =
+      typeCode.includes("inv") ||
+      typeCode.includes("mppt") ||
+      typeCode.includes("pd") ||
+      moduleType === 1 ||
+      moduleType === "1" ||
+      moduleType === 3 ||
+      moduleType === "3" ||
+      moduleType === 5 ||
+      moduleType === "5";
+
+    if (isRelevantModule || !parsedJson?.["moduleType"]) {
+      const directCandidate = this.resolveBooleanState(
+        quotaData["cfgAcEnabled"] ??
+          quotaData["acOutState"] ??
+          quotaData["acOutCfg"] ??
+          quotaData["acState"]
+      );
+      if (directCandidate !== null) {
+        return directCandidate;
+      }
+    }
+
+    // 3. Chaves candidatas pontuadas
     const candidateKeys = [
       "mppt.cfgAcEnabled",
       "inv.cfgAcEnabled",
       "inv.acOutState",
       "pd.acOutCfg",
+      "pd.acOutState",
+      "cfgAcEnabled",
+      "acOutState",
+      "acOutCfg",
+      "acState",
     ];
 
     for (const key of candidateKeys) {
       const candidateValue = quotaData[key];
-      const isEnabledState =
-        candidateValue === 1 || candidateValue === "1" || candidateValue === true;
-      if (isEnabledState) {
-        return true;
-      }
-      const isDisabledState =
-        candidateValue === 0 || candidateValue === "0" || candidateValue === false;
-      if (isDisabledState) {
-        return false;
+      const resolved = this.resolveBooleanState(candidateValue);
+      if (resolved !== null) {
+        return resolved;
       }
     }
 
+    return null;
+  }
+
+  private resolveBooleanState(candidateValue: unknown): boolean | null {
+    if (candidateValue === 1 || candidateValue === "1" || candidateValue === true) {
+      return true;
+    }
+    if (candidateValue === 0 || candidateValue === "0" || candidateValue === false) {
+      return false;
+    }
     return null;
   }
 

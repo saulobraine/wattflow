@@ -199,6 +199,93 @@ describe("Multi-tenant telemetry & MQTT stream isolation (SEC-08)", () => {
       expect(reconnectingClient.removeAllListeners).toHaveBeenCalledTimes(1);
       expect(reconnectingClient.end).toHaveBeenCalledWith(true);
     });
+
+    it("correctly parses modular MQTT telemetry for solar input, dual PV inputs, inverter and AC states", async () => {
+      const client = createFakeMqttClient();
+      mockMqttConnect.mockReturnValueOnce(client);
+      mockFetchMqttCertification.mockResolvedValueOnce({
+        protocol: "mqtts",
+        url: "mqtt.ecoflow.com",
+        port: 8883,
+        certificateAccount: "acct-solar",
+        certificatePassword: "pass-solar",
+      });
+
+      const service = EcoFlowMqttStreamService.getInstance();
+      await service.startStream({
+        userId: "user-solar",
+        credentials: new EcoFlowCredentials(new AccessKey("ak-solar"), new AccessSecret("as-solar")),
+        serialNumber: new DeviceSerialNumber("SN-SOLAR-01"),
+        baseApiUrl: "https://api.ecoflow.com",
+      });
+
+      // 1. MPPT modular packet with direct inWatts
+      client.emitEvent(
+        "message",
+        "/open/acct-solar/SN-SOLAR-01/quota",
+        Buffer.from(
+          JSON.stringify({
+            moduleType: 5,
+            typeCode: "mpptStatus",
+            params: { inWatts: 350, outWatts: 340 },
+          })
+        )
+      );
+
+      let snapshot = service.getLatestTelemetry("user-solar");
+      expect(snapshot?.solarInputWatts).toBe(350);
+      // outWatts in MPPT must NOT be interpreted as inverter outputWatts
+      expect(snapshot?.outputWatts).toBe(0);
+
+      // 2. MPPT dual-input packet (inWatts + pv2InWatts)
+      client.emitEvent(
+        "message",
+        "/open/acct-solar/SN-SOLAR-01/quota",
+        Buffer.from(
+          JSON.stringify({
+            moduleType: 5,
+            typeCode: "mpptStatus",
+            params: { inWatts: 200, pv2InWatts: 150 },
+          })
+        )
+      );
+
+      snapshot = service.getLatestTelemetry("user-solar");
+      expect(snapshot?.solarInputWatts).toBe(350);
+
+      // 3. Nested object format { mppt: { inWatts: 180, pv2InWatts: 20 } }
+      client.emitEvent(
+        "message",
+        "/open/acct-solar/SN-SOLAR-01/quota",
+        Buffer.from(
+          JSON.stringify({
+            params: { mppt: { inWatts: 180, pv2InWatts: 20 } },
+          })
+        )
+      );
+
+      snapshot = service.getLatestTelemetry("user-solar");
+      expect(snapshot?.solarInputWatts).toBe(200);
+
+      // 4. Inverter modular packet with cfgAcEnabled: 1 and outWatts: 450
+      client.emitEvent(
+        "message",
+        "/open/acct-solar/SN-SOLAR-01/quota",
+        Buffer.from(
+          JSON.stringify({
+            moduleType: 3,
+            typeCode: "invStatus",
+            params: { cfgAcEnabled: 1, outWatts: 450 },
+          })
+        )
+      );
+
+      snapshot = service.getLatestTelemetry("user-solar");
+      expect(snapshot?.isAcOutputEnabled).toBe(true);
+      expect(snapshot?.outputWatts).toBe(450);
+      // Solar input preserved from previous snapshot
+      expect(snapshot?.solarInputWatts).toBe(200);
+    });
   });
 
   describe("LiveTelemetryService", () => {
