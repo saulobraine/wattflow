@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../infrastructure/database/prismaClient";
 import { extractUserFromRequest } from "../../infrastructure/auth/sessionHelper";
 import { LiveTelemetryService } from "../../infrastructure/services/LiveTelemetryService";
+import { EcoFlowMqttStreamService } from "../../infrastructure/services/EcoFlowMqttStreamService";
 
 interface DashboardStatusResponse {
   success: boolean;
@@ -80,8 +81,16 @@ export default async function handleDashboardStatus(
   });
 
   try {
-    const liveService = new LiveTelemetryService(prisma);
-    await liveService.syncIfStale(extractedUserId, 2000);
+    const streamService = EcoFlowMqttStreamService.getInstance();
+    const isMqttConnected = streamService.isStreamConnected(extractedUserId);
+    const memoryTelemetry = isMqttConnected
+      ? streamService.getLatestTelemetry(extractedUserId, 60000)
+      : null;
+
+    if (!isMqttConnected) {
+      const liveService = new LiveTelemetryService(prisma);
+      await liveService.syncIfStale(extractedUserId, 90000);
+    }
 
     const configuration = await prisma.userConfiguration.findUnique({
       where: { userId: extractedUserId },
@@ -119,6 +128,26 @@ export default async function handleDashboardStatus(
         configuration.ecoflowSerialNumber
     );
 
+    const isSnapshotRecent =
+      Boolean(memoryTelemetry) &&
+      Date.now() - memoryTelemetry!.updatedAt.getTime() < 60000;
+
+    let resolvedBattery = latestLog ? latestLog.batteryPercentage : null;
+    let resolvedSolarWatts = latestLog ? latestLog.solarInputWatts : null;
+    let resolvedAction = latestLog ? latestLog.actionTriggered : null;
+    let resolvedSyncTime = latestLog ? latestLog.executedAt.toISOString() : null;
+
+    if (isSnapshotRecent && memoryTelemetry) {
+      resolvedBattery = memoryTelemetry.batteryPercentage;
+      resolvedSolarWatts = memoryTelemetry.solarInputWatts;
+      resolvedSyncTime = memoryTelemetry.updatedAt.toISOString();
+      if (memoryTelemetry.isAcOutputEnabled !== null) {
+        resolvedAction = memoryTelemetry.isAcOutputEnabled
+          ? "ENABLE_ECOFLOW_AC"
+          : "DISABLE_ECOFLOW_AC";
+      }
+    }
+
     response.status(200).json({
       success: true,
       isAuthenticated: true,
@@ -127,10 +156,10 @@ export default async function handleDashboardStatus(
         isAutomationActive: configuration.isAutomationActive,
         turnOnThreshold: configuration.turnOnThreshold,
         turnOffThreshold: configuration.turnOffThreshold,
-        lastBatteryPercentage: latestLog ? latestLog.batteryPercentage : null,
-        lastSolarWatts: latestLog ? latestLog.solarInputWatts : null,
-        lastAction: latestLog ? latestLog.actionTriggered : null,
-        lastSyncTime: latestLog ? latestLog.executedAt.toISOString() : null,
+        lastBatteryPercentage: resolvedBattery,
+        lastSolarWatts: resolvedSolarWatts,
+        lastAction: resolvedAction,
+        lastSyncTime: resolvedSyncTime,
         logs: configuration.syncExecutionLogs.map((log) => ({
           id: log.id,
           batteryPercentage: log.batteryPercentage,

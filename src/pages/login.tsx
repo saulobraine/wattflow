@@ -104,7 +104,7 @@ export default function LoginPage() {
       <Head>
         <title>Entrar na Conta | WattFlow</title>
       </Head>
-      <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center px-4 py-12 animate-fade-in">
+      <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center px-4 py-8 sm:py-12 animate-fade-in overflow-x-hidden">
         <div className="w-full max-w-md space-y-8 animate-card stagger-1">
           <div className="text-center space-y-2">
             <div className="inline-flex p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 mb-2 shadow-lg shadow-emerald-950/40 animate-float">
@@ -118,7 +118,7 @@ export default function LoginPage() {
             </p>
           </div>
 
-          <div className="p-8 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl space-y-6 interactive-card">
+          <div className="p-5 sm:p-8 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl space-y-6 interactive-card">
             {errorMessage && (
               <div
                 role="alert"
@@ -159,7 +159,7 @@ export default function LoginPage() {
                     value={totpToken}
                     onChange={(e) => setTotpToken(e.target.value.replace(/\D/g, ""))}
                     placeholder="000000"
-                    className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-center font-mono text-xl tracking-[0.35em] focus:border-emerald-500 focus:outline-none transition-colors"
+                    className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-center font-mono text-xl tracking-[0.25em] sm:tracking-[0.35em] focus:border-emerald-500 focus:outline-none transition-colors"
                   />
                 </div>
 

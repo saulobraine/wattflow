@@ -10,6 +10,11 @@ interface UserLiveSyncState {
 
 const userSyncStates = new Map<string, UserLiveSyncState>();
 
+export function isLocalCronDisabled(): boolean {
+  const environment = process.env;
+  return environment.DISABLE_LOCAL_CRON === "true";
+}
+
 function getOrCreateUserSyncState(userId: string): UserLiveSyncState {
   const existing = userSyncStates.get(userId);
   if (existing) {
@@ -46,42 +51,56 @@ export class LiveTelemetryService {
   }
 
   public async syncIfStale(userId: string, maxAgeMs = 2000): Promise<SyncExecutionResult | null> {
-    const normalizedUserId = typeof userId === "string" ? userId.trim() : "";
+    const isStringUserId = typeof userId === "string";
+    const normalizedUserId = isStringUserId ? userId.trim() : "";
     if (!normalizedUserId) {
+      return null;
+    }
+
+    if (isLocalCronDisabled()) {
       return null;
     }
 
     const streamService = EcoFlowMqttStreamService.getInstance();
     const isUserStreamConnected = streamService.isStreamConnected(normalizedUserId);
     if (!isUserStreamConnected) {
-      const startPromise = streamService.startForUser(this.databaseClient, normalizedUserId);
+      const database = this.databaseClient;
+      const startPromise = streamService.startForUser(database, normalizedUserId);
       startPromise.catch((streamError) => {
         console.warn("[LiveTelemetryService] Tentativa de inicialização do stream MQTT:", streamError);
       });
     }
 
-    const userState = getOrCreateUserSyncState(normalizedUserId);
-    if (userState.inFlightSync) {
-      return await userState.inFlightSync;
+    if (isUserStreamConnected) {
+      return null;
     }
 
-    const elapsed = Date.now() - userState.lastSyncTimeMs;
+    const userState = getOrCreateUserSyncState(normalizedUserId);
+    const pendingSync = userState.inFlightSync;
+    if (pendingSync) {
+      return await pendingSync;
+    }
+
+    const lastSyncMs = userState.lastSyncTimeMs;
+    const elapsed = Date.now() - lastSyncMs;
     if (elapsed < maxAgeMs) {
       return null;
     }
 
-    userState.lastSyncTimeMs = Date.now();
+    const currentNowMs = Date.now();
+    userState.lastSyncTimeMs = currentNowMs;
     const repository = new ConfigurationRepository(this.databaseClient);
     const useCase = new OrchestratorSyncUseCase(repository);
 
     const executionPromise = useCase.executeSyncForUser(normalizedUserId);
-    userState.inFlightSync = executionPromise.catch((error) => {
+    const safePromise = executionPromise.catch((error) => {
       console.warn("[LiveTelemetryService] Falha na sincronização em tempo real:", error);
       return null;
     });
+    userState.inFlightSync = safePromise;
 
     try {
-      return await userState.inFlightSync;
+      return await safePromise;
     } finally {
       userState.inFlightSync = null;
     }

@@ -125,8 +125,8 @@ export default function AutomationsPage() {
         </section>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="animate-card stagger-2 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+          <div className="animate-card stagger-2 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
                   <Sliders className="w-5 h-5" aria-hidden="true" />
@@ -139,7 +139,7 @@ export default function AutomationsPage() {
                 </div>
               </div>
 
-              <label htmlFor="automation-active-checkbox" className="flex items-center gap-2 cursor-pointer group">
+              <label htmlFor="automation-active-checkbox" className="flex items-center gap-2 cursor-pointer group self-start sm:self-auto">
                 <span className="text-xs font-semibold text-slate-300 group-hover:text-emerald-300 transition-colors">
                   Automação Ativa
                 </span>
@@ -155,7 +155,7 @@ export default function AutomationsPage() {
 
             {/* Slider Limite Superior */}
             <div className="space-y-2">
-              <div className="flex justify-between items-center">
+              <div className="flex flex-wrap sm:flex-nowrap justify-between items-start sm:items-center gap-2">
                 <label htmlFor="upper-threshold-slider" className="text-sm font-semibold text-slate-200 flex items-center gap-2">
                   <Zap className="w-4 h-4 text-emerald-400" aria-hidden="true" />
                   Limite Superior (Bateria Cheia &rarr; Comutar ATS para EcoFlow)
@@ -179,13 +179,13 @@ export default function AutomationsPage() {
                 aria-valuemax={100}
                 aria-describedby="upper-threshold-desc"
                 onChange={(e) => handleUpperThresholdChange(Number(e.target.value))}
-                className="w-full accent-emerald-500 cursor-pointer h-2 bg-slate-800 rounded-lg transition-all"
+                className="w-full accent-emerald-500 cursor-pointer h-2 py-2 bg-slate-800 rounded-lg transition-all"
               />
             </div>
 
             {/* Slider Limite Inferior */}
             <div className="space-y-2">
-              <div className="flex justify-between items-center">
+              <div className="flex flex-wrap sm:flex-nowrap justify-between items-start sm:items-center gap-2">
                 <label htmlFor="lower-threshold-slider" className="text-sm font-semibold text-slate-200 flex items-center gap-2">
                   <Power className="w-4 h-4 text-rose-400" aria-hidden="true" />
                   Limite Inferior (Bateria Baixa &rarr; Comutar ATS para Concessionária)
@@ -209,16 +209,16 @@ export default function AutomationsPage() {
                 aria-valuemax={99}
                 aria-describedby="lower-threshold-desc"
                 onChange={(e) => handleLowerThresholdChange(Number(e.target.value))}
-                className="w-full accent-rose-500 cursor-pointer h-2 bg-slate-800 rounded-lg transition-all"
+                className="w-full accent-rose-500 cursor-pointer h-2 py-2 bg-slate-800 rounded-lg transition-all"
               />
             </div>
 
             {/* Visualização de Faixas */}
-            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            <div className="p-3.5 sm:p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">
                 Comportamento da Chave de Transferência Automática:
               </span>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-slate-300">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-3 text-xs text-slate-300">
                 <div className="p-3 rounded-lg bg-rose-950/40 border border-rose-900/40 space-y-1.5 transition-all hover:border-rose-700/60 hover:bg-rose-950/60">
                   <div className="font-semibold text-rose-400">&le; {turnOffThreshold}% (Bateria Baixa)</div>
                   <div className="text-slate-200">• Saída AC EcoFlow: <span className="text-rose-400 font-bold">DESLIGADA</span></div>
@@ -242,7 +242,7 @@ export default function AutomationsPage() {
             <button
               type="submit"
               disabled={isSaving || isLoading}
-              className="py-3 px-6 rounded-xl font-semibold text-sm bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all duration-150 shadow-lg shadow-emerald-950 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+              className="w-full sm:w-auto py-3 px-6 rounded-xl font-semibold text-sm bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all duration-150 shadow-lg shadow-emerald-950 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
             >
               {isSaving ? "Salvando..." : "Salvar Regras de Automação"}
             </button>

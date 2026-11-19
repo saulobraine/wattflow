@@ -1,9 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../../infrastructure/database/prismaClient";
+import { DEFAULT_SESSION_VALIDITY_DAYS } from "../../../domain/services/AuthenticationTokenService";
 import {
   enforceCsrfProtection,
   extractUserFromRequest,
   getAuthenticationTokenService,
+  PERSISTENT_SESSION_MAX_AGE_SECONDS,
   setSessionCookie,
 } from "../../../infrastructure/auth/sessionHelper";
 import { UserEmail } from "../../../domain/values/UserEmail";
@@ -247,10 +249,10 @@ export default async function handleProfile(
         const rotatedSessionToken = tokenService.createSessionToken(
           updatedUser.id,
           updatedUser.email,
-          7,
+          DEFAULT_SESSION_VALIDITY_DAYS,
           nextTokenVersion
         );
-        setSessionCookie(response, rotatedSessionToken);
+        setSessionCookie(response, rotatedSessionToken, PERSISTENT_SESSION_MAX_AGE_SECONDS);
       }
 
       response.status(200).json({

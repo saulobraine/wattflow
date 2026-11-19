@@ -7,6 +7,7 @@ export const loginBodySchema = z.object({
     .string()
     .min(1, "Senha é obrigatória.")
     .max(MAX_PASSWORD_LENGTH, `A senha não pode exceder ${MAX_PASSWORD_LENGTH} caracteres.`),
+  rememberMe: z.boolean().optional(),
 });
 
 export const loginTwoFactorBodySchema = z
@@ -18,6 +19,7 @@ export const loginTwoFactorBodySchema = z
       .max(2048, "O challengeToken excede o tamanho máximo permitido."),
     token: z.string().trim().max(16).optional(),
     code: z.string().trim().max(16).optional(),
+    rememberMe: z.boolean().optional(),
   })
   .refine(
     (data) => {

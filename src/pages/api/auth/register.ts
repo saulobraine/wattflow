@@ -2,8 +2,10 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../../infrastructure/database/prismaClient";
 import { UserEmail } from "../../../domain/values/UserEmail";
 import { RawPassword } from "../../../domain/values/RawPassword";
+import { DEFAULT_SESSION_VALIDITY_DAYS } from "../../../domain/services/AuthenticationTokenService";
 import {
   getAuthenticationTokenService,
+  PERSISTENT_SESSION_MAX_AGE_SECONDS,
   setSessionCookie,
 } from "../../../infrastructure/auth/sessionHelper";
 import {
@@ -148,10 +150,10 @@ export default async function handleRegister(
   const sessionToken = tokenService.createSessionToken(
     createdUser.id,
     createdUser.email,
-    7,
+    DEFAULT_SESSION_VALIDITY_DAYS,
     createdUser.tokenVersion ?? 0
   );
-  setSessionCookie(response, sessionToken);
+  setSessionCookie(response, sessionToken, PERSISTENT_SESSION_MAX_AGE_SECONDS);
 
   response.status(201).json({
     success: true,
