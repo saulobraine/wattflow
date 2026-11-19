@@ -1,53 +1,34 @@
-generator client {
-  provider      = "prisma-client-js"
-  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
-}
-
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
-model sync_execution_logs {
-  id                  String              @id
-  userConfigurationId String
-  batteryPercentage   Int
-  solarInputWatts     Int                 @default(0)
-  actionTriggered     String
-  executionDetails    String?
-  executedAt          DateTime            @default(now())
-  outputWatts         Int                 @default(0)
-  user_configurations user_configurations @relation(fields: [userConfigurationId], references: [id], onDelete: Cascade)
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
-model user_configurations {
-  id                    String                @id
-  userId                String                @unique
-  tuyaAccessId          String                @default("")
-  tuyaAccessSecret      String                @default("")
-  tuyaDeviceId          String                @default("")
-  tuyaEndpointRegion    String                @default("https://openapi.tuyaus.com")
-  ecoflowEndpointRegion String                @default("https://api.ecoflow.com")
-  ecoflowAccessKey      String                @default("")
-  ecoflowAccessSecret   String                @default("")
-  ecoflowSerialNumber   String                @default("")
-  turnOnThreshold       Int                   @default(90)
-  turnOffThreshold      Int                   @default(30)
-  isAutomationActive    Boolean               @default(true)
-  createdAt             DateTime              @default(now())
-  updatedAt             DateTime
-  isNotificationActive  Boolean               @default(true)
-  telegramBotToken      String                @default("")
-  telegramChatId        String                @default("")
-  whatsappApiKey        String                @default("")
-  whatsappPhoneNumber   String                @default("")
-  sync_execution_logs   sync_execution_logs[]
-  users                 users                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+model User {
+  id                      String             @id @default(uuid())
+  email                   String             @unique
+  passwordHash            String
+  fullName                String?
+  twoFactorEnabled        Boolean            @default(false)
+  twoFactorSecret         String?
+  pendingTwoFactorSecret  String?
+  lastTotpCounter         Int?
+  tokenVersion            Int                @default(0)
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
+  userConfiguration       UserConfiguration?
+  passkeys                UserPasskey[]
+
+  @@map("users")
 }
 
-model user_passkeys {
-  id           String    @id
+model UserPasskey {
+  id           String    @id @default(uuid())
   userId       String
   name         String    @default("Passkey")
   credentialId String    @unique
@@ -56,21 +37,48 @@ model user_passkeys {
   transports   String?
   createdAt    DateTime  @default(now())
   lastUsedAt   DateTime?
-  users        users     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_passkeys")
 }
 
-model users {
-  id                     String               @id
-  email                  String               @unique
-  passwordHash           String
-  fullName               String?
-  createdAt              DateTime             @default(now())
-  updatedAt              DateTime
-  twoFactorEnabled       Boolean              @default(false)
-  twoFactorSecret        String?
-  pendingTwoFactorSecret String?
-  tokenVersion           Int                  @default(0)
-  lastTotpCounter        Int?
-  user_configurations    user_configurations?
-  user_passkeys          user_passkeys[]
+model UserConfiguration {
+  id                   String             @id @default(uuid())
+  userId               String             @unique
+  user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tuyaAccessId         String             @default("")
+  tuyaAccessSecret     String             @default("")
+  tuyaDeviceId         String             @default("")
+  tuyaEndpointRegion   String             @default("https://openapi.tuyaus.com")
+  ecoflowEndpointRegion String            @default("https://api.ecoflow.com")
+  ecoflowAccessKey     String             @default("")
+  ecoflowAccessSecret  String             @default("")
+  ecoflowSerialNumber String             @default("")
+  turnOnThreshold      Int                @default(90)
+  turnOffThreshold     Int                @default(30)
+  isAutomationActive   Boolean            @default(true)
+  telegramBotToken     String             @default("")
+  telegramChatId       String             @default("")
+  whatsappPhoneNumber  String             @default("")
+  whatsappApiKey       String             @default("")
+  isNotificationActive Boolean            @default(true)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  syncExecutionLogs    SyncExecutionLog[]
+
+  @@map("user_configurations")
+}
+
+model SyncExecutionLog {
+  id                  String            @id @default(uuid())
+  userConfigurationId String
+  batteryPercentage   Int
+  solarInputWatts     Int               @default(0)
+  outputWatts         Int               @default(0)
+  actionTriggered     String
+  executionDetails    String?
+  executedAt          DateTime          @default(now())
+  userConfiguration   UserConfiguration @relation(fields: [userConfigurationId], references: [id], onDelete: Cascade)
+
+  @@map("sync_execution_logs")
 }
