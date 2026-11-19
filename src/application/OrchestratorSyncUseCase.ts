@@ -158,7 +158,8 @@ export class OrchestratorSyncUseCase {
           isAcOutputEnabled,
           numericBattery,
           numericSolarWatts,
-          notificationConfig
+          notificationConfig,
+          databaseRecordId
         );
         desiredAction.transferActionName((nameString: string) => {
           actionName = nameString;
@@ -277,7 +278,8 @@ export class OrchestratorSyncUseCase {
     isCurrentlyAcEnabled: boolean | null,
     batteryPercentage: number,
     solarWatts: number,
-    notificationConfig: NotificationConfig
+    notificationConfig: NotificationConfig,
+    databaseRecordId: string
   ): Promise<string> {
     const isEnable = desiredAction.isEnableEcoFlowAc();
     if (isEnable) {
@@ -285,6 +287,9 @@ export class OrchestratorSyncUseCase {
         return "Bateria Alta (atingiu limite superior): Saída AC EcoFlow já está LIGADA. Chave ATS mantida em Solar/Bateria.";
       }
       const feedback = await ecoflowClient.setAcOutputState(ecoflowDevice, true);
+      if (typeof this.repository.incrementAtsCycle === "function") {
+        await this.repository.incrementAtsCycle(databaseRecordId);
+      }
 
       // Dispara notificação de comutação para Solar/Bateria
       this.dispatchSafeAlert(
@@ -308,6 +313,9 @@ export class OrchestratorSyncUseCase {
         return "Bateria Baixa (atingiu limite inferior): Saída AC EcoFlow já está DESLIGADA. Chave ATS mantida na Concessionária.";
       }
       const feedback = await ecoflowClient.setAcOutputState(ecoflowDevice, false);
+      if (typeof this.repository.incrementAtsCycle === "function") {
+        await this.repository.incrementAtsCycle(databaseRecordId);
+      }
 
       // Dispara notificação de comutação para a Concessionária
       this.dispatchSafeAlert(

@@ -30,6 +30,11 @@ export default function SettingsPage() {
   const [whatsappApiKey, setWhatsappApiKey] = useState("");
   const [isNotificationActive, setIsNotificationActive] = useState(true);
 
+  // Estados de Saúde Operacional da ATS (Chave de Transferência Automática)
+  const [atsLifespanCycles, setAtsLifespanCycles] = useState<number>(10000);
+  const [atsCurrentCycles, setAtsCurrentCycles] = useState<number>(0);
+  const [atsLastSwitchedAt, setAtsLastSwitchedAt] = useState<string | null>(null);
+
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
@@ -163,6 +168,13 @@ export default function SettingsPage() {
         setWhatsappApiKeyMasked(json.data.whatsappApiKeyMasked || "");
         setWhatsappApiKey("");
         setIsNotificationActive(json.data.isNotificationActive ?? true);
+        setAtsLifespanCycles(
+          typeof json.data.atsLifespanCycles === "number" ? json.data.atsLifespanCycles : 10000
+        );
+        setAtsCurrentCycles(
+          typeof json.data.atsCurrentCycles === "number" ? json.data.atsCurrentCycles : 0
+        );
+        setAtsLastSwitchedAt(json.data.atsLastSwitchedAt || null);
       }
     } catch (err) {
       console.error("Erro ao carregar configurações:", err);
@@ -198,6 +210,8 @@ export default function SettingsPage() {
           whatsappPhoneNumber,
           whatsappApiKey,
           isNotificationActive,
+          atsLifespanCycles: Number(atsLifespanCycles),
+          atsCurrentCycles: Number(atsCurrentCycles),
         }),
       });
 
@@ -683,6 +697,90 @@ export default function SettingsPage() {
             </div>
           </div>
 
+          {/* 3. Chave de Transferência Automática (ATS) - Parâmetros & Vida Útil */}
+          <div className="animate-card stagger-4 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
+                  <ArrowLeftRight className="w-5 h-5" aria-hidden="true" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-100">
+                    3. Chave de Transferência Automática (ATS) - Parâmetros &amp; Vida Útil
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Controle de desgaste mecânico, calibração de ciclos e estimativa de longevidade operacional
+                  </p>
+                </div>
+              </div>
+              <span className="inline-flex items-center gap-1.5 text-xs font-mono px-2.5 py-1 rounded-full bg-slate-950 text-slate-300 border border-slate-800 self-start sm:self-auto">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
+                1 comutação = 1 ciclo
+              </span>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800/80 text-xs text-slate-300 leading-relaxed flex items-start gap-2.5">
+              <Activity className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" aria-hidden="true" />
+              <p className="text-slate-400">
+                Cada comutação física (seja automática pelo orquestrador ou manual via painel de testes) consome exatamente <strong className="text-slate-200">1 ciclo mecânico</strong> da ATS. Configure abaixo os limites nominais e calibre o contador caso a chave já esteja em uso ou seja substituída.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="ats-lifespan-cycles-input" className="text-xs font-semibold text-slate-300">
+                    Vida Útil Nominal (Ciclos)
+                  </label>
+                  <span className="text-[11px] font-mono text-slate-500">Padrão: 10.000</span>
+                </div>
+                <input
+                  id="ats-lifespan-cycles-input"
+                  type="number"
+                  min={100}
+                  max={1000000}
+                  step={1}
+                  required
+                  placeholder="10000"
+                  value={atsLifespanCycles}
+                  onChange={(e) => setAtsLifespanCycles(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-emerald-500 font-mono transition-colors"
+                />
+                <span className="text-[11px] text-slate-400 block leading-tight">
+                  Segundo o fabricante, a chave ATS suporta 10.000 ciclos mecânicos de comutação.
+                </span>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap items-center justify-between gap-1 sm:gap-2">
+                  <label htmlFor="ats-current-cycles-input" className="text-xs font-semibold text-slate-300">
+                    Ciclos já Realizados (Calibração)
+                  </label>
+                  {atsLastSwitchedAt && (
+                    <span className="text-[10px] font-mono text-slate-400">
+                      Última: {new Date(atsLastSwitchedAt).toLocaleString("pt-BR")}
+                    </span>
+                  )}
+                </div>
+                <input
+                  id="ats-current-cycles-input"
+                  type="number"
+                  min={0}
+                  max={atsLifespanCycles || 1000000}
+                  step={1}
+                  required
+                  placeholder="0"
+                  value={atsCurrentCycles}
+                  onChange={(e) => setAtsCurrentCycles(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-emerald-500 font-mono transition-colors"
+                />
+                <span className="text-[11px] text-slate-400 block leading-tight">
+                  Permite ajustar o contador caso a ATS já estivesse em uso ou seja substituída.
+                </span>
+              </div>
+            </div>
+          </div>
+
           <div className="flex justify-end">
             <button
               type="submit"
@@ -698,7 +796,7 @@ export default function SettingsPage() {
         {/* Painel de Validação e Teste do Acionamento AC */}
         <section
           aria-label="Painel de Testes e Validação Direta"
-          className="animate-card stagger-4 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-5"
+          className="animate-card stagger-5 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-5"
         >
           <div className="flex items-center justify-between border-b border-slate-800 pb-4">
             <div className="flex items-center gap-3">
