@@ -10,6 +10,8 @@ import {
   validateEcoFlowMqttBroker,
 } from "../security/ecoflowAllowlist";
 import { decryptAndMigrateConfigurationSecrets } from "../security/secretMigrationHelper";
+import { OrchestratorSyncUseCase } from "../../application/OrchestratorSyncUseCase";
+import { ConfigurationRepository } from "../repositories/ConfigurationRepository";
 
 export interface LiveTelemetrySnapshot {
   batteryPercentage: number;
@@ -35,6 +37,10 @@ interface UserMqttStreamState {
   lastPersistTimeMs: number;
   lastPersistedAcState: boolean | null;
   isConnecting: boolean;
+  lastEvaluatedSoc: number | null;
+  lastEvaluatedAcState: boolean | null;
+  lastEvaluationTimeMs: number;
+  isEvaluatingAutomation: boolean;
 }
 
 /**
@@ -259,6 +265,10 @@ export class EcoFlowMqttStreamService {
       lastPersistTimeMs: 0,
       lastPersistedAcState: null,
       isConnecting: false,
+      lastEvaluatedSoc: null,
+      lastEvaluatedAcState: null,
+      lastEvaluationTimeMs: 0,
+      isEvaluatingAutomation: false,
     };
     this.streamsByUser.set(userId, created);
     return created;
@@ -344,6 +354,10 @@ export class EcoFlowMqttStreamService {
 
       const hasDatabaseContext = streamConfig.databaseClient && streamConfig.userConfigurationId;
       if (hasDatabaseContext) {
+        this.evaluateAutomationThrottled(userState, streamConfig).catch((evalError) => {
+          console.warn("[EcoFlow MQTT] Erro na avaliação de automação:", evalError);
+        });
+
         this.persistTelemetryThrottled(
           userState,
           streamConfig.databaseClient as PrismaClient,
@@ -352,6 +366,89 @@ export class EcoFlowMqttStreamService {
       }
     } catch {
       // Ignora payloads não-JSON ou de heartbeat
+    }
+  }
+
+  private async evaluateAutomationThrottled(
+    userState: UserMqttStreamState,
+    streamConfig: MqttStreamConfig
+  ): Promise<void> {
+    if (!userState.latestTelemetry || !streamConfig.databaseClient) {
+      return;
+    }
+
+    if (userState.isEvaluatingAutomation) {
+      return;
+    }
+
+    const hasConfigAccess =
+      typeof streamConfig.databaseClient.userConfiguration?.findUnique === "function" ||
+      typeof (streamConfig.databaseClient as unknown as Record<string, unknown>)["findActiveConfigurationByUserId"] === "function";
+    if (!hasConfigAccess) {
+      return;
+    }
+
+    const currentSnapshot = userState.latestTelemetry;
+    const currentSoc = currentSnapshot.batteryPercentage;
+    const currentAcState = currentSnapshot.isAcOutputEnabled;
+    const now = Date.now();
+
+    const isFirstEvaluation = userState.lastEvaluationTimeMs === 0;
+    const hasAcStateChanged =
+      userState.lastEvaluatedAcState !== null &&
+      currentAcState !== null &&
+      currentAcState !== userState.lastEvaluatedAcState;
+    const socDiff =
+      userState.lastEvaluatedSoc !== null
+        ? Math.abs(currentSoc - userState.lastEvaluatedSoc)
+        : 0;
+    const elapsedSinceLastEval = now - userState.lastEvaluationTimeMs;
+
+    const shouldEvaluate =
+      isFirstEvaluation ||
+      hasAcStateChanged ||
+      socDiff >= 1 ||
+      elapsedSinceLastEval >= 60_000;
+
+    if (!shouldEvaluate) {
+      return;
+    }
+
+    userState.isEvaluatingAutomation = true;
+    try {
+      const repository = new ConfigurationRepository(streamConfig.databaseClient);
+      const useCase = new OrchestratorSyncUseCase(repository, streamConfig.baseApiUrl);
+      const syncResult = await useCase.executeSyncForUser(streamConfig.userId, {
+        batteryPercentage: currentSnapshot.batteryPercentage,
+        solarWatts: currentSnapshot.solarInputWatts,
+        outputWatts: currentSnapshot.outputWatts,
+        isAcOutputEnabled: currentSnapshot.isAcOutputEnabled,
+      });
+
+      userState.lastEvaluationTimeMs = Date.now();
+      userState.lastEvaluatedSoc = currentSoc;
+
+      if (syncResult.triggeredAction === "ENABLE_ECOFLOW_AC") {
+        currentSnapshot.isAcOutputEnabled = true;
+        userState.lastEvaluatedAcState = true;
+        userState.lastPersistedAcState = true;
+        userState.lastPersistTimeMs = Date.now();
+      }
+      if (syncResult.triggeredAction === "DISABLE_ECOFLOW_AC") {
+        currentSnapshot.isAcOutputEnabled = false;
+        userState.lastEvaluatedAcState = false;
+        userState.lastPersistedAcState = false;
+        userState.lastPersistTimeMs = Date.now();
+      }
+      if (
+        currentAcState !== null &&
+        syncResult.triggeredAction !== "ENABLE_ECOFLOW_AC" &&
+        syncResult.triggeredAction !== "DISABLE_ECOFLOW_AC"
+      ) {
+        userState.lastEvaluatedAcState = currentAcState;
+      }
+    } finally {
+      userState.isEvaluatingAutomation = false;
     }
   }
 

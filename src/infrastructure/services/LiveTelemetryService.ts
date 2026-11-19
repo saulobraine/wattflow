@@ -72,7 +72,46 @@ export class LiveTelemetryService {
     }
 
     if (isUserStreamConnected) {
-      return null;
+      const memoryTelemetry = streamService.getLatestTelemetry(normalizedUserId, 60000);
+      if (!memoryTelemetry) {
+        return null;
+      }
+
+      const userState = getOrCreateUserSyncState(normalizedUserId);
+      const pendingSync = userState.inFlightSync;
+      if (pendingSync) {
+        return await pendingSync;
+      }
+
+      const lastSyncMs = userState.lastSyncTimeMs;
+      const elapsed = Date.now() - lastSyncMs;
+      if (elapsed < maxAgeMs) {
+        return null;
+      }
+
+      const currentNowMs = Date.now();
+      userState.lastSyncTimeMs = currentNowMs;
+      const repository = new ConfigurationRepository(this.databaseClient);
+      const useCase = new OrchestratorSyncUseCase(repository);
+
+      const executionPromise = useCase.executeSyncForUser(normalizedUserId, {
+        batteryPercentage: memoryTelemetry.batteryPercentage,
+        solarWatts: memoryTelemetry.solarInputWatts,
+        outputWatts: memoryTelemetry.outputWatts,
+        isAcOutputEnabled: memoryTelemetry.isAcOutputEnabled,
+      });
+
+      const safePromise = executionPromise.catch((error) => {
+        console.warn("[LiveTelemetryService] Falha na sincronização via telemetria MQTT:", error);
+        return null;
+      });
+      userState.inFlightSync = safePromise;
+
+      try {
+        return await safePromise;
+      } finally {
+        userState.inFlightSync = null;
+      }
     }
 
     const userState = getOrCreateUserSyncState(normalizedUserId);
