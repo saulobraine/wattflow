@@ -7,12 +7,18 @@ const {
   mockExecuteSyncForUser,
   mockRecordExecutionLog,
   mockFindLatestExecutionLog,
+  mockFindActiveConfigurationByUserId,
+  mockFetchDeviceTelemetry,
+  mockSetAcOutputState,
 } = vi.hoisted(() => ({
   mockMqttConnect: vi.fn(),
   mockFetchMqttCertification: vi.fn(),
   mockExecuteSyncForUser: vi.fn(),
   mockRecordExecutionLog: vi.fn(),
   mockFindLatestExecutionLog: vi.fn(),
+  mockFindActiveConfigurationByUserId: vi.fn(),
+  mockFetchDeviceTelemetry: vi.fn(),
+  mockSetAcOutputState: vi.fn(),
 }));
 
 vi.mock("mqtt", () => ({
@@ -25,13 +31,8 @@ vi.mock("../../http/EcoFlowHttpClient", () => ({
   EcoFlowHttpClient: vi.fn(function () {
     return {
       fetchMqttCertification: mockFetchMqttCertification,
-      fetchDeviceTelemetry: vi.fn().mockResolvedValue({
-        batteryLevel: { transferBatteryPercentage: (cb: (n: number) => void) => cb(85) },
-        solarWatts: { transferNumericWatts: (cb: (n: number) => void) => cb(120) },
-        outputWatts: 50,
-        isAcOutputEnabled: true,
-      }),
-      setAcOutputState: vi.fn().mockResolvedValue("SUCCESS"),
+      fetchDeviceTelemetry: mockFetchDeviceTelemetry,
+      setAcOutputState: mockSetAcOutputState,
     };
   }),
 }));
@@ -41,6 +42,7 @@ vi.mock("../../repositories/ConfigurationRepository", () => ({
     return {
       recordExecutionLog: mockRecordExecutionLog,
       findLatestExecutionLog: mockFindLatestExecutionLog,
+      findActiveConfigurationByUserId: mockFindActiveConfigurationByUserId,
     };
   }),
 }));
@@ -83,6 +85,14 @@ describe("MQTT-First Telemetry & Throttled Database Writes", () => {
     resetLiveTelemetryStateForTests();
     OrchestratorSyncUseCase.resetLoggedStatesForTests();
     EcoFlowMqttStreamService.getInstance().stopStream();
+
+    mockFetchDeviceTelemetry.mockResolvedValue({
+      batteryLevel: { transferBatteryPercentage: (cb: (n: number) => void) => cb(85) },
+      solarWatts: { transferNumericWatts: (cb: (n: number) => void) => cb(120) },
+      outputWatts: 50,
+      isAcOutputEnabled: true,
+    });
+    mockSetAcOutputState.mockResolvedValue("SUCCESS");
   });
 
   afterEach(() => {
@@ -273,6 +283,156 @@ describe("MQTT-First Telemetry & Throttled Database Writes", () => {
       const res2 = await useCase.executeSyncForUser("user-1");
       expect(res2.hasExecutedSuccessfully).toBe(true);
       expect(mockRecordExecutionLog).toHaveBeenCalledTimes(1); // Still 1!
+    });
+
+    it("triggers ENABLE_ECOFLOW_AC when battery hits turnOnThreshold with providedTelemetry without calling HTTP fetchDeviceTelemetry", async () => {
+      const record = buildMockConfigurationRecord("rec-enable", true);
+      const repo = new ConfigurationRepository({} as PrismaClient);
+
+      (repo as unknown as { findActiveConfigurationByUserId: unknown }).findActiveConfigurationByUserId =
+        vi.fn().mockResolvedValue(record);
+
+      const useCase = new OrchestratorSyncUseCase(repo);
+
+      const res = await useCase.executeSyncForUser("user-enable", {
+        batteryPercentage: 90,
+        solarWatts: 250,
+        outputWatts: 80,
+        isAcOutputEnabled: false,
+      });
+
+      expect(res.hasExecutedSuccessfully).toBe(true);
+      expect(res.triggeredAction).toBe("ENABLE_ECOFLOW_AC");
+      expect(mockFetchDeviceTelemetry).not.toHaveBeenCalled();
+      expect(mockSetAcOutputState).toHaveBeenCalledWith(expect.any(DeviceSerialNumber), true);
+      expect(mockRecordExecutionLog).toHaveBeenCalledWith(
+        "rec-enable",
+        90,
+        "ENABLE_ECOFLOW_AC",
+        expect.stringContaining("LIGADA"),
+        250,
+        80
+      );
+    });
+
+    it("triggers DISABLE_ECOFLOW_AC when battery drops to turnOffThreshold with providedTelemetry without calling HTTP fetchDeviceTelemetry", async () => {
+      const record = buildMockConfigurationRecord("rec-disable", true);
+      const repo = new ConfigurationRepository({} as PrismaClient);
+
+      (repo as unknown as { findActiveConfigurationByUserId: unknown }).findActiveConfigurationByUserId =
+        vi.fn().mockResolvedValue(record);
+
+      const useCase = new OrchestratorSyncUseCase(repo);
+
+      const res = await useCase.executeSyncForUser("user-disable", {
+        batteryPercentage: 20,
+        solarWatts: 0,
+        outputWatts: 0,
+        isAcOutputEnabled: true,
+      });
+
+      expect(res.hasExecutedSuccessfully).toBe(true);
+      expect(res.triggeredAction).toBe("DISABLE_ECOFLOW_AC");
+      expect(mockFetchDeviceTelemetry).not.toHaveBeenCalled();
+      expect(mockSetAcOutputState).toHaveBeenCalledWith(expect.any(DeviceSerialNumber), false);
+      expect(mockRecordExecutionLog).toHaveBeenCalledWith(
+        "rec-disable",
+        20,
+        "DISABLE_ECOFLOW_AC",
+        expect.stringContaining("DESLIGADA"),
+        0,
+        0
+      );
+    });
+  });
+
+  describe("EcoFlowMqttStreamService evaluateAutomationThrottled", () => {
+    function buildMockConfigurationRecord(recordId: string, isAutomationActive = true) {
+      const ecoflowKey = new AccessKey("ak-test-key");
+      const ecoflowSecret = new AccessSecret("as-test-secret");
+      const credentials = new EcoFlowCredentials(ecoflowKey, ecoflowSecret);
+      const bundle = new CredentialsBundle(credentials);
+
+      const serial = new DeviceSerialNumber("SN123456");
+      const devices = new DevicePair(serial);
+      const thresholds = new AutomationThresholdPair(new PercentageValue(80), new PercentageValue(30));
+      const profile = new AutomationProfile(devices, thresholds);
+
+      const configuration = new OrchestratorConfiguration(bundle, profile);
+
+      return {
+        databaseRecordId: recordId,
+        ecoflowEndpointRegion: "https://api.ecoflow.com",
+        isAutomationActive,
+        notificationConfig: {
+          telegramBotToken: "",
+          telegramChatId: "",
+          whatsappPhoneNumber: "",
+          whatsappApiKey: "",
+          isNotificationActive: false,
+        },
+        configuration,
+      };
+    }
+
+    it("automatically evaluates automation and turns on AC when MQTT packet brings battery to turnOnThreshold", async () => {
+      const fakeClient = createFakeMqttClient();
+      mockMqttConnect.mockReturnValue(fakeClient);
+      mockFetchMqttCertification.mockResolvedValue({
+        protocol: "mqtts",
+        url: "mqtt.ecoflow.com",
+        port: 8883,
+        certificateAccount: "acct-eval",
+        certificatePassword: "pass-eval",
+      });
+
+      const record = buildMockConfigurationRecord("rec-eval", true);
+      const mockDatabaseClient = {
+        syncExecutionLog: {
+          create: vi.fn().mockResolvedValue({}),
+        },
+        userConfiguration: {
+          findUnique: vi.fn().mockResolvedValue({
+            id: "cfg-eval",
+            userId: "user-eval",
+            isAutomationActive: true,
+          }),
+        },
+      } as unknown as PrismaClient;
+
+      mockFindActiveConfigurationByUserId.mockResolvedValue(record);
+
+      const service = EcoFlowMqttStreamService.getInstance();
+      await service.startStream({
+        userId: "user-eval",
+        credentials: new EcoFlowCredentials(new AccessKey("ak-eval"), new AccessSecret("as-eval")),
+        serialNumber: new DeviceSerialNumber("SN-EVAL"),
+        baseApiUrl: "https://api.ecoflow.com",
+        databaseClient: mockDatabaseClient,
+        userConfigurationId: "cfg-eval",
+      });
+
+      // Emit MQTT message with 92% battery and AC disabled (0)
+      fakeClient.emitEvent(
+        "message",
+        "/open/acct-eval/SN-EVAL/quota",
+        Buffer.from(
+          JSON.stringify({
+            params: {
+              "bmsMaster.soc": 92,
+              "mppt.inWatts": 400,
+              "pd.wattsOutSum": 50,
+              "inv.cfgAcEnabled": 0,
+            },
+          })
+        )
+      );
+
+      // Wait a microtask tick for async automation evaluation to finish
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(mockSetAcOutputState).toHaveBeenCalledWith(expect.any(DeviceSerialNumber), true);
+      expect(service.getLatestTelemetry("user-eval")?.isAcOutputEnabled).toBe(true);
     });
   });
 });

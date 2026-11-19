@@ -4,6 +4,7 @@ import { DeviceSerialNumber } from "../domain/values/DeviceSerialNumber";
 import { DesiredDeviceAction } from "../domain/values/DesiredDeviceAction";
 import { EcoFlowCredentials } from "../domain/models/EcoFlowCredentials";
 import { AutomationThresholdPair } from "../domain/models/AutomationThresholdPair";
+import { BatteryLevel } from "../domain/values/BatteryLevel";
 import {
   NotificationDispatcher,
   NotificationConfig,
@@ -16,6 +17,13 @@ export interface SyncExecutionResult {
   outputWatts: number;
   triggeredAction: string;
   detailMessage: string;
+}
+
+export interface ProvidedTelemetry {
+  batteryPercentage: number;
+  solarWatts: number;
+  outputWatts: number;
+  isAcOutputEnabled: boolean | null;
 }
 
 /**
@@ -43,12 +51,15 @@ export class OrchestratorSyncUseCase {
     this.ecoflowBaseApiUrl = ecoflowBaseApiUrl;
   }
 
-  public async executeSyncForUser(userId: string): Promise<SyncExecutionResult> {
+  public async executeSyncForUser(
+    userId: string,
+    providedTelemetry?: ProvidedTelemetry
+  ): Promise<SyncExecutionResult> {
     const configurationRecord = await this.repository.findActiveConfigurationByUserId(userId);
     if (!configurationRecord) {
       return this.buildEmptyConfigurationResult();
     }
-    return this.executeSyncForRecord(configurationRecord);
+    return this.executeSyncForRecord(configurationRecord, providedTelemetry);
   }
 
   public async executeSyncAll(): Promise<SyncExecutionResult[]> {
@@ -63,15 +74,18 @@ export class OrchestratorSyncUseCase {
     return results;
   }
 
-  public async executeSync(): Promise<SyncExecutionResult> {
+  public async executeSync(providedTelemetry?: ProvidedTelemetry): Promise<SyncExecutionResult> {
     const configurationRecord = await this.repository.findActiveConfiguration();
     if (!configurationRecord) {
       return this.buildEmptyConfigurationResult();
     }
-    return this.executeSyncForRecord(configurationRecord);
+    return this.executeSyncForRecord(configurationRecord, providedTelemetry);
   }
 
-  private async executeSyncForRecord(configurationRecord: RetrievedConfigurationRecord): Promise<SyncExecutionResult> {
+  private async executeSyncForRecord(
+    configurationRecord: RetrievedConfigurationRecord,
+    providedTelemetry?: ProvidedTelemetry
+  ): Promise<SyncExecutionResult> {
     const { databaseRecordId, ecoflowEndpointRegion, notificationConfig, configuration } = configurationRecord;
 
     let ecoflowCredentials: EcoFlowCredentials | undefined;
@@ -103,20 +117,33 @@ export class OrchestratorSyncUseCase {
     try {
       const activeEcoFlowUrl = ecoflowEndpointRegion || this.ecoflowBaseApiUrl;
       const ecoflowClient = new EcoFlowHttpClient(ecoflowCredentials, activeEcoFlowUrl);
-      const telemetry = await ecoflowClient.fetchDeviceTelemetry(ecoflowDevice);
-      const batteryLevel = telemetry.batteryLevel;
-      const solarWatts = telemetry.solarWatts;
-      const outputWatts = telemetry.outputWatts;
 
       let numericBattery = 0;
-      batteryLevel.transferBatteryPercentage((percentageNumber: number) => {
-        numericBattery = percentageNumber;
-      });
-
       let numericSolarWatts = 0;
-      solarWatts.transferNumericWatts((wattsNumber: number) => {
-        numericSolarWatts = wattsNumber;
-      });
+      let outputWatts = 0;
+      let isAcOutputEnabled: boolean | null = null;
+      let batteryLevel: BatteryLevel;
+
+      if (providedTelemetry) {
+        numericBattery = providedTelemetry.batteryPercentage;
+        numericSolarWatts = providedTelemetry.solarWatts;
+        outputWatts = providedTelemetry.outputWatts;
+        isAcOutputEnabled = providedTelemetry.isAcOutputEnabled;
+        batteryLevel = new BatteryLevel(numericBattery);
+      } else {
+        const telemetry = await ecoflowClient.fetchDeviceTelemetry(ecoflowDevice);
+        batteryLevel = telemetry.batteryLevel;
+        isAcOutputEnabled = telemetry.isAcOutputEnabled;
+        outputWatts = telemetry.outputWatts;
+
+        batteryLevel.transferBatteryPercentage((percentageNumber: number) => {
+          numericBattery = percentageNumber;
+        });
+
+        telemetry.solarWatts.transferNumericWatts((wattsNumber: number) => {
+          numericSolarWatts = wattsNumber;
+        });
+      }
 
       const isAutomationEnabled = configurationRecord.isAutomationActive;
       let actionResult = "Automação pausada: telemetria registrada sem alteração da saída AC.";
@@ -128,7 +155,7 @@ export class OrchestratorSyncUseCase {
           desiredAction,
           ecoflowDevice,
           ecoflowClient,
-          telemetry.isAcOutputEnabled,
+          isAcOutputEnabled,
           numericBattery,
           numericSolarWatts,
           notificationConfig
