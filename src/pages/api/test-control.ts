@@ -207,6 +207,16 @@ export default async function handleTestControl(
       result = await testUseCase.executeTestAc(ecoflowClient, ecoflowDevice, false);
     }
 
+    if (isPhysicalAcToggle && result.isSuccess && savedConfiguration?.id) {
+      await prisma.userConfiguration.update({
+        where: { id: savedConfiguration.id },
+        data: {
+          atsCurrentCycles: { increment: 1 },
+          atsLastSwitchedAt: new Date(),
+        },
+      });
+    }
+
     response.status(200).json({
       success: result.isSuccess,
       message: result.summaryMessage,

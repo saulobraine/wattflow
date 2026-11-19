@@ -19,6 +19,9 @@ export interface RetrievedConfigurationRecord {
   isAutomationActive: boolean;
   notificationConfig: NotificationConfig;
   configuration: OrchestratorConfiguration;
+  atsLifespanCycles: number;
+  atsCurrentCycles: number;
+  atsLastSwitchedAt: Date | null;
 }
 
 /**
@@ -130,6 +133,18 @@ export class ConfigurationRepository {
     });
   }
 
+  public async incrementAtsCycle(configurationId: string): Promise<number> {
+    const updated = await this.databaseClient.userConfiguration.update({
+      where: { id: configurationId },
+      data: {
+        atsCurrentCycles: { increment: 1 },
+        atsLastSwitchedAt: new Date(),
+      },
+      select: { atsCurrentCycles: true },
+    });
+    return updated.atsCurrentCycles;
+  }
+
   private async appendMappedRecordSafely(
     record: PrismaUserConfiguration,
     accumulator: RetrievedConfigurationRecord[]
@@ -182,6 +197,9 @@ export class ConfigurationRepository {
         isNotificationActive: rawRecord.isNotificationActive,
       },
       configuration,
+      atsLifespanCycles: rawRecord.atsLifespanCycles ?? 10000,
+      atsCurrentCycles: rawRecord.atsCurrentCycles ?? 0,
+      atsLastSwitchedAt: rawRecord.atsLastSwitchedAt ?? null,
     };
   }
 }

@@ -57,6 +57,9 @@ model UserConfiguration {
   turnOnThreshold      Int                @default(90)
   turnOffThreshold     Int                @default(30)
   isAutomationActive   Boolean            @default(true)
+  atsLifespanCycles    Int                @default(10000)
+  atsCurrentCycles     Int                @default(0)
+  atsLastSwitchedAt    DateTime?
   telegramBotToken     String             @default("")
   telegramChatId       String             @default("")
   whatsappPhoneNumber  String             @default("")

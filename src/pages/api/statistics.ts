@@ -13,6 +13,18 @@ interface SolarChartPoint {
   battery: number;
 }
 
+export interface AtsHealthMetrics {
+  lifespanCycles: number;
+  currentCycles: number;
+  remainingCycles: number;
+  healthPercentage: number;
+  estimatedYearsRemaining: number;
+  dailyRate: number;
+  atsLastSwitchedAt: string | null;
+  status: "EXCELLENT" | "GOOD" | "ATTENTION" | "CRITICAL";
+  isProratedEstimate?: boolean;
+}
+
 interface StatisticsResponseData {
   success: boolean;
   message?: string;
@@ -40,6 +52,66 @@ interface StatisticsResponseData {
       executionDetails: string | null;
       executedAt: string;
     }>;
+    atsHealth: AtsHealthMetrics;
+  };
+}
+
+function calculateAtsHealth(
+  configuration: {
+    atsLifespanCycles?: number | null;
+    atsCurrentCycles?: number | null;
+    atsLastSwitchedAt?: Date | null;
+    createdAt?: Date;
+  } | null,
+  recentSwitchCount: number,
+  spanDays: number
+): AtsHealthMetrics {
+  const lifespan = configuration?.atsLifespanCycles ?? 10000;
+  const current = configuration?.atsCurrentCycles ?? 0;
+  const remaining = Math.max(0, lifespan - current);
+  const healthPercentage =
+    lifespan > 0
+      ? Math.max(0, Math.min(100, Number(((remaining / lifespan) * 100).toFixed(1))))
+      : 0;
+
+  let status: "EXCELLENT" | "GOOD" | "ATTENTION" | "CRITICAL" = "EXCELLENT";
+  if (healthPercentage < 20) {
+    status = "CRITICAL";
+  } else if (healthPercentage < 50) {
+    status = "ATTENTION";
+  } else if (healthPercentage < 80) {
+    status = "GOOD";
+  }
+
+  let dailyRate = 2.0;
+  let isProratedEstimate = true;
+
+  if (spanDays >= 2 && recentSwitchCount > 0) {
+    dailyRate = Number((recentSwitchCount / spanDays).toFixed(2));
+    isProratedEstimate = false;
+  } else if (configuration?.createdAt) {
+    const totalDaysActive = (Date.now() - configuration.createdAt.getTime()) / (1000 * 60 * 60 * 24);
+    if (totalDaysActive >= 2 && current > 0) {
+      dailyRate = Number((current / totalDaysActive).toFixed(2));
+      isProratedEstimate = false;
+    }
+  }
+
+  const effectiveDailyRate = dailyRate > 0 ? dailyRate : 2.0;
+  const estimatedYearsRemaining = Number((remaining / (effectiveDailyRate * 365)).toFixed(1));
+
+  return {
+    lifespanCycles: lifespan,
+    currentCycles: current,
+    remainingCycles: remaining,
+    healthPercentage,
+    estimatedYearsRemaining,
+    dailyRate: Number(dailyRate.toFixed(2)),
+    atsLastSwitchedAt: configuration?.atsLastSwitchedAt
+      ? configuration.atsLastSwitchedAt.toISOString()
+      : null,
+    status,
+    isProratedEstimate,
   };
 }
 
@@ -120,6 +192,37 @@ export default async function handleStatistics(
       });
     }
 
+    let recentSwitchCount = 0;
+    let switchSpanDays = 0;
+
+    if (configuration) {
+      const thirtyDaysAgo = new Date(nowTimestamp - 30 * 24 * 60 * 60 * 1000);
+      const switchingLogs = await prisma.syncExecutionLog.findMany({
+        where: {
+          userConfigurationId: configuration.id,
+          executedAt: { gte: thirtyDaysAgo },
+          actionTriggered: {
+            in: [
+              "ENABLE_ECOFLOW_AC",
+              "DISABLE_ECOFLOW_AC",
+              "BATTERY_HIGH_DISCHARGE",
+              "BATTERY_LOW_RECHARGE",
+            ],
+          },
+        },
+        orderBy: { executedAt: "asc" },
+      });
+
+      recentSwitchCount = switchingLogs.length;
+      if (switchingLogs.length >= 2) {
+        const firstTime = switchingLogs[0].executedAt.getTime();
+        const lastTime = switchingLogs[switchingLogs.length - 1].executedAt.getTime();
+        switchSpanDays = Math.max(1, (lastTime - firstTime) / (1000 * 60 * 60 * 24));
+      }
+    }
+
+    const atsHealth = calculateAtsHealth(configuration, recentSwitchCount, switchSpanDays);
+
     if (!configuration || rawLogs24h.length === 0) {
       response.status(200).json({
         success: true,
@@ -139,6 +242,7 @@ export default async function handleStatistics(
           totalReadingsCount: 0,
           chartPoints: [],
           recentLogs: [],
+          atsHealth,
         },
       });
       return;
@@ -289,6 +393,7 @@ export default async function handleStatistics(
         totalReadingsCount: rawLogs24h.length,
         chartPoints,
         recentLogs,
+        atsHealth,
       },
     });
   } catch (error) {

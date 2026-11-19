@@ -43,6 +43,7 @@ vi.mock("../../repositories/ConfigurationRepository", () => ({
       recordExecutionLog: mockRecordExecutionLog,
       findLatestExecutionLog: mockFindLatestExecutionLog,
       findActiveConfigurationByUserId: mockFindActiveConfigurationByUserId,
+      incrementAtsCycle: vi.fn().mockResolvedValue(1),
     };
   }),
 }));
