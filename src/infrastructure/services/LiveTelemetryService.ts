@@ -71,6 +71,10 @@ export class LiveTelemetryService {
       });
     }
 
+    if (isUserStreamConnected) {
+      return null;
+    }
+
     const userState = getOrCreateUserSyncState(normalizedUserId);
     const pendingSync = userState.inFlightSync;
     if (pendingSync) {
