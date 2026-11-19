@@ -15,7 +15,22 @@ import {
   Activity,
   Gauge,
   Scale,
+  ArrowLeftRight,
+  ShieldCheck,
+  RotateCcw,
 } from "lucide-react";
+
+export interface AtsHealthData {
+  lifespanCycles: number;
+  currentCycles: number;
+  remainingCycles: number;
+  healthPercentage: number;
+  estimatedYearsRemaining: number;
+  dailyRate: number;
+  atsLastSwitchedAt: string | null;
+  status: "EXCELLENT" | "GOOD" | "ATTENTION" | "CRITICAL";
+  isProratedEstimate?: boolean;
+}
 
 interface SolarChartPoint {
   time: string;
@@ -49,6 +64,7 @@ interface StatisticsData {
     executionDetails: string | null;
     executedAt: string;
   }>;
+  atsHealth?: AtsHealthData;
 }
 
 export default function StatisticsPage() {
@@ -120,6 +136,59 @@ export default function StatisticsPage() {
 
   const isInstantNetPositive = (data?.netWatts ?? 0) >= 0;
   const isPeriodNetPositive = (data?.netEnergyKwh ?? 0) >= 0;
+  const atsHealth = data?.atsHealth;
+
+  const getAtsHealthTheme = (pct: number) => {
+    if (pct >= 50) {
+      return {
+        text: "text-emerald-400",
+        bar: "bg-emerald-500",
+        badge: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+      };
+    }
+    if (pct >= 20) {
+      return {
+        text: "text-amber-400",
+        bar: "bg-amber-500",
+        badge: "bg-amber-500/20 text-amber-300 border-amber-500/30",
+      };
+    }
+    return {
+      text: "text-rose-400",
+      bar: "bg-rose-500",
+      badge: "bg-rose-500/20 text-rose-300 border-rose-500/30",
+    };
+  };
+
+  const getAtsStatusBadge = (status?: "EXCELLENT" | "GOOD" | "ATTENTION" | "CRITICAL") => {
+    switch (status) {
+      case "EXCELLENT":
+        return {
+          label: "Excelente",
+          classes: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+        };
+      case "GOOD":
+        return {
+          label: "Operação Normal",
+          classes: "bg-sky-500/20 text-sky-300 border-sky-500/30",
+        };
+      case "ATTENTION":
+        return {
+          label: "Atenção (Meia-vida)",
+          classes: "bg-amber-500/20 text-amber-300 border-amber-500/30",
+        };
+      case "CRITICAL":
+        return {
+          label: "Crítico (Substituição)",
+          classes: "bg-rose-500/20 text-rose-300 border-rose-500/30",
+        };
+      default:
+        return {
+          label: "Operacional",
+          classes: "bg-slate-800 text-slate-400 border-slate-700",
+        };
+    }
+  };
 
   return (
     <Layout title="Estatísticas de Geração e Consumo">
@@ -393,10 +462,174 @@ export default function StatisticsPage() {
           </div>
         </div>
 
-        {/* 3. Gráfico SVG de Linhas dos Últimos 30 Minutos (Média de 5 em 5 min) */}
+        {/* 3. Saúde Operacional da ATS (Chave de Transferência Automática) */}
+        {atsHealth && (
+          <section
+            aria-label="Saúde Operacional da Chave de Transferência Automática"
+            className="animate-card stagger-5 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-5"
+          >
+            {/* Topo do Card: Título, ícone e Status Badge */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 shrink-0">
+                  <ArrowLeftRight className="w-5 h-5 animate-float" aria-hidden="true" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-slate-100 flex items-center gap-2">
+                    Saúde Operacional da ATS (Chave de Transferência Automática)
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Monitoramento mecânico contínuo da comutação entre Solar/Bateria e Concessionária
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                <span
+                  className={`text-xs font-mono font-bold px-3 py-1 rounded-full border shadow-sm ${
+                    getAtsStatusBadge(atsHealth.status).classes
+                  }`}
+                >
+                  {getAtsStatusBadge(atsHealth.status).label}
+                </span>
+                <span className="inline-flex items-center gap-1 text-[11px] font-mono px-2.5 py-1 rounded-full bg-slate-950 text-slate-400 border border-slate-800">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
+                  1 comutação = 1 ciclo
+                </span>
+              </div>
+            </div>
+
+            {/* Gauge de % de Vida Útil e Barra de Progresso Animada */}
+            <div className="p-4 sm:p-5 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2">
+                <div>
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Gauge className="w-4 h-4 text-emerald-400" aria-hidden="true" />
+                    Vida Útil Mecânica Aproximada
+                  </span>
+                  <div className="flex items-baseline gap-2.5 mt-1">
+                    <span
+                      className={`text-3xl sm:text-4xl font-extrabold font-mono tracking-tight ${
+                        getAtsHealthTheme(atsHealth.healthPercentage).text
+                      }`}
+                    >
+                      {atsHealth.healthPercentage.toFixed(1)}%
+                    </span>
+                    <span className="text-xs text-slate-400 font-mono">
+                      ({atsHealth.remainingCycles.toLocaleString("pt-BR")} ciclos restantes de {atsHealth.lifespanCycles.toLocaleString("pt-BR")})
+                    </span>
+                  </div>
+                </div>
+
+                <div className="text-xs text-slate-400 font-mono">
+                  Desgaste Acumulado:{" "}
+                  <strong className="text-slate-200">
+                    {((atsHealth.currentCycles / (atsHealth.lifespanCycles || 10000)) * 100).toFixed(1)}%
+                  </strong>
+                </div>
+              </div>
+
+              {/* Barra de Progresso com Cores Dinâmicas e Transição */}
+              <div
+                className="w-full bg-slate-900 rounded-full h-3.5 p-0.5 border border-slate-800 overflow-hidden"
+                role="progressbar"
+                aria-valuenow={atsHealth.healthPercentage}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label="Porcentagem de vida útil restante da ATS"
+              >
+                <div
+                  className={`h-full rounded-full transition-all duration-700 ease-out ${
+                    getAtsHealthTheme(atsHealth.healthPercentage).bar
+                  }`}
+                  style={{
+                    width: `${Math.max(1.5, Math.min(100, atsHealth.healthPercentage))}%`,
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Grid com Indicadores Principais */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+              {/* 1. Ciclos Realizados */}
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800/90 flex flex-col justify-between group hover:border-slate-700 transition-colors">
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <RotateCcw className="w-3.5 h-3.5 text-sky-400 transition-transform group-hover:-rotate-90 duration-300" aria-hidden="true" />
+                      Ciclos Realizados
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-900 text-sky-300 border border-slate-800">
+                      1 comutação = 1 ciclo
+                    </span>
+                  </div>
+                  <div className="flex items-baseline gap-1.5 pt-1.5">
+                    <span className="text-2xl sm:text-3xl font-extrabold text-slate-100 font-mono">
+                      {atsHealth.currentCycles.toLocaleString("pt-BR")}
+                    </span>
+                    <span className="text-xs text-slate-400 font-mono">
+                      / {atsHealth.lifespanCycles.toLocaleString("pt-BR")} ciclos
+                    </span>
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-2.5 pt-2 border-t border-slate-800/60 flex items-center justify-between">
+                  <span>Capacidade nominal:</span>
+                  <span className="font-mono text-slate-300 font-semibold">{atsHealth.lifespanCycles.toLocaleString("pt-BR")}</span>
+                </p>
+              </div>
+
+              {/* 2. Estimativa de Durabilidade */}
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800/90 flex flex-col justify-between group hover:border-slate-700 transition-colors">
+                <div className="space-y-1">
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-emerald-400 transition-transform group-hover:scale-110 duration-200" aria-hidden="true" />
+                    Estimativa de Durabilidade
+                  </span>
+                  <div className="flex items-baseline gap-1.5 pt-1.5">
+                    <span className="text-2xl sm:text-3xl font-extrabold text-emerald-400 font-mono">
+                      ~{atsHealth.estimatedYearsRemaining}
+                    </span>
+                    <span className="text-xs text-slate-300 font-medium">anos restantes</span>
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-2.5 pt-2 border-t border-slate-800/60 flex items-center justify-between">
+                  <span>Taxa média diária:</span>
+                  <span className="font-mono text-slate-300 font-semibold">
+                    {atsHealth.dailyRate} comutações/dia {atsHealth.isProratedEstimate && "(estimada)"}
+                  </span>
+                </p>
+              </div>
+
+              {/* 3. Registro da Última Comutação */}
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800/90 flex flex-col justify-between group hover:border-slate-700 transition-colors">
+                <div className="space-y-1">
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Activity className="w-3.5 h-3.5 text-amber-400 transition-transform group-hover:scale-110 duration-200" aria-hidden="true" />
+                    Última Comutação
+                  </span>
+                  <div className="pt-1.5">
+                    <span className="text-sm sm:text-base font-bold text-slate-200 font-mono block truncate">
+                      {atsHealth.atsLastSwitchedAt
+                        ? new Date(atsHealth.atsLastSwitchedAt).toLocaleString("pt-BR")
+                        : "Aguardando primeiro evento"}
+                    </span>
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-2.5 pt-2 border-t border-slate-800/60 flex items-center justify-between">
+                  <span>Estado da chave:</span>
+                  <span className="text-slate-300 font-semibold font-mono text-[11px]">
+                    {atsHealth.atsLastSwitchedAt ? "Comutada fisicamente" : "Standby inicial"}
+                  </span>
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* 4. Gráfico SVG de Linhas dos Últimos 30 Minutos (Média de 5 em 5 min) */}
         <section
           aria-label="Gráfico dos Últimos 30 Minutos com Média de 5 em 5 min"
-          className="animate-card stagger-5 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4"
+          className="animate-card stagger-6 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4"
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2">
@@ -706,10 +939,10 @@ export default function StatisticsPage() {
           )}
         </section>
 
-        {/* 4. Tabela com as Amostras Detalhadas da Janela */}
+        {/* 5. Tabela com as Amostras Detalhadas da Janela */}
         <section
           aria-label="Tabela de Amostras de Telemetria"
-          className="animate-card stagger-6 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4"
+          className="animate-card stagger-7 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4"
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">

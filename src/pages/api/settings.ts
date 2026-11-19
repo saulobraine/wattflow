@@ -36,6 +36,9 @@ export interface SettingsResponseData {
   hasWhatsappApiKey: boolean;
   whatsappApiKeyMasked: string;
   isNotificationActive: boolean;
+  atsLifespanCycles: number;
+  atsCurrentCycles: number;
+  atsLastSwitchedAt: string | null;
 }
 
 interface SettingsResponseBody {
@@ -132,6 +135,9 @@ export default async function handleSettings(
           hasWhatsappApiKey: decryptedSecrets.whatsappApiKey.length > 0,
           whatsappApiKeyMasked: maskSecretIrreversible(decryptedSecrets.whatsappApiKey),
           isNotificationActive: existing.isNotificationActive ?? true,
+          atsLifespanCycles: existing.atsLifespanCycles ?? 10000,
+          atsCurrentCycles: existing.atsCurrentCycles ?? 0,
+          atsLastSwitchedAt: existing.atsLastSwitchedAt ? existing.atsLastSwitchedAt.toISOString() : null,
         },
       });
       return;
@@ -172,6 +178,8 @@ export default async function handleSettings(
       whatsappPhoneNumber,
       whatsappApiKey,
       isNotificationActive,
+      atsLifespanCycles,
+      atsCurrentCycles,
     } = parsedBody.data;
 
     if (
@@ -265,6 +273,14 @@ export default async function handleSettings(
         typeof isNotificationActive === "boolean"
           ? isNotificationActive
           : existingConfig?.isNotificationActive ?? true;
+      const resolvedAtsLifespanCycles =
+        typeof atsLifespanCycles === "number"
+          ? atsLifespanCycles
+          : existingConfig?.atsLifespanCycles ?? 10000;
+      const resolvedAtsCurrentCycles =
+        typeof atsCurrentCycles === "number"
+          ? atsCurrentCycles
+          : existingConfig?.atsCurrentCycles ?? 0;
 
       await prisma.userConfiguration.upsert({
         where: { userId: extractedUserId },
@@ -282,6 +298,8 @@ export default async function handleSettings(
           whatsappPhoneNumber: resolvedWhatsappPhone,
           whatsappApiKey: encryptedWhatsAppKey,
           isNotificationActive: resolvedNotificationActive,
+          atsLifespanCycles: resolvedAtsLifespanCycles,
+          atsCurrentCycles: resolvedAtsCurrentCycles,
         },
         create: {
           userId: extractedUserId,
@@ -298,6 +316,8 @@ export default async function handleSettings(
           whatsappPhoneNumber: resolvedWhatsappPhone,
           whatsappApiKey: encryptedWhatsAppKey,
           isNotificationActive: resolvedNotificationActive,
+          atsLifespanCycles: resolvedAtsLifespanCycles,
+          atsCurrentCycles: resolvedAtsCurrentCycles,
         },
       });
 

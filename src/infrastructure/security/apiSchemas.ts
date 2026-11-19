@@ -113,6 +113,18 @@ export const settingsPostBodySchema = z.object({
   whatsappPhoneNumber: z.string().max(32, "Número de WhatsApp excede 32 caracteres.").optional(),
   whatsappApiKey: z.string().max(256, "API Key do WhatsApp excede 256 caracteres.").optional(),
   isNotificationActive: z.boolean().optional(),
+  atsLifespanCycles: z
+    .number({ message: "Vida útil da ATS deve ser um número." })
+    .int("A vida útil deve ser um número inteiro.")
+    .min(100, "Vida útil da ATS deve ser de no mínimo 100 ciclos.")
+    .max(1000000, "Vida útil excede o limite máximo permitido.")
+    .optional(),
+  atsCurrentCycles: z
+    .number({ message: "Ciclos atuais da ATS deve ser um número." })
+    .int("Os ciclos atuais devem ser um número inteiro.")
+    .min(0, "Ciclos atuais não podem ser negativos.")
+    .max(1000000, "Ciclos atuais excedem o limite máximo permitido.")
+    .optional(),
 });
 
 const strictPercentageThresholdSchema = (invalidMessage: string) =>
