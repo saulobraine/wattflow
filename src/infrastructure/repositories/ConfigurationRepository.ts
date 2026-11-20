@@ -68,6 +68,16 @@ export interface RetrievedConfigurationRecord {
   chargeOnlyOffPeak: boolean;
   cloudyPrechargeActive: boolean;
   lastSmartChargeAdjustAt: Date | null;
+  // Feature 4.5: Automações Meteorológicas & Auto-Storm
+  isAutoStormActive?: boolean;
+  autoStormReserveThreshold?: number;
+  autoStormRainThresholdMm?: number;
+  autoStormPrechargeAc?: boolean;
+  isStormAlertActive?: boolean;
+  lastStormAlertCode?: number | null;
+  lastStormAlertDescription?: string | null;
+  lastStormAlertTriggeredAt?: Date | null;
+  lastStormAlertEndedAt?: Date | null;
 }
 
 /**
@@ -345,7 +355,32 @@ export class ConfigurationRepository {
       chargeOnlyOffPeak: rawRecord.chargeOnlyOffPeak ?? true,
       cloudyPrechargeActive: rawRecord.cloudyPrechargeActive ?? true,
       lastSmartChargeAdjustAt: rawRecord.lastSmartChargeAdjustAt ?? null,
+      isAutoStormActive: rawRecord.isAutoStormActive ?? false,
+      autoStormReserveThreshold: rawRecord.autoStormReserveThreshold ?? 85,
+      autoStormRainThresholdMm: rawRecord.autoStormRainThresholdMm ?? 20.0,
+      autoStormPrechargeAc: rawRecord.autoStormPrechargeAc ?? true,
+      isStormAlertActive: rawRecord.isStormAlertActive ?? false,
+      lastStormAlertCode: rawRecord.lastStormAlertCode ?? null,
+      lastStormAlertDescription: rawRecord.lastStormAlertDescription ?? null,
+      lastStormAlertTriggeredAt: rawRecord.lastStormAlertTriggeredAt ?? null,
+      lastStormAlertEndedAt: rawRecord.lastStormAlertEndedAt ?? null,
     };
+  }
+
+  public async updateStormAlertStatus(
+    configurationId: string,
+    data: {
+      isStormAlertActive: boolean;
+      lastStormAlertCode?: number | null;
+      lastStormAlertDescription?: string | null;
+      lastStormAlertTriggeredAt?: Date | null;
+      lastStormAlertEndedAt?: Date | null;
+    }
+  ): Promise<void> {
+    await this.databaseClient.userConfiguration.update({
+      where: { id: configurationId },
+      data,
+    });
   }
 
   public async updateCurrentAcChargingWatts(

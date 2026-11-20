@@ -1,11 +1,35 @@
 import React, { useEffect, useState, FormEvent } from "react";
 import { Layout } from "../components/Layout";
-import { Sliders, Zap, Power, AlertCircle, CheckCircle2, ArrowLeftRight } from "lucide-react";
+import {
+  Sliders,
+  Zap,
+  Power,
+  AlertCircle,
+  CheckCircle2,
+  ArrowLeftRight,
+  CloudLightning,
+  CloudRain,
+  ShieldCheck,
+  AlertTriangle,
+} from "lucide-react";
 
 export default function AutomationsPage() {
   const [turnOnThreshold, setTurnOnThreshold] = useState(90);
   const [turnOffThreshold, setTurnOffThreshold] = useState(30);
   const [isAutomationActive, setIsAutomationActive] = useState(true);
+
+  // Estados do Modo No-Break Preventivo & Defesa Meteorológica (Auto-Storm)
+  const [isAutoStormActive, setIsAutoStormActive] = useState(false);
+  const [autoStormReserveThreshold, setAutoStormReserveThreshold] = useState(85);
+  const [autoStormRainThresholdMm, setAutoStormRainThresholdMm] = useState(20.0);
+  const [autoStormPrechargeAc, setAutoStormPrechargeAc] = useState(true);
+  const [isStormAlertActive, setIsStormAlertActive] = useState(false);
+  const [lastStormAlertCode, setLastStormAlertCode] = useState<number | null>(null);
+  const [lastStormAlertDescription, setLastStormAlertDescription] = useState<string | null>(null);
+  const [lastStormAlertTriggeredAt, setLastStormAlertTriggeredAt] = useState<string | null>(null);
+  const [lastStormAlertEndedAt, setLastStormAlertEndedAt] = useState<string | null>(null);
+  const [ecoflowAccessKey, setEcoflowAccessKey] = useState<string>("");
+  const [ecoflowSerialNumber, setEcoflowSerialNumber] = useState<string>("");
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -14,12 +38,31 @@ export default function AutomationsPage() {
   useEffect(() => {
     async function loadAutomations() {
       try {
-        const response = await fetch("/api/automations");
-        const json = await response.json();
-        if (json.success && json.data) {
-          setTurnOnThreshold(json.data.turnOnThreshold ?? 90);
-          setTurnOffThreshold(json.data.turnOffThreshold ?? 30);
-          setIsAutomationActive(json.data.isAutomationActive ?? true);
+        const [autoRes, settingsRes] = await Promise.all([
+          fetch("/api/automations"),
+          fetch("/api/settings"),
+        ]);
+
+        const autoJson = await autoRes.json();
+        if (autoJson.success && autoJson.data) {
+          setTurnOnThreshold(autoJson.data.turnOnThreshold ?? 90);
+          setTurnOffThreshold(autoJson.data.turnOffThreshold ?? 30);
+          setIsAutomationActive(autoJson.data.isAutomationActive ?? true);
+        }
+
+        const settingsJson = await settingsRes.json();
+        if (settingsJson.success && settingsJson.data) {
+          setEcoflowAccessKey(settingsJson.data.ecoflowAccessKey || "");
+          setEcoflowSerialNumber(settingsJson.data.ecoflowSerialNumber || "");
+          setIsAutoStormActive(settingsJson.data.isAutoStormActive ?? false);
+          setAutoStormReserveThreshold(settingsJson.data.autoStormReserveThreshold ?? 85);
+          setAutoStormRainThresholdMm(settingsJson.data.autoStormRainThresholdMm ?? 20.0);
+          setAutoStormPrechargeAc(settingsJson.data.autoStormPrechargeAc ?? true);
+          setIsStormAlertActive(settingsJson.data.isStormAlertActive ?? false);
+          setLastStormAlertCode(settingsJson.data.lastStormAlertCode ?? null);
+          setLastStormAlertDescription(settingsJson.data.lastStormAlertDescription ?? null);
+          setLastStormAlertTriggeredAt(settingsJson.data.lastStormAlertTriggeredAt ?? null);
+          setLastStormAlertEndedAt(settingsJson.data.lastStormAlertEndedAt ?? null);
         }
       } catch (err) {
         console.error("Erro ao carregar automações:", err);
@@ -60,22 +103,62 @@ export default function AutomationsPage() {
       return;
     }
 
-    try {
-      const response = await fetch("/api/automations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          turnOnThreshold,
-          turnOffThreshold,
-          isAutomationActive,
-        }),
+    if (autoStormReserveThreshold < 50 || autoStormReserveThreshold > 100) {
+      setFeedback({
+        type: "error",
+        message: "O SOC de reserva emergencial do Auto-Storm deve estar entre 50% e 100%.",
       });
+      setIsSaving(false);
+      return;
+    }
 
-      const json = await response.json();
-      if (json.success) {
-        setFeedback({ type: "success", message: "Gatilhos de automação atualizados com sucesso!" });
+    if (autoStormRainThresholdMm < 5 || autoStormRainThresholdMm > 150) {
+      setFeedback({
+        type: "error",
+        message: "O limiar de chuva do Auto-Storm deve estar entre 5mm e 150mm.",
+      });
+      setIsSaving(false);
+      return;
+    }
+
+    try {
+      const [autoRes, settingsRes] = await Promise.all([
+        fetch("/api/automations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            turnOnThreshold,
+            turnOffThreshold,
+            isAutomationActive,
+          }),
+        }),
+        fetch("/api/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ecoflowAccessKey: ecoflowAccessKey || undefined,
+            ecoflowSerialNumber: ecoflowSerialNumber || undefined,
+            isAutoStormActive,
+            autoStormReserveThreshold,
+            autoStormRainThresholdMm,
+            autoStormPrechargeAc,
+          }),
+        }),
+      ]);
+
+      const autoJson = await autoRes.json();
+      const settingsJson = await settingsRes.json();
+
+      if (autoJson.success && settingsJson.success) {
+        setFeedback({
+          type: "success",
+          message: "Regras de automação e Modo Auto-Storm atualizados com sucesso!",
+        });
       } else {
-        setFeedback({ type: "error", message: json.message || "Erro ao salvar automação." });
+        const errMsg =
+          (!autoJson.success ? autoJson.message : settingsJson.message) ||
+          "Erro ao salvar regras de automação.";
+        setFeedback({ type: "error", message: errMsg });
       }
     } catch {
       setFeedback({ type: "error", message: "Falha na comunicação com o servidor." });
@@ -125,6 +208,7 @@ export default function AutomationsPage() {
         </section>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Card 1: Limites de Carga e Corte */}
           <div className="animate-card stagger-2 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
               <div className="flex items-center gap-3">
@@ -235,6 +319,168 @@ export default function AutomationsPage() {
                   <div className="text-slate-200">• Chave ATS: <span className="text-emerald-400 font-bold">POSIÇÃO B (SOLAR/BAT)</span></div>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Card 2: Modo No-Break Preventivo & Defesa Meteorológica (Auto-Storm) */}
+          <div className="animate-card stagger-3 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                  <CloudLightning className="w-5 h-5 animate-pulse" aria-hidden="true" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-bold text-slate-100">
+                      Modo No-Break Preventivo &amp; Defesa Meteorológica (Auto-Storm)
+                    </h2>
+                    <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                      Preditivo
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Protege sua residência contra apagões retendo a chave ATS na concessionária e elevando a reserva antes de tempestades severas.
+                  </p>
+                </div>
+              </div>
+
+              <label htmlFor="auto-storm-active-checkbox" className="flex items-center gap-2 cursor-pointer group self-start sm:self-auto min-h-[44px]">
+                <span className="text-xs font-semibold text-slate-300 group-hover:text-amber-300 transition-colors">
+                  Auto-Storm Ativo
+                </span>
+                <input
+                  id="auto-storm-active-checkbox"
+                  type="checkbox"
+                  checked={isAutoStormActive}
+                  onChange={(e) => setIsAutoStormActive(e.target.checked)}
+                  className="w-5 h-5 accent-amber-500 rounded cursor-pointer transition-transform active:scale-90"
+                />
+              </label>
+            </div>
+
+            {/* Painel de Status do Alerta em Tempo Real */}
+            <div className={`p-4 rounded-xl border transition-all ${
+              isStormAlertActive
+                ? "bg-rose-950/60 border-rose-500/80 text-rose-200 shadow-lg shadow-rose-950/40 animate-pulse"
+                : "bg-slate-950/80 border-slate-800/80 text-slate-300"
+            }`}>
+              <div className="flex items-start gap-3">
+                <div className={`p-2 rounded-lg shrink-0 ${
+                  isStormAlertActive ? "bg-rose-500/20 text-rose-400" : "bg-emerald-500/10 text-emerald-400"
+                }`}>
+                  {isStormAlertActive ? (
+                    <AlertTriangle className="w-5 h-5" aria-hidden="true" />
+                  ) : (
+                    <ShieldCheck className="w-5 h-5" aria-hidden="true" />
+                  )}
+                </div>
+                <div className="space-y-1 flex-1">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-bold text-sm">
+                      {isStormAlertActive
+                        ? "⚠️ ALERTA DE TEMPESTADE ATIVO — MODO NO-BREAK EM OPERAÇÃO"
+                        : "Monitoramento Meteorológico Preditivo 24/7"}
+                    </span>
+                    <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${
+                      isStormAlertActive
+                        ? "bg-rose-500/20 text-rose-300 border-rose-500/40"
+                        : "bg-emerald-500/10 text-emerald-300 border-emerald-500/30"
+                    }`}>
+                      {isStormAlertActive ? "DEFESA ATIVA" : "STANDBY NORMAL"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    {isStormAlertActive
+                      ? `${lastStormAlertDescription || "Tempestade severa detectada"}. Disparado em ${
+                          lastStormAlertTriggeredAt
+                            ? new Date(lastStormAlertTriggeredAt).toLocaleString("pt-BR")
+                            : "agora"
+                        }. O ATS está comutado na rede e a bateria mantida em reserva emergencial.`
+                      : "O sistema consulta a previsão de tempestades (códigos WMO 80-82, 95-99 e volume de chuva) via Open-Meteo. Quando uma tempestade for detectada, a proteção será acionada automaticamente."}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Slider 1: SOC de Reserva Emergencial */}
+            <div className="space-y-2">
+              <div className="flex flex-wrap sm:flex-nowrap justify-between items-start sm:items-center gap-2">
+                <label htmlFor="auto-storm-reserve-slider" className="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-amber-400" aria-hidden="true" />
+                  SOC de Reserva Emergencial durante Tempestade
+                </label>
+                <span className="font-mono text-amber-400 font-bold text-lg bg-amber-500/10 px-3 py-1 rounded-lg border border-amber-500/20 transition-all">
+                  {autoStormReserveThreshold}%
+                </span>
+              </div>
+              <p id="auto-storm-reserve-desc" className="text-xs text-slate-400">
+                Durante o alerta de tempestade, o limite inferior de corte é elevado temporariamente para este valor (50% a 100%, padrão 85%). A bateria não será descarregada abaixo desse patamar enquanto houver risco.
+              </p>
+              <input
+                id="auto-storm-reserve-slider"
+                type="range"
+                min="50"
+                max="100"
+                value={autoStormReserveThreshold}
+                aria-label="SOC de Reserva Emergencial"
+                aria-valuenow={autoStormReserveThreshold}
+                aria-valuemin={50}
+                aria-valuemax={100}
+                aria-describedby="auto-storm-reserve-desc"
+                onChange={(e) => setAutoStormReserveThreshold(Number(e.target.value))}
+                className="w-full accent-amber-500 cursor-pointer h-2 py-4 min-h-[44px] bg-slate-800 rounded-lg transition-all"
+              />
+            </div>
+
+            {/* Slider 2: Limiar de Chuva Severa em mm */}
+            <div className="space-y-2">
+              <div className="flex flex-wrap sm:flex-nowrap justify-between items-start sm:items-center gap-2">
+                <label htmlFor="auto-storm-rain-slider" className="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                  <CloudRain className="w-4 h-4 text-sky-400" aria-hidden="true" />
+                  Limiar de Precipitação Diária para Gatilho (Chuva Forte)
+                </label>
+                <span className="font-mono text-sky-400 font-bold text-lg bg-sky-500/10 px-3 py-1 rounded-lg border border-sky-500/20 transition-all">
+                  {autoStormRainThresholdMm} mm
+                </span>
+              </div>
+              <p id="auto-storm-rain-desc" className="text-xs text-slate-400">
+                Se a precipitação acumulada prevista para as próximas 24 horas for igual ou superior a este valor (5mm a 150mm, padrão 20mm), o Modo No-Break Preventivo será acionado mesmo sem código explícito de trovoada.
+              </p>
+              <input
+                id="auto-storm-rain-slider"
+                type="range"
+                min="5"
+                max="150"
+                step="5"
+                value={autoStormRainThresholdMm}
+                aria-label="Limiar de Chuva em Milímetros"
+                aria-valuenow={autoStormRainThresholdMm}
+                aria-valuemin={5}
+                aria-valuemax={150}
+                aria-describedby="auto-storm-rain-desc"
+                onChange={(e) => setAutoStormRainThresholdMm(Number(e.target.value))}
+                className="w-full accent-sky-500 cursor-pointer h-2 py-4 min-h-[44px] bg-slate-800 rounded-lg transition-all"
+              />
+            </div>
+
+            {/* Switch 3: Pré-Recarga AC Rápida */}
+            <div className="p-3.5 sm:p-4 rounded-xl bg-slate-950 border border-slate-800 flex items-start sm:items-center justify-between gap-3">
+              <div className="space-y-1">
+                <label htmlFor="auto-storm-precharge-checkbox" className="text-sm font-semibold text-slate-200 flex items-center gap-2 cursor-pointer">
+                  <Zap className="w-4 h-4 text-amber-400" />
+                  Pré-Recarga AC Rápida da Bateria
+                </label>
+                <p className="text-xs text-slate-400">
+                  Se a bateria estiver abaixo do limiar de reserva ({autoStormReserveThreshold}%) no momento do alerta, aciona a entrada AC da EcoFlow para completar a carga antes do início da tempestade.
+                </p>
+              </div>
+              <input
+                id="auto-storm-precharge-checkbox"
+                type="checkbox"
+                checked={autoStormPrechargeAc}
+                onChange={(e) => setAutoStormPrechargeAc(e.target.checked)}
+                className="w-5 h-5 accent-amber-500 rounded cursor-pointer transition-transform active:scale-90 shrink-0 mt-1 sm:mt-0 min-h-[44px] min-w-[44px]"
+              />
             </div>
           </div>
 

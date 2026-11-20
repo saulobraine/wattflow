@@ -129,6 +129,16 @@ function buildMockEtapa3Record(
     chargeOnlyOffPeak: true,
     cloudyPrechargeActive: true,
     lastSmartChargeAdjustAt: null,
+    // Feature 4.5: Automações Meteorológicas & Auto-Storm
+    isAutoStormActive: false,
+    autoStormReserveThreshold: 85,
+    autoStormRainThresholdMm: 20.0,
+    autoStormPrechargeAc: true,
+    isStormAlertActive: false,
+    lastStormAlertCode: null,
+    lastStormAlertDescription: null,
+    lastStormAlertTriggeredAt: null,
+    lastStormAlertEndedAt: null,
     ...overrides,
   };
 }
