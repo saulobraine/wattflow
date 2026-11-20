@@ -18,6 +18,7 @@ import {
 import { TariffScheduleService } from "../domain/services/TariffScheduleService";
 import { CriticalAlertService } from "../infrastructure/services/CriticalAlertService";
 import { SolarSmartChargingService } from "../domain/services/SolarSmartChargingService";
+import { BatteryHealthService } from "../domain/services/BatteryHealthService";
 
 export interface SyncExecutionResult {
   hasExecutedSuccessfully: boolean;
@@ -169,12 +170,52 @@ export class OrchestratorSyncUseCase {
         });
       }
 
-      const thermalWarning = configurationRecord.thermalWarningThreshold ?? 45.0;
-      const thermalShutdown = configurationRecord.thermalShutdownThreshold ?? 50.0;
-      const hasThermalShutdown =
-        batteryTempCelsius !== null && batteryTempCelsius >= thermalShutdown;
-      const hasThermalWarning =
-        batteryTempCelsius !== null && batteryTempCelsius >= thermalWarning;
+      const thermalService = BatteryHealthService.getInstance();
+      const isThermalActive = configurationRecord.isThermalProtectionActive ?? true;
+      const thermalWarning =
+        configurationRecord.thermalThrottleTempThreshold ??
+        configurationRecord.thermalWarningThreshold ??
+        42.0;
+      const thermalShutdown =
+        configurationRecord.thermalCutoffTempThreshold ??
+        configurationRecord.thermalShutdownThreshold ??
+        48.0;
+      const thermalRecovery =
+        configurationRecord.thermalRecoveryTempThreshold ??
+        Math.max(30, thermalShutdown - 4.0);
+      const throttleSpeed = configurationRecord.thermalThrottleSpeedWatts ?? 200;
+
+      const thermalRisk = thermalService.evaluateThermalRisk(batteryTempCelsius, {
+        isThermalProtectionActive: isThermalActive,
+        thermalWarningThreshold: thermalWarning,
+        thermalShutdownThreshold: thermalShutdown,
+        thermalRecoveryTempThreshold: thermalRecovery,
+        isThermalCutoffActive: configurationRecord.isThermalCutoffActive,
+      });
+
+      const hasThermalShutdown = thermalRisk.shouldCutoff;
+      const hasThermalThrottle = thermalRisk.shouldThrottle;
+
+      if (thermalRisk.shouldRecover && configurationRecord.isThermalCutoffActive) {
+        if (typeof this.repository.updateThermalState === "function") {
+          await this.repository.updateThermalState(databaseRecordId, {
+            isThermalCutoffActive: false,
+            isThermalThrottleActive: false,
+            lastThermalEventAt: new Date(),
+            lastThermalActionMessage: `Bateria resfriada com sucesso (${batteryTempCelsius!.toFixed(1)}°C <= ${thermalRecovery.toFixed(1)}°C). Operação normal restabelecida.`,
+          });
+        }
+        this.dispatchSafeAlert(
+          {
+            title: "🛡️ Bateria Resfriada - Normalização BMS",
+            message: `A temperatura das células caiu para ${batteryTempCelsius!.toFixed(1)}°C (histerese <= ${thermalRecovery.toFixed(1)}°C). Operação normal restabelecida.`,
+            batteryPercentage: numericBattery,
+            solarWatts: numericSolarWatts,
+            actionState: isAcOutputEnabled ? "SOLAR_BATTERY" : "GRID",
+          },
+          notificationConfig
+        );
+      }
 
       const isStormMode = configurationRecord.isStormModeActive;
       const isAutomationEnabled = configurationRecord.isAutomationActive;
@@ -188,25 +229,67 @@ export class OrchestratorSyncUseCase {
           if (typeof this.repository.incrementAtsCycle === "function") {
             await this.repository.incrementAtsCycle(databaseRecordId);
           }
-          this.dispatchSafeAlert(
-            {
-              title: "⚠️ CORTE TÉRMICO DE EMERGÊNCIA",
-              message: `Temperatura crítica das células atingiu ${batteryTempCelsius!.toFixed(1)}°C (limite ${thermalShutdown.toFixed(1)}°C). Saída AC desligada imediatamente e transferida para a concessionária.`,
-              batteryPercentage: numericBattery,
-              solarWatts: numericSolarWatts,
-              actionState: "GRID",
-            },
-            notificationConfig
-          );
         }
+        if (typeof ecoflowClient.setAcChargingSpeed === "function") {
+          try {
+            await ecoflowClient.setAcChargingSpeed(ecoflowDevice, 0);
+            if (typeof this.repository.updateCurrentAcChargingWatts === "function") {
+              await this.repository.updateCurrentAcChargingWatts(databaseRecordId, 0);
+            }
+          } catch (speedErr) {
+            console.warn(
+              "[OrchestratorSyncUseCase] Falha ao zerar recarga AC no corte térmico:",
+              speedErr
+            );
+          }
+        }
+        if (typeof this.repository.updateThermalState === "function") {
+          await this.repository.updateThermalState(databaseRecordId, {
+            isThermalCutoffActive: true,
+            isThermalThrottleActive: false,
+            lastThermalEventAt: new Date(),
+            lastThermalActionMessage: `Corte térmico de emergência ativado (${batteryTempCelsius!.toFixed(1)}°C >= ${thermalShutdown.toFixed(1)}°C).`,
+          });
+        }
+        this.dispatchSafeAlert(
+          {
+            title: "🚨 CORTE TÉRMICO DE EMERGÊNCIA BMS",
+            message: `Temperatura crítica das células atingiu ${batteryTempCelsius!.toFixed(1)}°C (limite ${thermalShutdown.toFixed(1)}°C). Saída AC desligada, recarga suspensa (0W) e cargas transferidas para a concessionária.`,
+            batteryPercentage: numericBattery,
+            solarWatts: numericSolarWatts,
+            actionState: "GRID",
+          },
+          notificationConfig
+        );
         actionName = "THERMAL_PROTECTION_DISARM";
         actionResult = `Proteção térmica acionada: células atingiram ${batteryTempCelsius!.toFixed(1)}°C (limiar de corte: ${thermalShutdown.toFixed(1)}°C). Saída AC desligada preventivamente e cargas transferidas para a concessionária.`;
       } else {
-        if (hasThermalWarning) {
+        if (hasThermalThrottle) {
+          if (typeof ecoflowClient.setAcChargingSpeed === "function") {
+            try {
+              await ecoflowClient.setAcChargingSpeed(ecoflowDevice, throttleSpeed);
+              if (typeof this.repository.updateCurrentAcChargingWatts === "function") {
+                await this.repository.updateCurrentAcChargingWatts(databaseRecordId, throttleSpeed);
+              }
+            } catch (speedErr) {
+              console.warn(
+                "[OrchestratorSyncUseCase] Falha ao modular recarga no thermal throttling:",
+                speedErr
+              );
+            }
+          }
+          if (typeof this.repository.updateThermalState === "function") {
+            await this.repository.updateThermalState(databaseRecordId, {
+              isThermalCutoffActive: false,
+              isThermalThrottleActive: true,
+              lastThermalEventAt: new Date(),
+              lastThermalActionMessage: `Thermal Throttling: temperatura elevada (${batteryTempCelsius!.toFixed(1)}°C >= ${thermalWarning.toFixed(1)}°C). Recarga reduzida para ${throttleSpeed}W.`,
+            });
+          }
           this.dispatchSafeAlert(
             {
               title: "⚠️ Alerta de Temperatura EcoFlow",
-              message: `As células da bateria atingiram ${batteryTempCelsius!.toFixed(1)}°C (limiar de alerta: ${thermalWarning.toFixed(1)}°C). Verifique a ventilação do local.`,
+              message: `As células da bateria atingiram ${batteryTempCelsius!.toFixed(1)}°C (limiar de alerta: ${thermalWarning.toFixed(1)}°C). Recarga AC modulada para ${throttleSpeed}W para resfriamento.`,
               batteryPercentage: numericBattery,
               solarWatts: numericSolarWatts,
               actionState: isAcOutputEnabled ? "SOLAR_BATTERY" : "GRID",
@@ -497,7 +580,7 @@ export class OrchestratorSyncUseCase {
       }
 
       // Feature 3.2: Solar Smart Charging (Etapa 4)
-      if (configurationRecord.isSmartChargingActive) {
+      if (configurationRecord.isSmartChargingActive && !hasThermalShutdown) {
         let solarForecastLevel: SolarExpectationLevel | null = null;
         if (
           configurationRecord.latitude !== null &&
@@ -533,16 +616,23 @@ export class OrchestratorSyncUseCase {
           tariffConfig: configurationRecord,
         });
 
-        if (smartChargeResult.shouldSendAdjustCommand) {
+        const finalTargetWatts = hasThermalThrottle
+          ? Math.min(smartChargeResult.targetWatts, throttleSpeed)
+          : smartChargeResult.targetWatts;
+
+        if (
+          smartChargeResult.shouldSendAdjustCommand ||
+          (hasThermalThrottle && smartChargeResult.targetWatts > throttleSpeed)
+        ) {
           try {
             await ecoflowClient.setAcChargingSpeed(
               ecoflowDevice,
-              smartChargeResult.targetWatts
+              finalTargetWatts
             );
             if (typeof this.repository.updateCurrentAcChargingWatts === "function") {
               await this.repository.updateCurrentAcChargingWatts(
                 databaseRecordId,
-                smartChargeResult.targetWatts
+                finalTargetWatts
               );
             }
           } catch (speedError: unknown) {

@@ -74,8 +74,17 @@ model UserConfiguration {
   maxAdaptiveThreshold Int                @default(50)
   lastSolarIrradianceMj Float?
   lastSolarForecastCheckAt DateTime?
-  thermalWarningThreshold Float           @default(45.0)
-  thermalShutdownThreshold Float          @default(50.0)
+  thermalWarningThreshold Float           @default(42.0)
+  thermalShutdownThreshold Float          @default(48.0)
+  isThermalProtectionActive  Boolean        @default(true)
+  thermalThrottleTempThreshold Int          @default(42)
+  thermalCutoffTempThreshold   Int          @default(48)
+  thermalRecoveryTempThreshold Int          @default(44)
+  thermalThrottleSpeedWatts    Int          @default(200)
+  isThermalThrottleActive    Boolean        @default(false)
+  isThermalCutoffActive      Boolean        @default(false)
+  lastThermalEventAt         DateTime?
+  lastThermalActionMessage   String?
   lastBatteryTempCelsius Float?
   lastBatterySoh       Int?
   lastBatteryCycles    Int?
