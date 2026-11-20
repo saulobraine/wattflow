@@ -371,21 +371,43 @@ export class OrchestratorSyncUseCase {
           actionName = "AUTO_STORM_DEFENSE";
           actionResult = `Modo Auto-Storm Ativo: risco meteorológico severo (${stormAssessment?.weatherDescription ?? "Tempestade"}). Cargas na concessionária e reserva elevada para ${reserveThreshold}%.`;
         } else if (isAutomationEnabled) {
-          const tariffSchedule = TariffScheduleService.getInstance().evaluate(configurationRecord);
-          const isPeakPeriod = tariffSchedule.isDynamicActive && tariffSchedule.period === "PEAK";
-          const peakReserve = configurationRecord.peakReserveThreshold ?? 15;
+          const tariffStatus = TariffScheduleService.getInstance().evaluateTariffPeriod(configurationRecord);
+          const isPeakPeriod = tariffStatus.isTimeOfUseActive && tariffStatus.currentPeriod === "PEAK";
+          const peakReserve =
+            configurationRecord.peakDischargeReserveLimit ??
+            configurationRecord.peakReserveThreshold ??
+            20;
 
           if (isPeakPeriod) {
+            if (configurationRecord.blockAcChargingDuringPeak ?? true) {
+              if (typeof ecoflowClient.setAcChargingSpeed === "function") {
+                try {
+                  await ecoflowClient.setAcChargingSpeed(ecoflowDevice, 0);
+                  if (typeof this.repository.updateCurrentAcChargingWatts === "function") {
+                    await this.repository.updateCurrentAcChargingWatts(databaseRecordId, 0);
+                  }
+                } catch (chargeSpeedErr) {
+                  console.warn(
+                    "[OrchestratorSyncUseCase] Falha ao zerar recarga AC no horário de ponta:",
+                    chargeSpeedErr
+                  );
+                }
+              }
+            }
+
             if (numericBattery > peakReserve) {
               if (isAcOutputEnabled !== true) {
                 await ecoflowClient.setAcOutputState(ecoflowDevice, true);
                 if (typeof this.repository.incrementAtsCycle === "function") {
                   await this.repository.incrementAtsCycle(databaseRecordId);
                 }
+                const blockNote = (configurationRecord.blockAcChargingDuringPeak ?? true)
+                  ? " Recarga AC da rede bloqueada (0W)."
+                  : "";
                 this.dispatchSafeAlert(
                   {
                     title: "⚡ Horário de Ponta: Bateria/Solar Ativada",
-                    message: `Início do Horário de Ponta (tarifa R$ ${tariffSchedule.rate.toFixed(2)}/kWh). Saída AC ativada para consumo prioritário da reserva da bateria (limite ${peakReserve}%).`,
+                    message: `Início do Horário de Ponta (tarifa ${tariffStatus.currencySymbol} ${tariffStatus.currentRate.toFixed(2)}/kWh). Saída AC ativada para consumo prioritário da reserva da bateria (limite ${peakReserve}%).${blockNote}`,
                     batteryPercentage: numericBattery,
                     solarWatts: numericSolarWatts,
                     actionState: "SOLAR_BATTERY",
@@ -393,7 +415,7 @@ export class OrchestratorSyncUseCase {
                   notificationConfig
                 );
                 actionName = "ENABLE_ECOFLOW_AC";
-                actionResult = `Horário de Ponta Ativo: Saída AC ligada para consumo prioritário da bateria (tarifa máxima R$ ${tariffSchedule.rate.toFixed(2)}/kWh). ATS transferida para Bateria/Solar.`;
+                actionResult = `Horário de Ponta Ativo: Saída AC ligada para consumo prioritário da bateria (tarifa máxima ${tariffStatus.currencySymbol} ${tariffStatus.currentRate.toFixed(2)}/kWh). ATS transferida para Bateria/Solar.`;
               } else {
                 actionName = "HOLD_CURRENT_STATE";
                 actionResult = `Horário de Ponta Ativo: Bateria em ${numericBattery}% preservando economia na ponta (acima da reserva de ${peakReserve}%). Saída AC mantida ligada.`;

@@ -93,14 +93,21 @@ export class SolarSmartChargingService {
     const isPeakPeriod = evaluatedTariff.isDynamicActive && evaluatedTariff.period === "PEAK";
 
     // 2. Bloqueio no Horário de Ponta
-    if (chargeOnlyOffPeak && isPeakPeriod) {
-      const targetWatts = safeMin; // Reduz para a potência mínima aceita pela estação
-      const shouldSend = Math.abs(targetWatts - safeCurrent) >= 50;
+    const isZeroBlock = Boolean(
+      tariffConfig &&
+      "blockAcChargingDuringPeak" in tariffConfig &&
+      tariffConfig.blockAcChargingDuringPeak === true
+    );
+    const shouldBlockDuringPeak = isZeroBlock || Boolean(chargeOnlyOffPeak);
+
+    if (shouldBlockDuringPeak && isPeakPeriod) {
+      const targetWatts = isZeroBlock ? 0 : safeMin;
+      const shouldSend = Math.abs(targetWatts - safeCurrent) >= 50 || (targetWatts === 0 && safeCurrent > 0);
       return {
         isSmartChargingActive: true,
         targetWatts,
         shouldSendAdjustCommand: shouldSend,
-        reason: `Horário de Ponta Ativo (${evaluatedTariff.period}): recarga AC restrita ao mínimo (${targetWatts}W) para evitar custos tarifários elevados.`,
+        reason: `Horário de Ponta Ativo (${evaluatedTariff.period}): recarga AC ${isZeroBlock ? "bloqueada (0W)" : "restrita ao mínimo (" + targetWatts + "W)"} para evitar custos tarifários elevados.`,
       };
     }
 

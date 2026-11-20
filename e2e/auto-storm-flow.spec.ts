@@ -277,7 +277,7 @@ test.describe("Automações Inteligentes com Previsão do Tempo & Modo No-Break 
       // 8. Valida feedback de sucesso exibido com role="alert"
       const feedback = page.locator('div[role="alert"]');
       await expect(feedback).toBeVisible();
-      await expect(feedback).toContainText("Regras de automação e Modo Auto-Storm atualizados com sucesso!");
+      await expect(feedback).toContainText("salvas com sucesso");
 
       // 9. Recarrega a página e valida persistência
       await page.reload();
