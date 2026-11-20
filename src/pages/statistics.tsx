@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Layout } from "../components/Layout";
 import { useVisibilityPolling } from "../hooks/useVisibilityPolling";
+import { useLiveTelemetry } from "../hooks/useLiveTelemetry";
 import {
   Sun,
   Zap,
@@ -101,6 +102,7 @@ interface StatisticsData {
 }
 
 export default function StatisticsPage() {
+  const { telemetry: liveTelemetry } = useLiveTelemetry();
   const [data, setData] = useState<StatisticsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -200,7 +202,11 @@ export default function StatisticsPage() {
   const scaleMaxWatts = calculateScaleMax(rawMaxWatts);
   const scaleMidWatts = Math.round(scaleMaxWatts / 2);
 
-  const isInstantNetPositive = (data?.netWatts ?? 0) >= 0;
+  const liveSolarWatts = liveTelemetry?.solarInputWatts ?? data?.currentWatts ?? 0;
+  const liveOutputWatts = liveTelemetry?.outputWatts ?? data?.currentOutputWatts ?? 0;
+  const liveNetWatts = liveTelemetry ? (liveSolarWatts - liveOutputWatts) : (data?.netWatts ?? 0);
+
+  const isInstantNetPositive = liveNetWatts >= 0;
   const isPeriodNetPositive = (data?.netEnergyKwh ?? 0) >= 0;
   const atsHealth = data?.atsHealth;
 
@@ -403,25 +409,25 @@ export default function StatisticsPage() {
                   </span>
                   <span
                     className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold border transition-all ${
-                      (data?.currentWatts ?? 0) > 0
+                      liveSolarWatts > 0
                         ? "bg-amber-500/20 text-amber-300 border-amber-500/30 animate-pulse-glow"
                         : "bg-slate-800 text-slate-400 border-slate-700"
                     }`}
                   >
-                    {(data?.currentWatts ?? 0) > 0 ? "GERANDO" : "STANDBY"}
+                    {liveSolarWatts > 0 ? "GERANDO" : "STANDBY"}
                   </span>
                 </div>
 
                 <div className="flex items-baseline gap-2">
                   <span className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-100 font-mono">
-                    {data?.currentWatts ?? 0}
+                    {liveSolarWatts}
                   </span>
                   <span className="text-slate-400 font-medium text-sm">W</span>
                 </div>
               </div>
 
               <p className="text-xs text-slate-400 mt-3 pt-2 border-t border-slate-800/80">
-                {(data?.currentWatts ?? 0) > 0
+                {liveSolarWatts > 0
                   ? "Entrada solar fotovoltaica captando energia ao vivo."
                   : "Sem radiação solar direta no momento."}
               </p>
@@ -437,18 +443,18 @@ export default function StatisticsPage() {
                   </span>
                   <span
                     className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold border transition-all ${
-                      (data?.currentOutputWatts ?? 0) > 0
+                      liveOutputWatts > 0
                         ? "bg-sky-500/20 text-sky-300 border-sky-500/30"
                         : "bg-slate-800 text-slate-400 border-slate-700"
                     }`}
                   >
-                    {(data?.currentOutputWatts ?? 0) > 0 ? "EM CARGA" : "SEM CARGA"}
+                    {liveOutputWatts > 0 ? "EM CARGA" : "SEM CARGA"}
                   </span>
                 </div>
 
                 <div className="flex items-baseline gap-2">
                   <span className="text-3xl sm:text-4xl font-extrabold tracking-tight text-sky-300 font-mono">
-                    {data?.currentOutputWatts ?? 0}
+                    {liveOutputWatts}
                   </span>
                   <span className="text-slate-400 font-medium text-sm">W</span>
                 </div>
@@ -473,16 +479,16 @@ export default function StatisticsPage() {
                   </span>
                   <span
                     className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold border transition-all ${
-                      (data?.netWatts ?? 0) > 0
+                      liveNetWatts > 0
                         ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
-                        : (data?.netWatts ?? 0) < 0
+                        : liveNetWatts < 0
                         ? "bg-amber-500/20 text-amber-300 border-amber-500/30"
                         : "bg-slate-800 text-slate-400 border-slate-700"
                     }`}
                   >
-                    {(data?.netWatts ?? 0) > 0
+                    {liveNetWatts > 0
                       ? "SUPERÁVIT"
-                      : (data?.netWatts ?? 0) < 0
+                      : liveNetWatts < 0
                       ? "DÉFICIT"
                       : "EQUILÍBRIO"}
                   </span>
@@ -494,18 +500,18 @@ export default function StatisticsPage() {
                       isInstantNetPositive ? "text-emerald-400" : "text-amber-400"
                     }`}
                   >
-                    {(data?.netWatts ?? 0) > 0
-                      ? `+${data?.netWatts}`
-                      : data?.netWatts ?? 0}
+                    {liveNetWatts > 0
+                      ? `+${liveNetWatts}`
+                      : liveNetWatts}
                   </span>
                   <span className="text-slate-400 font-medium text-sm">W</span>
                 </div>
               </div>
 
               <p className="text-xs text-slate-400 mt-3 pt-2 border-t border-slate-800/80">
-                {(data?.netWatts ?? 0) > 0
+                {liveNetWatts > 0
                   ? "Geração supera o consumo. Bateria absorvendo excedente."
-                  : (data?.netWatts ?? 0) < 0
+                  : liveNetWatts < 0
                   ? "Consumo maior que geração solar. Bateria fornecendo energia."
                   : "Geração e consumo em equilíbrio."}
               </p>

@@ -20,6 +20,8 @@ import {
   Layers,
 } from "lucide-react";
 import { useVisibilityPolling } from "../hooks/useVisibilityPolling";
+import { useLiveTelemetry } from "../hooks/useLiveTelemetry";
+import { ConnectionStatusIndicator } from "../components/ConnectionStatusIndicator";
 
 interface KioskTelemetryData {
   currentWatts: number;
@@ -51,6 +53,11 @@ interface KioskTelemetryData {
 
 export default function KioskPage() {
   const router = useRouter();
+  const {
+    telemetry: liveTelemetry,
+    connectionStatus,
+    reconnect,
+  } = useLiveTelemetry();
   const [telemetry, setTelemetry] = useState<KioskTelemetryData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState("");
@@ -187,19 +194,25 @@ export default function KioskPage() {
     onPoll: fetchTelemetry,
   });
 
-  // Cálculos Derivados do Kiosk
-  const solarWatts = telemetry?.currentWatts ?? 0;
-  const loadWatts = telemetry?.currentOutputWatts ?? 0;
-  const netWatts = telemetry?.netWatts ?? (solarWatts - loadWatts);
-  const batteryPct = telemetry?.batteryPercentage ?? 0;
-  const temperature = telemetry?.bmsAnalytics?.temperatureCelsius ?? null;
+  // Cálculos Derivados do Kiosk (Reativos via Live Telemetry)
+  const solarWatts = liveTelemetry?.solarInputWatts ?? telemetry?.currentWatts ?? 0;
+  const loadWatts = liveTelemetry?.outputWatts ?? telemetry?.currentOutputWatts ?? 0;
+  const netWatts = liveTelemetry ? (solarWatts - loadWatts) : (telemetry?.netWatts ?? (solarWatts - loadWatts));
+  const batteryPct = liveTelemetry?.batteryPercentage ?? telemetry?.batteryPercentage ?? 0;
+  const temperature =
+    liveTelemetry?.batteryTempCelsius ??
+    liveTelemetry?.batteryTemperature ??
+    telemetry?.bmsAnalytics?.temperatureCelsius ??
+    null;
   const soh = telemetry?.bmsAnalytics?.sohPercentage ?? null;
 
   // Lógica da ATS e Fonte Ativa
   const isAtsOnBattery =
-    telemetry?.lastAction === "BATTERY_HIGH_DISCHARGE" ||
-    (loadWatts > 0 && batteryPct >= 30) ||
-    telemetry?.lastAction !== "BATTERY_LOW_RECHARGE";
+    liveTelemetry?.isAcOutputEnabled !== undefined
+      ? liveTelemetry.isAcOutputEnabled
+      : telemetry?.lastAction === "BATTERY_HIGH_DISCHARGE" ||
+        (loadWatts > 0 && batteryPct >= 30) ||
+        telemetry?.lastAction !== "BATTERY_LOW_RECHARGE";
 
   // Cor Dinâmica da Bateria
   let batteryColorClass = "text-emerald-400";
@@ -294,7 +307,14 @@ export default function KioskPage() {
           </div>
 
           {/* Lado Direito: Relógio Digital & Controles Flutuantes */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <ConnectionStatusIndicator
+              status={connectionStatus}
+              onReconnect={reconnect}
+              showLabelOnMobile={false}
+              className="border-slate-800/80 bg-slate-950/80 shadow-md"
+            />
+
             <div className="text-right">
               <div className="text-3xl sm:text-4xl lg:text-5xl font-mono font-black tracking-tight text-slate-100 drop-shadow-md">
                 {currentTime || "00:00:00"}
