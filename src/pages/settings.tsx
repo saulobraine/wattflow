@@ -24,6 +24,8 @@ import {
   Thermometer,
   MapPin,
   Flame,
+  BellRing,
+  AlertTriangle,
 } from "lucide-react";
 
 export default function SettingsPage() {
@@ -61,6 +63,27 @@ export default function SettingsPage() {
 
   const [thermalWarningThreshold, setThermalWarningThreshold] = useState<number>(45.0);
   const [thermalShutdownThreshold, setThermalShutdownThreshold] = useState<number>(50.0);
+
+  // Estados da Etapa 3: Tarifas Dinâmicas (Tarifa Branca ANEEL) & Alertas Críticos Multi-Canal
+  const [isDynamicTariffActive, setIsDynamicTariffActive] = useState<boolean>(false);
+  const [peakTariffPerKwh, setPeakTariffPerKwh] = useState<number>(1.85);
+  const [intermediateTariffPerKwh, setIntermediateTariffPerKwh] = useState<number>(1.15);
+  const [offPeakTariffPerKwh, setOffPeakTariffPerKwh] = useState<number>(0.65);
+  const [peakStartTime, setPeakStartTime] = useState<string>("17:30");
+  const [peakEndTime, setPeakEndTime] = useState<string>("20:30");
+  const [intermediateStartTime1, setIntermediateStartTime1] = useState<string>("16:30");
+  const [intermediateEndTime1, setIntermediateEndTime1] = useState<string>("17:30");
+  const [intermediateStartTime2, setIntermediateStartTime2] = useState<string>("20:30");
+  const [intermediateEndTime2, setIntermediateEndTime2] = useState<string>("21:30");
+  const [peakReserveThreshold, setPeakReserveThreshold] = useState<number>(15);
+
+  const [inverterMaxWatts, setInverterMaxWatts] = useState<number>(2400);
+  const [isAlertOnBlackout, setIsAlertOnBlackout] = useState<boolean>(true);
+  const [isAlertOnGridRestore, setIsAlertOnGridRestore] = useState<boolean>(true);
+  const [isAlertOnOverload, setIsAlertOnOverload] = useState<boolean>(true);
+  const [isAlertOnThermalRisk, setIsAlertOnThermalRisk] = useState<boolean>(true);
+  const [isAlertOnAtsFailure, setIsAlertOnAtsFailure] = useState<boolean>(true);
+  const [alertCooldownMinutes, setAlertCooldownMinutes] = useState<number>(10);
 
   const handleDetectLocation = () => {
     if (typeof window === "undefined" || !navigator.geolocation) {
@@ -258,6 +281,36 @@ export default function SettingsPage() {
         setThermalShutdownThreshold(
           typeof json.data.thermalShutdownThreshold === "number" ? json.data.thermalShutdownThreshold : 50.0
         );
+        setIsDynamicTariffActive(Boolean(json.data.isDynamicTariffActive));
+        setPeakTariffPerKwh(
+          typeof json.data.peakTariffPerKwh === "number" ? json.data.peakTariffPerKwh : 1.85
+        );
+        setIntermediateTariffPerKwh(
+          typeof json.data.intermediateTariffPerKwh === "number" ? json.data.intermediateTariffPerKwh : 1.15
+        );
+        setOffPeakTariffPerKwh(
+          typeof json.data.offPeakTariffPerKwh === "number" ? json.data.offPeakTariffPerKwh : 0.65
+        );
+        setPeakStartTime(json.data.peakStartTime || "17:30");
+        setPeakEndTime(json.data.peakEndTime || "20:30");
+        setIntermediateStartTime1(json.data.intermediateStartTime1 || "16:30");
+        setIntermediateEndTime1(json.data.intermediateEndTime1 || "17:30");
+        setIntermediateStartTime2(json.data.intermediateStartTime2 || "20:30");
+        setIntermediateEndTime2(json.data.intermediateEndTime2 || "21:30");
+        setPeakReserveThreshold(
+          typeof json.data.peakReserveThreshold === "number" ? json.data.peakReserveThreshold : 15
+        );
+        setInverterMaxWatts(
+          typeof json.data.inverterMaxWatts === "number" ? json.data.inverterMaxWatts : 2400
+        );
+        setIsAlertOnBlackout(json.data.isAlertOnBlackout ?? true);
+        setIsAlertOnGridRestore(json.data.isAlertOnGridRestore ?? true);
+        setIsAlertOnOverload(json.data.isAlertOnOverload ?? true);
+        setIsAlertOnThermalRisk(json.data.isAlertOnThermalRisk ?? true);
+        setIsAlertOnAtsFailure(json.data.isAlertOnAtsFailure ?? true);
+        setAlertCooldownMinutes(
+          typeof json.data.alertCooldownMinutes === "number" ? json.data.alertCooldownMinutes : 10
+        );
       }
     } catch (err) {
       console.error("Erro ao carregar configurações:", err);
@@ -307,6 +360,24 @@ export default function SettingsPage() {
           maxAdaptiveThreshold: Number(maxAdaptiveThreshold),
           thermalWarningThreshold: Number(thermalWarningThreshold),
           thermalShutdownThreshold: Number(thermalShutdownThreshold),
+          isDynamicTariffActive,
+          peakTariffPerKwh: Number(peakTariffPerKwh),
+          intermediateTariffPerKwh: Number(intermediateTariffPerKwh),
+          offPeakTariffPerKwh: Number(offPeakTariffPerKwh),
+          peakStartTime,
+          peakEndTime,
+          intermediateStartTime1,
+          intermediateEndTime1,
+          intermediateStartTime2,
+          intermediateEndTime2,
+          peakReserveThreshold: Number(peakReserveThreshold),
+          inverterMaxWatts: Number(inverterMaxWatts),
+          isAlertOnBlackout,
+          isAlertOnGridRestore,
+          isAlertOnOverload,
+          isAlertOnThermalRisk,
+          isAlertOnAtsFailure,
+          alertCooldownMinutes: Number(alertCooldownMinutes),
         }),
       });
 
@@ -1373,6 +1444,360 @@ export default function SettingsPage() {
               <p>
                 <strong className="text-slate-200">Histerese Térmica de Segurança:</strong> Após um corte preventivo de emergência, a saída AC só será reativada pelo orquestrador quando a temperatura das células descer pelo menos 8°C abaixo do limiar de corte, resguardando a vida útil e a estabilidade química da bateria.
               </p>
+            </div>
+          </div>
+
+          {/* 9. Tarifas Dinâmicas & Horário de Ponta (Tarifa Branca) */}
+          <div className="animate-card stagger-6 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400">
+                  <Zap className="w-5 h-5" aria-hidden="true" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-100">
+                    9. Tarifas Dinâmicas &amp; Horário de Ponta (Tarifa Branca ANEEL)
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Maximização da economia e descarregamento agressivo da bateria durante o horário mais caro do dia
+                  </p>
+                </div>
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer self-start sm:self-auto">
+                <input
+                  type="checkbox"
+                  checked={isDynamicTariffActive}
+                  onChange={(e) => setIsDynamicTariffActive(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+                <span className="text-xs font-semibold text-slate-300">
+                  {isDynamicTariffActive ? "Tarifa Branca Ativa" : "Desativado"}
+                </span>
+              </label>
+            </div>
+
+            {/* Grid dos 3 Níveis Tarifários */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-1.5 p-3.5 rounded-xl bg-slate-950 border border-rose-950/40">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="peak-tariff-input" className="text-xs font-bold text-rose-300 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+                    Ponta ({currencySymbol}/kWh)
+                  </label>
+                  <span className="text-[10px] uppercase font-mono font-bold px-1.5 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-800/60">
+                    Cara
+                  </span>
+                </div>
+                <input
+                  id="peak-tariff-input"
+                  type="number"
+                  step="0.01"
+                  min={0.01}
+                  required
+                  disabled={!isDynamicTariffActive}
+                  value={peakTariffPerKwh}
+                  onChange={(e) => setPeakTariffPerKwh(parseFloat(e.target.value) || 1.85)}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-200 font-mono focus:outline-none focus:border-rose-500 transition-colors disabled:opacity-40"
+                />
+                <span className="text-[10px] text-slate-400 block leading-tight">
+                  Horário de maior custo da distribuidora (descarrega bateria).
+                </span>
+              </div>
+
+              <div className="space-y-1.5 p-3.5 rounded-xl bg-slate-950 border border-amber-950/40">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="intermediate-tariff-input" className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-400" />
+                    Intermediária ({currencySymbol}/kWh)
+                  </label>
+                  <span className="text-[10px] uppercase font-mono font-bold px-1.5 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800/60">
+                    Média
+                  </span>
+                </div>
+                <input
+                  id="intermediate-tariff-input"
+                  type="number"
+                  step="0.01"
+                  min={0.01}
+                  required
+                  disabled={!isDynamicTariffActive}
+                  value={intermediateTariffPerKwh}
+                  onChange={(e) => setIntermediateTariffPerKwh(parseFloat(e.target.value) || 1.15)}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-200 font-mono focus:outline-none focus:border-amber-500 transition-colors disabled:opacity-40"
+                />
+                <span className="text-[10px] text-slate-400 block leading-tight">
+                  1h antes e 1h depois da ponta (custo intermediário).
+                </span>
+              </div>
+
+              <div className="space-y-1.5 p-3.5 rounded-xl bg-slate-950 border border-emerald-950/40">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="offpeak-tariff-input" className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                    Fora de Ponta ({currencySymbol}/kWh)
+                  </label>
+                  <span className="text-[10px] uppercase font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800/60">
+                    Barata
+                  </span>
+                </div>
+                <input
+                  id="offpeak-tariff-input"
+                  type="number"
+                  step="0.01"
+                  min={0.01}
+                  required
+                  disabled={!isDynamicTariffActive}
+                  value={offPeakTariffPerKwh}
+                  onChange={(e) => setOffPeakTariffPerKwh(parseFloat(e.target.value) || 0.65)}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-200 font-mono focus:outline-none focus:border-emerald-500 transition-colors disabled:opacity-40"
+                />
+                <span className="text-[10px] text-slate-400 block leading-tight">
+                  Madrugada, manhã e fins de semana (custo reduzido).
+                </span>
+              </div>
+            </div>
+
+            {/* Grade de Janelas de Horários ANEEL */}
+            <div className="space-y-3 p-4 rounded-xl bg-slate-950 border border-slate-800/80">
+              <span className="text-xs font-bold text-slate-300 block uppercase tracking-wider flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-amber-400" aria-hidden="true" />
+                Janelas de Horários Oficiais (Segunda a Sexta)
+              </span>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-400 block">
+                    Horário de Ponta (Início - Fim)
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="time"
+                      value={peakStartTime}
+                      disabled={!isDynamicTariffActive}
+                      onChange={(e) => setPeakStartTime(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-amber-500 disabled:opacity-40"
+                    />
+                    <span className="text-slate-500 text-xs">às</span>
+                    <input
+                      type="time"
+                      value={peakEndTime}
+                      disabled={!isDynamicTariffActive}
+                      onChange={(e) => setPeakEndTime(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-amber-500 disabled:opacity-40"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-400 block">
+                    Intermediário 1 (Pré-Ponta)
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="time"
+                      value={intermediateStartTime1}
+                      disabled={!isDynamicTariffActive}
+                      onChange={(e) => setIntermediateStartTime1(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-amber-500 disabled:opacity-40"
+                    />
+                    <span className="text-slate-500 text-xs">às</span>
+                    <input
+                      type="time"
+                      value={intermediateEndTime1}
+                      disabled={!isDynamicTariffActive}
+                      onChange={(e) => setIntermediateEndTime1(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-amber-500 disabled:opacity-40"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-400 block">
+                    Intermediário 2 (Pós-Ponta)
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="time"
+                      value={intermediateStartTime2}
+                      disabled={!isDynamicTariffActive}
+                      onChange={(e) => setIntermediateStartTime2(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-amber-500 disabled:opacity-40"
+                    />
+                    <span className="text-slate-500 text-xs">às</span>
+                    <input
+                      type="time"
+                      value={intermediateEndTime2}
+                      disabled={!isDynamicTariffActive}
+                      onChange={(e) => setIntermediateEndTime2(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-amber-500 disabled:opacity-40"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Slider de Reserva da Ponta */}
+            <div className="space-y-2 p-4 rounded-xl bg-slate-950 border border-slate-800/80">
+              <div className="flex items-center justify-between">
+                <label htmlFor="peak-reserve-threshold" className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-rose-500" />
+                  Corte Agressivo no Horário de Ponta
+                </label>
+                <span className="text-sm font-extrabold font-mono text-rose-400 px-2 py-0.5 rounded bg-rose-950 border border-rose-800/60">
+                  {peakReserveThreshold}%
+                </span>
+              </div>
+              <input
+                id="peak-reserve-threshold"
+                type="range"
+                min={10}
+                max={30}
+                step={1}
+                disabled={!isDynamicTariffActive}
+                value={peakReserveThreshold}
+                onChange={(e) => setPeakReserveThreshold(parseInt(e.target.value, 10))}
+                className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-rose-500 disabled:opacity-40"
+              />
+              <span className="text-[11px] text-slate-400 block leading-tight">
+                Permite que a bateria descarregue até {peakReserveThreshold}% exclusivamente durante o Horário de Ponta para blindar a residência contra a tarifa cara da rede elétrica.
+              </span>
+            </div>
+          </div>
+
+          {/* 10. Alertas Críticos em Tempo Real & Inversor */}
+          <div className="animate-card stagger-6 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-rose-500/10 text-rose-400">
+                  <BellRing className="w-5 h-5" aria-hidden="true" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-100">
+                    10. Alertas Críticos em Tempo Real &amp; Inversor
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Disparo instantâneo nos canais ativos (WhatsApp e Telegram) com proteção anti-flood inteligente
+                  </p>
+                </div>
+              </div>
+              <span className="inline-flex items-center gap-1.5 text-xs font-mono px-2.5 py-1 rounded-full bg-slate-950 text-rose-300 border border-rose-900/50 self-start sm:self-auto">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-400" aria-hidden="true" />
+                Anti-Flood Ativo
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="inverter-max-watts-input" className="text-xs font-semibold text-slate-300">
+                    Potência Máxima do Inversor (Watts)
+                  </label>
+                  <span className="text-[11px] font-mono text-slate-500">Padrão: 2.400 W</span>
+                </div>
+                <input
+                  id="inverter-max-watts-input"
+                  type="number"
+                  min={500}
+                  max={10000}
+                  step={50}
+                  required
+                  placeholder="2400"
+                  value={inverterMaxWatts}
+                  onChange={(e) => setInverterMaxWatts(parseInt(e.target.value, 10) || 2400)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-rose-500 font-mono transition-colors"
+                />
+                <span className="text-[11px] text-slate-400 block leading-tight">
+                  Potência contínua máxima da saída AC da estação EcoFlow para cálculo de % de sobrecarga.
+                </span>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="alert-cooldown-input" className="text-xs font-semibold text-slate-300">
+                    Janela Anti-Flood de Cooldown (Minutos)
+                  </label>
+                  <span className="text-[11px] font-mono text-slate-500">Padrão: 10 min</span>
+                </div>
+                <input
+                  id="alert-cooldown-input"
+                  type="number"
+                  min={1}
+                  max={120}
+                  step={1}
+                  required
+                  placeholder="10"
+                  value={alertCooldownMinutes}
+                  onChange={(e) => setAlertCooldownMinutes(parseInt(e.target.value, 10) || 10)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-amber-500 font-mono transition-colors"
+                />
+                <span className="text-[11px] text-slate-400 block leading-tight">
+                  Intervalo mínimo entre notificações do mesmo tipo para evitar excesso de mensagens.
+                </span>
+              </div>
+            </div>
+
+            {/* Toggles de Eventos Críticos Monitorados */}
+            <div className="space-y-3 pt-2">
+              <span className="text-xs font-bold text-slate-300 uppercase tracking-wider block">
+                Gatilhos de Notificação Imediata:
+              </span>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {[
+                  {
+                    id: "alert-blackout",
+                    label: "Queda da Rede Elétrica (Blackout)",
+                    desc: "Avisa assim que a concessionária interrompe o fornecimento",
+                    checked: isAlertOnBlackout,
+                    onChange: setIsAlertOnBlackout,
+                  },
+                  {
+                    id: "alert-grid-restore",
+                    label: "Restauração da Rede Concessionária",
+                    desc: "Notifica quando a energia da rua volta à estabilidade",
+                    checked: isAlertOnGridRestore,
+                    onChange: setIsAlertOnGridRestore,
+                  },
+                  {
+                    id: "alert-overload",
+                    label: "Sobrecarga do Inversor (≥ 90%)",
+                    desc: "Alerta quando a carga residencial se aproxima do limite nominal",
+                    checked: isAlertOnOverload,
+                    onChange: setIsAlertOnOverload,
+                  },
+                  {
+                    id: "alert-thermal",
+                    label: "Risco Térmico das Células",
+                    desc: "Avisa ao atingir o limiar preventivo de temperatura",
+                    checked: isAlertOnThermalRisk,
+                    onChange: setIsAlertOnThermalRisk,
+                  },
+                  {
+                    id: "alert-ats",
+                    label: "Anomalia na Comutação ATS",
+                    desc: "Notifica em caso de falha física ou inconsistência mecânica",
+                    checked: isAlertOnAtsFailure,
+                    onChange: setIsAlertOnAtsFailure,
+                  },
+                ].map((item) => (
+                  <label
+                    key={item.id}
+                    className="p-3 rounded-xl bg-slate-950 border border-slate-800/80 flex items-start gap-3 cursor-pointer hover:border-slate-700 transition-colors"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={item.checked}
+                      onChange={(e) => item.onChange(e.target.checked)}
+                      className="w-4 h-4 mt-0.5 rounded border-slate-700 bg-slate-900 text-rose-500 focus:ring-0 focus:ring-offset-0 cursor-pointer accent-rose-500"
+                    />
+                    <div className="space-y-0.5">
+                      <span className="text-xs font-bold text-slate-200 block">{item.label}</span>
+                      <span className="text-[11px] text-slate-400 block leading-tight">{item.desc}</span>
+                    </div>
+                  </label>
+                ))}
+              </div>
             </div>
           </div>
 

@@ -9,8 +9,13 @@ import {
   OpenMeteoSolarForecastService,
   type SolarExpectationLevel,
 } from "../../infrastructure/services/OpenMeteoSolarForecastService";
+import {
+  TariffScheduleService,
+  type TariffPeriod,
+  type DynamicTariffConfig,
+} from "../../domain/services/TariffScheduleService";
 
-export type { SolarExpectationLevel };
+export type { SolarExpectationLevel, TariffPeriod };
 
 interface SolarChartPoint {
   time: string;
@@ -41,6 +46,11 @@ export interface FinancialSavingsMetrics {
   totalSavings: number;
   energyCostPerKwh: number;
   currencySymbol: string;
+  isDynamicTariffActive?: boolean;
+  currentTariffPeriod?: TariffPeriod;
+  currentTariffRate?: number;
+  peakSavingsToday?: number;
+  offPeakSavingsToday?: number;
 }
 
 export interface AutonomyEstimateMetrics {
@@ -123,20 +133,97 @@ function calculateFinancialSavings(
   monthKwh: number,
   totalKwh: number,
   energyCostPerKwh: number,
-  currencySymbol: string
+  currencySymbol: string,
+  dynamicConfig?: Partial<DynamicTariffConfig> | null,
+  rawLogs24h?: Array<{ solarInputWatts: number; outputWatts?: number; executedAt: Date }>
 ): FinancialSavingsMetrics {
   const safeTariff = energyCostPerKwh > 0 ? energyCostPerKwh : 0.92;
   const safeSymbol = currencySymbol || "R$";
+  const isDynamic = Boolean(dynamicConfig?.isDynamicTariffActive);
+
+  if (!isDynamic || !dynamicConfig) {
+    return {
+      todayKwh: Number(todayKwh.toFixed(2)),
+      todaySavings: Number((todayKwh * safeTariff).toFixed(2)),
+      monthKwh: Number(monthKwh.toFixed(2)),
+      monthSavings: Number((monthKwh * safeTariff).toFixed(2)),
+      totalKwh: Number(totalKwh.toFixed(2)),
+      totalSavings: Number((totalKwh * safeTariff).toFixed(2)),
+      energyCostPerKwh: safeTariff,
+      currencySymbol: safeSymbol,
+      isDynamicTariffActive: false,
+      currentTariffPeriod: "OFF_PEAK",
+      currentTariffRate: safeTariff,
+      peakSavingsToday: 0,
+      offPeakSavingsToday: Number((todayKwh * safeTariff).toFixed(2)),
+    };
+  }
+
+  const scheduleService = TariffScheduleService.getInstance();
+  const fullConfig: DynamicTariffConfig = {
+    isDynamicTariffActive: true,
+    peakTariffPerKwh: dynamicConfig.peakTariffPerKwh ?? 1.85,
+    intermediateTariffPerKwh: dynamicConfig.intermediateTariffPerKwh ?? 1.15,
+    offPeakTariffPerKwh: dynamicConfig.offPeakTariffPerKwh ?? 0.65,
+    peakStartTime: dynamicConfig.peakStartTime ?? "17:30",
+    peakEndTime: dynamicConfig.peakEndTime ?? "20:30",
+    intermediateStartTime1: dynamicConfig.intermediateStartTime1 ?? "16:30",
+    intermediateEndTime1: dynamicConfig.intermediateEndTime1 ?? "17:30",
+    intermediateStartTime2: dynamicConfig.intermediateStartTime2 ?? "20:30",
+    intermediateEndTime2: dynamicConfig.intermediateEndTime2 ?? "21:30",
+    energyCostPerKwh: safeTariff,
+  };
+
+  const currentEval = scheduleService.evaluate(fullConfig);
+
+  let peakSavingsToday = 0;
+  let offPeakSavingsToday = 0;
+  let weightedTodaySavings = 0;
+
+  if (rawLogs24h && rawLogs24h.length > 0) {
+    const totalWattsSum = rawLogs24h.reduce((acc, l) => acc + l.solarInputWatts, 0);
+
+    for (const log of rawLogs24h) {
+      const evalAtLog = scheduleService.evaluate(fullConfig, log.executedAt);
+      const logShareOfTotal =
+        totalWattsSum > 0 ? log.solarInputWatts / totalWattsSum : 1 / rawLogs24h.length;
+      const logKwh = todayKwh * logShareOfTotal;
+      const logSavings = logKwh * evalAtLog.rate;
+
+      if (evalAtLog.period === "PEAK") {
+        peakSavingsToday += logSavings;
+      } else {
+        offPeakSavingsToday += logSavings;
+      }
+      weightedTodaySavings += logSavings;
+    }
+  } else {
+    weightedTodaySavings = todayKwh * currentEval.rate;
+    if (currentEval.period === "PEAK") {
+      peakSavingsToday = weightedTodaySavings;
+    } else {
+      offPeakSavingsToday = weightedTodaySavings;
+    }
+  }
+
+  const effectiveDailyRate = todayKwh > 0 ? weightedTodaySavings / todayKwh : currentEval.rate;
+  const monthSavings = Number((monthKwh * effectiveDailyRate).toFixed(2));
+  const totalSavings = Number((totalKwh * effectiveDailyRate).toFixed(2));
 
   return {
     todayKwh: Number(todayKwh.toFixed(2)),
-    todaySavings: Number((todayKwh * safeTariff).toFixed(2)),
+    todaySavings: Number(weightedTodaySavings.toFixed(2)),
     monthKwh: Number(monthKwh.toFixed(2)),
-    monthSavings: Number((monthKwh * safeTariff).toFixed(2)),
+    monthSavings,
     totalKwh: Number(totalKwh.toFixed(2)),
-    totalSavings: Number((totalKwh * safeTariff).toFixed(2)),
-    energyCostPerKwh: safeTariff,
+    totalSavings,
+    energyCostPerKwh: currentEval.rate,
     currencySymbol: safeSymbol,
+    isDynamicTariffActive: true,
+    currentTariffPeriod: currentEval.period,
+    currentTariffRate: currentEval.rate,
+    peakSavingsToday: Number(peakSavingsToday.toFixed(2)),
+    offPeakSavingsToday: Number(offPeakSavingsToday.toFixed(2)),
   };
 }
 
@@ -513,7 +600,8 @@ export default async function handleStatistics(
         0,
         0,
         configuration?.energyCostPerKwh ?? 0.92,
-        configuration?.currencySymbol ?? "R$"
+        configuration?.currencySymbol ?? "R$",
+        configuration
       );
       const defaultAutonomy = calculateAutonomyEstimate(
         configuration?.batteryCapacityWh ?? 2048,
@@ -741,7 +829,9 @@ export default async function handleStatistics(
       monthKwh,
       totalKwh,
       configuration?.energyCostPerKwh ?? 0.92,
-      configuration?.currencySymbol ?? "R$"
+      configuration?.currencySymbol ?? "R$",
+      configuration,
+      rawLogs24h
     );
 
     const latestBattery = latestLog ? latestLog.batteryPercentage : 0;

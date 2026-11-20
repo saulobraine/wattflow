@@ -16,6 +16,8 @@ interface DashboardStatusResponse {
     turnOffThreshold: number;
     lastBatteryPercentage: number | null;
     lastSolarWatts: number | null;
+    lastOutputWatts?: number | null;
+    inverterMaxWatts?: number;
     lastAction: string | null;
     lastSyncTime: string | null;
     logs: Array<{
@@ -69,6 +71,8 @@ export default async function handleDashboardStatus(
         turnOffThreshold: 30,
         lastBatteryPercentage: null,
         lastSolarWatts: null,
+        lastOutputWatts: null,
+        inverterMaxWatts: 2400,
         lastAction: null,
         lastSyncTime: null,
         logs: [],
@@ -116,6 +120,8 @@ export default async function handleDashboardStatus(
           turnOffThreshold: 30,
           lastBatteryPercentage: null,
           lastSolarWatts: null,
+          lastOutputWatts: null,
+          inverterMaxWatts: 2400,
           lastAction: null,
           lastSyncTime: null,
           logs: [],
@@ -137,12 +143,14 @@ export default async function handleDashboardStatus(
 
     let resolvedBattery = latestLog ? latestLog.batteryPercentage : null;
     let resolvedSolarWatts = latestLog ? latestLog.solarInputWatts : null;
+    let resolvedOutputWatts = latestLog ? latestLog.outputWatts : null;
     let resolvedAction = latestLog ? latestLog.actionTriggered : null;
     let resolvedSyncTime = latestLog ? latestLog.executedAt.toISOString() : null;
 
     if (isSnapshotRecent && memoryTelemetry) {
       resolvedBattery = memoryTelemetry.batteryPercentage;
       resolvedSolarWatts = memoryTelemetry.solarInputWatts;
+      resolvedOutputWatts = memoryTelemetry.outputWatts;
       resolvedSyncTime = memoryTelemetry.updatedAt.toISOString();
       if (memoryTelemetry.isAcOutputEnabled !== null) {
         resolvedAction = memoryTelemetry.isAcOutputEnabled
@@ -162,6 +170,8 @@ export default async function handleDashboardStatus(
         turnOffThreshold: configuration.turnOffThreshold,
         lastBatteryPercentage: resolvedBattery,
         lastSolarWatts: resolvedSolarWatts,
+        lastOutputWatts: resolvedOutputWatts,
+        inverterMaxWatts: configuration.inverterMaxWatts ?? 2400,
         lastAction: resolvedAction,
         lastSyncTime: resolvedSyncTime,
         logs: configuration.syncExecutionLogs.map((log) => ({

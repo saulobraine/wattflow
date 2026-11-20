@@ -11,6 +11,8 @@ import {
   NotificationConfig,
 } from "../infrastructure/notifications/NotificationDispatcher";
 import { OpenMeteoSolarForecastService } from "../infrastructure/services/OpenMeteoSolarForecastService";
+import { TariffScheduleService } from "../domain/services/TariffScheduleService";
+import { CriticalAlertService } from "../infrastructure/services/CriticalAlertService";
 
 export interface SyncExecutionResult {
   hasExecutedSuccessfully: boolean;
@@ -207,6 +209,27 @@ export class OrchestratorSyncUseCase {
           );
         }
 
+        const inverterMax = configurationRecord.inverterMaxWatts ?? 2400;
+        const isOverloaded = outputWatts >= Math.round(inverterMax * 0.9);
+        if (isOverloaded) {
+          CriticalAlertService.getInstance().dispatchAlert(
+            databaseRecordId,
+            "INVERTER_OVERLOAD",
+            {
+              title: "⚠️ ALERTA: SOBRECARGA DO INVERSOR",
+              message: `A saída AC da EcoFlow atingiu ${outputWatts}W (90%+ da capacidade de ${inverterMax}W). Desligue equipamentos pesados imediatamente para evitar desarme.`,
+              batteryPercentage: numericBattery,
+              solarWatts: numericSolarWatts,
+              actionState: "ALERT",
+            },
+            {
+              isAlertOnOverload: configurationRecord.isAlertOnOverload,
+              alertCooldownMinutes: configurationRecord.alertCooldownMinutes,
+            },
+            notificationConfig
+          );
+        }
+
         if (isStormMode) {
           if (isAcOutputEnabled === true) {
             await ecoflowClient.setAcOutputState(ecoflowDevice, false);
@@ -229,54 +252,106 @@ export class OrchestratorSyncUseCase {
             "Modo Tempestade / Alerta de Apagão Ativo: comutação suspensa, bateria preservada em reserva máxima.";
           actionName = "STORM_MODE_RESERVE";
         } else if (isAutomationEnabled) {
-          let activeThresholdPair = thresholdPair;
-          if (
-            configurationRecord.isAdaptiveHysteresisActive &&
-            configurationRecord.latitude !== null &&
-            configurationRecord.longitude !== null
-          ) {
-            try {
-              const forecastService = OpenMeteoSolarForecastService.getInstance();
-              const forecast = await forecastService.getForecast(
-                configurationRecord.latitude,
-                configurationRecord.longitude,
-                configurationRecord.minAdaptiveThreshold,
-                configurationRecord.maxAdaptiveThreshold
-              );
-              if (typeof this.repository.updateSolarForecast === "function") {
-                await this.repository.updateSolarForecast(databaseRecordId, forecast.irradianceMj);
-              }
-              let configuredUpper = 90;
-              thresholdPair.transferThresholds((upper) => {
-                configuredUpper = upper;
-              });
-              const adaptiveLower = Math.min(forecast.effectiveTurnOffThreshold, configuredUpper - 1);
-              activeThresholdPair = new AutomationThresholdPair(
-                new PercentageValue(configuredUpper),
-                new PercentageValue(adaptiveLower)
-              );
-            } catch (forecastErr) {
-              console.warn(
-                "[OrchestratorSyncUseCase] Falha ao consultar previsão solar para histerese adaptativa:",
-                forecastErr
-              );
-            }
-          }
+          const tariffSchedule = TariffScheduleService.getInstance().evaluate(configurationRecord);
+          const isPeakPeriod = tariffSchedule.isDynamicActive && tariffSchedule.period === "PEAK";
+          const peakReserve = configurationRecord.peakReserveThreshold ?? 15;
 
-          const desiredAction = activeThresholdPair.evaluateBattery(batteryLevel);
-          actionResult = await this.dispatchEcoFlowAcAction(
-            desiredAction,
-            ecoflowDevice,
-            ecoflowClient,
-            isAcOutputEnabled,
-            numericBattery,
-            numericSolarWatts,
-            notificationConfig,
-            databaseRecordId
-          );
-          desiredAction.transferActionName((nameString: string) => {
-            actionName = nameString;
-          });
+          if (isPeakPeriod) {
+            if (numericBattery > peakReserve) {
+              if (isAcOutputEnabled !== true) {
+                await ecoflowClient.setAcOutputState(ecoflowDevice, true);
+                if (typeof this.repository.incrementAtsCycle === "function") {
+                  await this.repository.incrementAtsCycle(databaseRecordId);
+                }
+                this.dispatchSafeAlert(
+                  {
+                    title: "⚡ Horário de Ponta: Bateria/Solar Ativada",
+                    message: `Início do Horário de Ponta (tarifa R$ ${tariffSchedule.rate.toFixed(2)}/kWh). Saída AC ativada para consumo prioritário da reserva da bateria (limite ${peakReserve}%).`,
+                    batteryPercentage: numericBattery,
+                    solarWatts: numericSolarWatts,
+                    actionState: "SOLAR_BATTERY",
+                  },
+                  notificationConfig
+                );
+                actionName = "ENABLE_ECOFLOW_AC";
+                actionResult = `Horário de Ponta Ativo: Saída AC ligada para consumo prioritário da bateria (tarifa máxima R$ ${tariffSchedule.rate.toFixed(2)}/kWh). ATS transferida para Bateria/Solar.`;
+              } else {
+                actionName = "HOLD_CURRENT_STATE";
+                actionResult = `Horário de Ponta Ativo: Bateria em ${numericBattery}% preservando economia na ponta (acima da reserva de ${peakReserve}%). Saída AC mantida ligada.`;
+              }
+            } else {
+              if (isAcOutputEnabled !== false) {
+                await ecoflowClient.setAcOutputState(ecoflowDevice, false);
+                if (typeof this.repository.incrementAtsCycle === "function") {
+                  await this.repository.incrementAtsCycle(databaseRecordId);
+                }
+                this.dispatchSafeAlert(
+                  {
+                    title: "⚠️ Reserva de Ponta Esgotada",
+                    message: `A bateria atingiu o limite de segurança da ponta (${numericBattery}% <= ${peakReserve}%). Saída AC desligada e cargas comutadas para a Concessionária.`,
+                    batteryPercentage: numericBattery,
+                    solarWatts: numericSolarWatts,
+                    actionState: "GRID",
+                  },
+                  notificationConfig
+                );
+                actionName = "DISABLE_ECOFLOW_AC";
+                actionResult = `Reserva de Ponta Atingida (${numericBattery}% <= ${peakReserve}%): Saída AC desligada para evitar descarga profunda. Cargas transferidas para a Concessionária.`;
+              } else {
+                actionName = "HOLD_CURRENT_STATE";
+                actionResult = `Reserva de Ponta Mantida: Bateria em ${numericBattery}% (limite ${peakReserve}%). Saída AC mantida desligada na Concessionária.`;
+              }
+            }
+          } else {
+            let activeThresholdPair = thresholdPair;
+            if (
+              configurationRecord.isAdaptiveHysteresisActive &&
+              configurationRecord.latitude !== null &&
+              configurationRecord.longitude !== null
+            ) {
+              try {
+                const forecastService = OpenMeteoSolarForecastService.getInstance();
+                const forecast = await forecastService.getForecast(
+                  configurationRecord.latitude,
+                  configurationRecord.longitude,
+                  configurationRecord.minAdaptiveThreshold,
+                  configurationRecord.maxAdaptiveThreshold
+                );
+                if (typeof this.repository.updateSolarForecast === "function") {
+                  await this.repository.updateSolarForecast(databaseRecordId, forecast.irradianceMj);
+                }
+                let configuredUpper = 90;
+                thresholdPair.transferThresholds((upper) => {
+                  configuredUpper = upper;
+                });
+                const adaptiveLower = Math.min(forecast.effectiveTurnOffThreshold, configuredUpper - 1);
+                activeThresholdPair = new AutomationThresholdPair(
+                  new PercentageValue(configuredUpper),
+                  new PercentageValue(adaptiveLower)
+                );
+              } catch (forecastErr) {
+                console.warn(
+                  "[OrchestratorSyncUseCase] Falha ao consultar previsão solar para histerese adaptativa:",
+                  forecastErr
+                );
+              }
+            }
+
+            const desiredAction = activeThresholdPair.evaluateBattery(batteryLevel);
+            actionResult = await this.dispatchEcoFlowAcAction(
+              desiredAction,
+              ecoflowDevice,
+              ecoflowClient,
+              isAcOutputEnabled,
+              numericBattery,
+              numericSolarWatts,
+              notificationConfig,
+              databaseRecordId
+            );
+            desiredAction.transferActionName((nameString: string) => {
+              actionName = nameString;
+            });
+          }
         }
       }
 
