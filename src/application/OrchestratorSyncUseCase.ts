@@ -145,11 +145,33 @@ export class OrchestratorSyncUseCase {
         });
       }
 
+      const isStormMode = configurationRecord.isStormModeActive;
       const isAutomationEnabled = configurationRecord.isAutomationActive;
       let actionResult = "Automação pausada: telemetria registrada sem alteração da saída AC.";
       let actionName = "MONITORAMENTO";
 
-      if (isAutomationEnabled) {
+      if (isStormMode) {
+        if (isAcOutputEnabled === true) {
+          await ecoflowClient.setAcOutputState(ecoflowDevice, false);
+          if (typeof this.repository.incrementAtsCycle === "function") {
+            await this.repository.incrementAtsCycle(databaseRecordId);
+          }
+          this.dispatchSafeAlert(
+            {
+              title: "Modo Tempestade Ativo",
+              message:
+                "Saída AC desligada. Cargas comutadas para a Concessionária para preservar 100% de reserva na bateria.",
+              batteryPercentage: numericBattery,
+              solarWatts: numericSolarWatts,
+              actionState: "GRID",
+            },
+            notificationConfig
+          );
+        }
+        actionResult =
+          "Modo Tempestade / Alerta de Apagão Ativo: comutação suspensa, bateria preservada em reserva máxima.";
+        actionName = "STORM_MODE_RESERVE";
+      } else if (isAutomationEnabled) {
         const desiredAction = thresholdPair.evaluateBattery(batteryLevel);
         actionResult = await this.dispatchEcoFlowAcAction(
           desiredAction,
@@ -221,7 +243,8 @@ export class OrchestratorSyncUseCase {
       actionName === "ENABLE_ECOFLOW_AC" ||
       actionName === "DISABLE_ECOFLOW_AC" ||
       actionName === "BATTERY_HIGH_DISCHARGE" ||
-      actionName === "BATTERY_LOW_RECHARGE";
+      actionName === "BATTERY_LOW_RECHARGE" ||
+      actionName === "STORM_MODE_RESERVE";
 
     let lastState = OrchestratorSyncUseCase.lastLoggedStatesByRecordId.get(databaseRecordId);
     if (!lastState && typeof this.repository.findLatestExecutionLog === "function") {

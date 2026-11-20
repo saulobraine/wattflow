@@ -22,6 +22,13 @@ export interface RetrievedConfigurationRecord {
   atsLifespanCycles: number;
   atsCurrentCycles: number;
   atsLastSwitchedAt: Date | null;
+  energyCostPerKwh: number;
+  currencySymbol: string;
+  batteryCapacityWh: number;
+  isStormModeActive: boolean;
+  isDailyReportActive: boolean;
+  dailyReportTime: string;
+  lastDailyReportSentAt: Date | null;
 }
 
 /**
@@ -145,6 +152,15 @@ export class ConfigurationRepository {
     return updated.atsCurrentCycles;
   }
 
+  public async setStormMode(userId: string, isStormModeActive: boolean): Promise<boolean> {
+    const updated = await this.databaseClient.userConfiguration.update({
+      where: { userId },
+      data: { isStormModeActive },
+      select: { isStormModeActive: true },
+    });
+    return updated.isStormModeActive;
+  }
+
   private async appendMappedRecordSafely(
     record: PrismaUserConfiguration,
     accumulator: RetrievedConfigurationRecord[]
@@ -200,6 +216,13 @@ export class ConfigurationRepository {
       atsLifespanCycles: rawRecord.atsLifespanCycles ?? 10000,
       atsCurrentCycles: rawRecord.atsCurrentCycles ?? 0,
       atsLastSwitchedAt: rawRecord.atsLastSwitchedAt ?? null,
+      energyCostPerKwh: rawRecord.energyCostPerKwh ?? 0.92,
+      currencySymbol: rawRecord.currencySymbol ?? "R$",
+      batteryCapacityWh: rawRecord.batteryCapacityWh ?? 2048,
+      isStormModeActive: rawRecord.isStormModeActive ?? false,
+      isDailyReportActive: rawRecord.isDailyReportActive ?? true,
+      dailyReportTime: rawRecord.dailyReportTime ?? "21:00",
+      lastDailyReportSentAt: rawRecord.lastDailyReportSentAt ?? null,
     };
   }
 }

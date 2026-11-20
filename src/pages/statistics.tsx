@@ -18,7 +18,11 @@ import {
   ArrowLeftRight,
   ShieldCheck,
   RotateCcw,
+  DollarSign,
+  Timer,
+  Wallet,
 } from "lucide-react";
+import type { FinancialSavingsMetrics, AutonomyEstimateMetrics } from "./api/statistics";
 
 export interface AtsHealthData {
   lifespanCycles: number;
@@ -65,6 +69,8 @@ interface StatisticsData {
     executedAt: string;
   }>;
   atsHealth?: AtsHealthData;
+  financialSavings?: FinancialSavingsMetrics;
+  autonomyEstimate?: AutonomyEstimateMetrics;
 }
 
 export default function StatisticsPage() {
@@ -461,6 +467,130 @@ export default function StatisticsPage() {
             </div>
           </div>
         </div>
+
+        {/* Economia Financeira Real (Solar & Bateria) */}
+        {data?.financialSavings && (
+          <section
+            aria-label="Economia Financeira Real"
+            className="animate-card stagger-4 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-5"
+          >
+            {/* Topo do Card: Título, ícone e Tarifa */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 shrink-0 border border-emerald-500/20">
+                  <DollarSign className="w-5 h-5 animate-float" aria-hidden="true" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-slate-100 flex items-center gap-2">
+                    Economia Financeira Real (Solar &amp; Bateria)
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Conversão econômica direta da energia solar gerada e consumida para alívio da fatura da concessionária
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                <span className="inline-flex items-center gap-1.5 text-xs font-mono font-bold px-3 py-1 rounded-full bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 shadow-sm">
+                  <Zap className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
+                  Tarifa: {data.financialSavings.currencySymbol} {data.financialSavings.energyCostPerKwh.toFixed(2)} / kWh
+                </span>
+                {data.autonomyEstimate && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-mono px-2.5 py-1 rounded-full bg-slate-950 text-sky-300 border border-slate-800">
+                    <Timer className="w-3.5 h-3.5 text-sky-400" aria-hidden="true" />
+                    {data.autonomyEstimate.isRecharging
+                      ? "Carga Solar Ativa"
+                      : `Autonomia: ~${data.autonomyEstimate.formattedRuntime}`}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Grid dos 3 Horizontes Executivos: Hoje, Mês e Total Acumulado */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+              {/* 1. Horizonte Hoje */}
+              <div className="p-4 sm:p-5 rounded-xl bg-slate-950 border border-slate-800/90 flex flex-col justify-between group hover:border-emerald-500/40 transition-all">
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
+                      Economia Hoje
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">
+                      Dia Atual
+                    </span>
+                  </div>
+                  <div className="pt-2">
+                    <div className="text-2xl sm:text-3xl font-extrabold text-emerald-400 font-mono tracking-tight">
+                      {data.financialSavings.currencySymbol} {data.financialSavings.todaySavings.toFixed(2)}
+                    </div>
+                    <div className="text-xs text-slate-400 font-mono mt-0.5">
+                      {data.financialSavings.todayKwh.toFixed(2)} kWh gerados no dia
+                    </div>
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-3 pt-2 border-t border-slate-800/60 flex items-center justify-between">
+                  <span>Equivalente tarifário:</span>
+                  <span className="font-mono text-emerald-300 font-semibold">100% compensado</span>
+                </p>
+              </div>
+
+              {/* 2. Horizonte Mês Atual */}
+              <div className="p-4 sm:p-5 rounded-xl bg-slate-950 border border-slate-800/90 flex flex-col justify-between group hover:border-emerald-500/40 transition-all">
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <TrendingUp className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
+                      Economia no Mês
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-900 text-slate-300 border border-slate-800">
+                      Mês Corrente
+                    </span>
+                  </div>
+                  <div className="pt-2">
+                    <div className="text-2xl sm:text-3xl font-extrabold text-emerald-300 font-mono tracking-tight">
+                      {data.financialSavings.currencySymbol} {data.financialSavings.monthSavings.toFixed(2)}
+                    </div>
+                    <div className="text-xs text-slate-400 font-mono mt-0.5">
+                      {data.financialSavings.monthKwh.toFixed(1)} kWh economizados
+                    </div>
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-3 pt-2 border-t border-slate-800/60 flex items-center justify-between">
+                  <span>Projeção mensal:</span>
+                  <span className="font-mono text-slate-300 font-semibold">Acumulado do ciclo</span>
+                </p>
+              </div>
+
+              {/* 3. Horizonte Total Acumulado */}
+              <div className="p-4 sm:p-5 rounded-xl bg-slate-950 border border-slate-800/90 flex flex-col justify-between group hover:border-emerald-500/40 transition-all">
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <BarChart3 className="w-3.5 h-3.5 text-sky-400" aria-hidden="true" />
+                      Total Acumulado
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-sky-950 text-sky-300 border border-sky-800/60">
+                      Histórico Geral
+                    </span>
+                  </div>
+                  <div className="pt-2">
+                    <div className="text-2xl sm:text-3xl font-extrabold text-slate-100 font-mono tracking-tight">
+                      {data.financialSavings.currencySymbol} {data.financialSavings.totalSavings.toFixed(2)}
+                    </div>
+                    <div className="text-xs text-slate-400 font-mono mt-0.5">
+                      {data.financialSavings.totalKwh.toFixed(1)} kWh desde a ativação
+                    </div>
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-3 pt-2 border-t border-slate-800/60 flex items-center justify-between">
+                  <span>Retorno do Investimento:</span>
+                  <span className="font-mono text-sky-300 font-semibold">Retorno Direto (ROI)</span>
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* 3. Saúde Operacional da ATS (Chave de Transferência Automática) */}
         {atsHealth && (
