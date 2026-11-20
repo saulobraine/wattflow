@@ -19,6 +19,11 @@ export interface LiveTelemetrySnapshot {
   outputWatts: number;
   isAcOutputEnabled: boolean | null;
   updatedAt: Date;
+  batteryTempCelsius?: number | null;
+  batterySoh?: number | null;
+  batteryCycles?: number | null;
+  batteryVolts?: number | null;
+  batteryAmps?: number | null;
 }
 
 export interface MqttStreamConfig {
@@ -423,6 +428,9 @@ export class EcoFlowMqttStreamService {
         solarWatts: currentSnapshot.solarInputWatts,
         outputWatts: currentSnapshot.outputWatts,
         isAcOutputEnabled: currentSnapshot.isAcOutputEnabled,
+        batteryTempCelsius: currentSnapshot.batteryTempCelsius,
+        batterySoh: currentSnapshot.batterySoh,
+        batteryCycles: currentSnapshot.batteryCycles,
       });
 
       userState.lastEvaluationTimeMs = Date.now();
@@ -434,7 +442,10 @@ export class EcoFlowMqttStreamService {
         userState.lastPersistedAcState = true;
         userState.lastPersistTimeMs = Date.now();
       }
-      if (syncResult.triggeredAction === "DISABLE_ECOFLOW_AC") {
+      if (
+        syncResult.triggeredAction === "DISABLE_ECOFLOW_AC" ||
+        syncResult.triggeredAction === "THERMAL_PROTECTION_DISARM"
+      ) {
         currentSnapshot.isAcOutputEnabled = false;
         userState.lastEvaluatedAcState = false;
         userState.lastPersistedAcState = false;
@@ -471,6 +482,11 @@ export class EcoFlowMqttStreamService {
     const extractedSolarWatts = this.extractSolarWatts(quotaData, parsedJson);
     const extractedOutputWatts = this.extractOutputWatts(quotaData, parsedJson);
     const extractedAcState = this.extractAcState(quotaData, parsedJson);
+    const extractedTemp = this.extractBatteryTemp(quotaData, parsedJson);
+    const extractedSoh = this.extractBatterySoh(quotaData, parsedJson);
+    const extractedCycles = this.extractBatteryCycles(quotaData, parsedJson);
+    const extractedVolts = this.extractBatteryVolts(quotaData, parsedJson);
+    const extractedAmps = this.extractBatteryAmps(quotaData, parsedJson);
 
     const previousSnapshot = userState.latestTelemetry;
 
@@ -482,6 +498,16 @@ export class EcoFlowMqttStreamService {
       extractedOutputWatts !== null ? extractedOutputWatts : (previousSnapshot?.outputWatts ?? 0);
     const resolvedAcState =
       extractedAcState !== null ? extractedAcState : (previousSnapshot?.isAcOutputEnabled ?? null);
+    const resolvedTemp =
+      extractedTemp !== null ? extractedTemp : (previousSnapshot?.batteryTempCelsius ?? null);
+    const resolvedSoh =
+      extractedSoh !== null ? extractedSoh : (previousSnapshot?.batterySoh ?? null);
+    const resolvedCycles =
+      extractedCycles !== null ? extractedCycles : (previousSnapshot?.batteryCycles ?? null);
+    const resolvedVolts =
+      extractedVolts !== null ? extractedVolts : (previousSnapshot?.batteryVolts ?? null);
+    const resolvedAmps =
+      extractedAmps !== null ? extractedAmps : (previousSnapshot?.batteryAmps ?? null);
 
     userState.latestTelemetry = {
       batteryPercentage: resolvedBattery,
@@ -489,6 +515,11 @@ export class EcoFlowMqttStreamService {
       outputWatts: resolvedOutput,
       isAcOutputEnabled: resolvedAcState,
       updatedAt: new Date(),
+      batteryTempCelsius: resolvedTemp,
+      batterySoh: resolvedSoh,
+      batteryCycles: resolvedCycles,
+      batteryVolts: resolvedVolts,
+      batteryAmps: resolvedAmps,
     };
   }
 
@@ -543,11 +574,33 @@ export class EcoFlowMqttStreamService {
           actionTriggered,
           executionDetails,
           executedAt: new Date(),
+          batteryTempCelsius: currentSnapshot.batteryTempCelsius ?? null,
+          batterySoh: currentSnapshot.batterySoh ?? null,
+          batteryCycles: currentSnapshot.batteryCycles ?? null,
         },
       })
       .catch((databaseError) => {
         console.warn("[EcoFlow MQTT] Falha ao persistir telemetria do stream:", databaseError);
       });
+
+    if (currentSnapshot.batteryTempCelsius !== null && currentSnapshot.batteryTempCelsius !== undefined) {
+      databaseClient.userConfiguration
+        .update({
+          where: { id: userConfigurationId },
+          data: {
+            lastBatteryTempCelsius: currentSnapshot.batteryTempCelsius,
+            ...(currentSnapshot.batterySoh !== null && currentSnapshot.batterySoh !== undefined
+              ? { lastBatterySoh: currentSnapshot.batterySoh }
+              : {}),
+            ...(currentSnapshot.batteryCycles !== null && currentSnapshot.batteryCycles !== undefined
+              ? { lastBatteryCycles: currentSnapshot.batteryCycles }
+              : {}),
+          },
+        })
+        .catch((databaseError) => {
+          console.warn("[EcoFlow MQTT] Falha ao atualizar telemetria BMS em userConfiguration:", databaseError);
+        });
+    }
   }
 
   private extractBattery(
@@ -882,6 +935,201 @@ export class EcoFlowMqttStreamService {
       }
     }
 
+    return null;
+  }
+
+  public extractBatteryTemp(
+    quotaData: Record<string, unknown>,
+    parsedJson?: Record<string, unknown>
+  ): number | null {
+    const candidateKeys = [
+      "bmsMaster.temp",
+      "bmsMaster.cellTemp",
+      "bms.temp",
+      "bms.cellTemp",
+      "temp",
+      "cellTemp",
+    ];
+
+    const flatTemp = this.extractNumericCandidateFromKeys(quotaData, candidateKeys);
+    if (flatTemp !== null) {
+      return this.normalizeTemperature(flatTemp);
+    }
+
+    const nestedContainers = ["bmsMaster", "bms", "ems", "bms_emsStatus", "bms_kit"];
+    for (const container of nestedContainers) {
+      const nestedObj = quotaData[container];
+      if (typeof nestedObj === "object" && nestedObj !== null) {
+        const nestedRec = nestedObj as Record<string, unknown>;
+        const rawNested = this.parseNumericCandidate(
+          nestedRec["temp"] ?? nestedRec["cellTemp"] ?? nestedRec["maxCellTemp"]
+        );
+        if (rawNested !== null) {
+          return this.normalizeTemperature(rawNested);
+        }
+      }
+    }
+
+    const typeCode =
+      typeof parsedJson?.["typeCode"] === "string"
+        ? (parsedJson["typeCode"] as string).toLowerCase()
+        : "";
+    const moduleType = parsedJson?.["moduleType"];
+    const isBmsContext = typeCode.includes("bms") || moduleType === 2 || moduleType === "2";
+    if (isBmsContext) {
+      const direct = this.parseNumericCandidate(quotaData["temp"] ?? quotaData["cellTemp"]);
+      if (direct !== null) {
+        return this.normalizeTemperature(direct);
+      }
+    }
+
+    return null;
+  }
+
+  private normalizeTemperature(raw: number): number {
+    if (raw > 100) {
+      return Number((raw / 10).toFixed(1));
+    }
+    return Number(raw.toFixed(1));
+  }
+
+  public extractBatterySoh(
+    quotaData: Record<string, unknown>,
+    parsedJson?: Record<string, unknown>
+  ): number | null {
+    const candidateKeys = ["bmsMaster.soh", "bms.soh", "soh", "f32ShowSoh"];
+    const flatSoh = this.extractNumericCandidateFromKeys(quotaData, candidateKeys);
+    if (flatSoh !== null && flatSoh >= 0 && flatSoh <= 100) {
+      return Math.round(flatSoh);
+    }
+
+    const nestedContainers = ["bmsMaster", "bms", "ems"];
+    for (const container of nestedContainers) {
+      const nestedObj = quotaData[container];
+      if (typeof nestedObj === "object" && nestedObj !== null) {
+        const nestedRec = nestedObj as Record<string, unknown>;
+        const raw = this.parseNumericCandidate(nestedRec["soh"] ?? nestedRec["f32ShowSoh"]);
+        if (raw !== null && raw >= 0 && raw <= 100) {
+          return Math.round(raw);
+        }
+      }
+    }
+
+    const typeCode =
+      typeof parsedJson?.["typeCode"] === "string"
+        ? (parsedJson["typeCode"] as string).toLowerCase()
+        : "";
+    const moduleType = parsedJson?.["moduleType"];
+    const isBmsContext = typeCode.includes("bms") || moduleType === 2 || moduleType === "2";
+    if (isBmsContext) {
+      const direct = this.parseNumericCandidate(quotaData["soh"] ?? quotaData["f32ShowSoh"]);
+      if (direct !== null && direct >= 0 && direct <= 100) {
+        return Math.round(direct);
+      }
+    }
+
+    return null;
+  }
+
+  public extractBatteryCycles(
+    quotaData: Record<string, unknown>,
+    parsedJson?: Record<string, unknown>
+  ): number | null {
+    const candidateKeys = ["bmsMaster.cycles", "bms.cycles", "cycles", "cycleCount"];
+    const flatCycles = this.extractNumericCandidateFromKeys(quotaData, candidateKeys);
+    if (flatCycles !== null && flatCycles >= 0) {
+      return Math.round(flatCycles);
+    }
+
+    const nestedContainers = ["bmsMaster", "bms", "ems"];
+    for (const container of nestedContainers) {
+      const nestedObj = quotaData[container];
+      if (typeof nestedObj === "object" && nestedObj !== null) {
+        const nestedRec = nestedObj as Record<string, unknown>;
+        const raw = this.parseNumericCandidate(nestedRec["cycles"] ?? nestedRec["cycleCount"]);
+        if (raw !== null && raw >= 0) {
+          return Math.round(raw);
+        }
+      }
+    }
+
+    const typeCode =
+      typeof parsedJson?.["typeCode"] === "string"
+        ? (parsedJson["typeCode"] as string).toLowerCase()
+        : "";
+    const moduleType = parsedJson?.["moduleType"];
+    const isBmsContext = typeCode.includes("bms") || moduleType === 2 || moduleType === "2";
+    if (isBmsContext) {
+      const direct = this.parseNumericCandidate(quotaData["cycles"] ?? quotaData["cycleCount"]);
+      if (direct !== null && direct >= 0) {
+        return Math.round(direct);
+      }
+    }
+
+    return null;
+  }
+
+  public extractBatteryVolts(
+    quotaData: Record<string, unknown>,
+    parsedJson?: Record<string, unknown>
+  ): number | null {
+    const candidateKeys = ["bmsMaster.vol", "bms.vol", "vol", "voltage"];
+    const flatVol = this.extractNumericCandidateFromKeys(quotaData, candidateKeys);
+    if (flatVol !== null && flatVol > 0) {
+      return flatVol > 1000 ? Number((flatVol / 1000).toFixed(2)) : Number(flatVol.toFixed(2));
+    }
+
+    const nestedContainers = ["bmsMaster", "bms", "ems"];
+    for (const container of nestedContainers) {
+      const nestedObj = quotaData[container];
+      if (typeof nestedObj === "object" && nestedObj !== null) {
+        const nestedRec = nestedObj as Record<string, unknown>;
+        const raw = this.parseNumericCandidate(nestedRec["vol"] ?? nestedRec["voltage"]);
+        if (raw !== null && raw > 0) {
+          return raw > 1000 ? Number((raw / 1000).toFixed(2)) : Number(raw.toFixed(2));
+        }
+      }
+    }
+
+    return null;
+  }
+
+  public extractBatteryAmps(
+    quotaData: Record<string, unknown>,
+    parsedJson?: Record<string, unknown>
+  ): number | null {
+    const candidateKeys = ["bmsMaster.amp", "bms.amp", "amp", "current"];
+    const flatAmp = this.extractNumericCandidateFromKeys(quotaData, candidateKeys);
+    if (flatAmp !== null) {
+      return Math.abs(flatAmp) > 1000 ? Number((flatAmp / 1000).toFixed(2)) : Number(flatAmp.toFixed(2));
+    }
+
+    const nestedContainers = ["bmsMaster", "bms", "ems"];
+    for (const container of nestedContainers) {
+      const nestedObj = quotaData[container];
+      if (typeof nestedObj === "object" && nestedObj !== null) {
+        const nestedRec = nestedObj as Record<string, unknown>;
+        const raw = this.parseNumericCandidate(nestedRec["amp"] ?? nestedRec["current"]);
+        if (raw !== null) {
+          return Math.abs(raw) > 1000 ? Number((raw / 1000).toFixed(2)) : Number(raw.toFixed(2));
+        }
+      }
+    }
+
+    return null;
+  }
+
+  private extractNumericCandidateFromKeys(
+    quotaData: Record<string, unknown>,
+    keys: string[]
+  ): number | null {
+    for (const key of keys) {
+      const candidateValue = quotaData[key];
+      const parsed = this.parseNumericCandidate(candidateValue);
+      if (parsed !== null) {
+        return parsed;
+      }
+    }
     return null;
   }
 }

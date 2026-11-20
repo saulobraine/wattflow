@@ -4,6 +4,13 @@ import { extractUserFromRequest } from "../../infrastructure/auth/sessionHelper"
 import { SolarGenerationWatts } from "../../domain/values/SolarGenerationWatts";
 import { SolarReadingCollection, SolarTelemetryPoint } from "../../domain/models/SolarReadingCollection";
 import { LiveTelemetryService } from "../../infrastructure/services/LiveTelemetryService";
+import { EcoFlowMqttStreamService } from "../../infrastructure/services/EcoFlowMqttStreamService";
+import {
+  OpenMeteoSolarForecastService,
+  type SolarExpectationLevel,
+} from "../../infrastructure/services/OpenMeteoSolarForecastService";
+
+export type { SolarExpectationLevel };
 
 interface SolarChartPoint {
   time: string;
@@ -46,6 +53,33 @@ export interface AutonomyEstimateMetrics {
   status: "CHARGING" | "DISCHARGING" | "IDLE" | "DEPLETED";
 }
 
+export interface SolarForecastMetrics {
+  isAdaptiveActive: boolean;
+  radiationMj: number | null;
+  expectation: SolarExpectationLevel | null;
+  effectiveTurnOffThreshold: number;
+  forecastSummary: string;
+  sunshineDurationSeconds?: number;
+  weatherCode?: number;
+  lastForecastCheckAt?: string | null;
+}
+
+export interface BmsAnalyticsMetrics {
+  temperatureCelsius: number | null;
+  maxRecordedTemp: number | null;
+  sohPercentage: number | null;
+  bmsCycles: number | null;
+  thermalStatus: "NORMAL" | "WARM" | "HOT" | "CRITICAL";
+  thermalWarningThreshold: number;
+  thermalShutdownThreshold: number;
+  voltageVolts: number | null;
+  amperageAmps: number | null;
+  recentThermalTrend: Array<{
+    time: string;
+    temperatureCelsius: number;
+  }>;
+}
+
 interface StatisticsResponseData {
   success: boolean;
   message?: string;
@@ -72,10 +106,15 @@ interface StatisticsResponseData {
       actionTriggered: string;
       executionDetails: string | null;
       executedAt: string;
+      batteryTempCelsius?: number | null;
+      batterySoh?: number | null;
+      batteryCycles?: number | null;
     }>;
     atsHealth: AtsHealthMetrics;
     financialSavings: FinancialSavingsMetrics;
     autonomyEstimate: AutonomyEstimateMetrics;
+    solarForecast: SolarForecastMetrics;
+    bmsAnalytics: BmsAnalyticsMetrics;
   };
 }
 
@@ -226,6 +265,140 @@ function calculateAtsHealth(
   };
 }
 
+async function buildSolarForecastMetrics(
+  configuration: {
+    latitude?: number | null;
+    longitude?: number | null;
+    isAdaptiveHysteresisActive?: boolean;
+    minAdaptiveThreshold?: number;
+    maxAdaptiveThreshold?: number;
+    lastSolarIrradianceMj?: number | null;
+    lastSolarForecastCheckAt?: Date | null;
+  } | null
+): Promise<SolarForecastMetrics> {
+  const isAdaptiveActive = configuration?.isAdaptiveHysteresisActive ?? false;
+  const minAdaptive = configuration?.minAdaptiveThreshold ?? 20;
+  const maxAdaptive = configuration?.maxAdaptiveThreshold ?? 50;
+
+  if (
+    configuration?.latitude !== null &&
+    configuration?.latitude !== undefined &&
+    configuration?.longitude !== null &&
+    configuration?.longitude !== undefined
+  ) {
+    try {
+      const forecastService = OpenMeteoSolarForecastService.getInstance();
+      const forecast = await forecastService.getForecast(
+        configuration.latitude,
+        configuration.longitude,
+        minAdaptive,
+        maxAdaptive
+      );
+      return {
+        isAdaptiveActive,
+        radiationMj: forecast.irradianceMj,
+        expectation: forecast.expectationLevel,
+        effectiveTurnOffThreshold: forecast.effectiveTurnOffThreshold,
+        forecastSummary: forecast.forecastSummary,
+        sunshineDurationSeconds: forecast.sunshineDurationSeconds,
+        weatherCode: forecast.weatherCode,
+        lastForecastCheckAt: configuration.lastSolarForecastCheckAt
+          ? configuration.lastSolarForecastCheckAt.toISOString()
+          : null,
+      };
+    } catch {
+      // Fallback gracioso
+    }
+  }
+
+  return {
+    isAdaptiveActive,
+    radiationMj: configuration?.lastSolarIrradianceMj ?? null,
+    expectation: null,
+    effectiveTurnOffThreshold: minAdaptive,
+    forecastSummary:
+      "Coordenadas geográficas não configuradas. Previsão solar desativada.",
+    lastForecastCheckAt: configuration?.lastSolarForecastCheckAt
+      ? configuration.lastSolarForecastCheckAt.toISOString()
+      : null,
+  };
+}
+
+function buildBmsAnalyticsMetrics(
+  configuration: {
+    thermalWarningThreshold?: number | null;
+    thermalShutdownThreshold?: number | null;
+    lastBatteryTempCelsius?: number | null;
+    lastBatterySoh?: number | null;
+    lastBatteryCycles?: number | null;
+    maxRecordedBatteryTemp?: number | null;
+  } | null,
+  liveTelemetry: {
+    batteryTempCelsius?: number | null;
+    batterySoh?: number | null;
+    batteryCycles?: number | null;
+    batteryVolts?: number | null;
+    batteryAmps?: number | null;
+  } | null,
+  rawLogs: Array<{ executedAt: Date; batteryTempCelsius?: number | null }>
+): BmsAnalyticsMetrics {
+  const warning = configuration?.thermalWarningThreshold ?? 45.0;
+  const shutdown = configuration?.thermalShutdownThreshold ?? 50.0;
+
+  const currentTemp =
+    liveTelemetry?.batteryTempCelsius !== undefined && liveTelemetry?.batteryTempCelsius !== null
+      ? liveTelemetry.batteryTempCelsius
+      : configuration?.lastBatteryTempCelsius ?? null;
+
+  let maxTemp = configuration?.maxRecordedBatteryTemp ?? null;
+  if (currentTemp !== null) {
+    maxTemp = maxTemp !== null ? Math.max(maxTemp, currentTemp) : currentTemp;
+  }
+
+  const soh =
+    liveTelemetry?.batterySoh !== undefined && liveTelemetry?.batterySoh !== null
+      ? liveTelemetry.batterySoh
+      : configuration?.lastBatterySoh ?? null;
+
+  const cycles =
+    liveTelemetry?.batteryCycles !== undefined && liveTelemetry?.batteryCycles !== null
+      ? liveTelemetry.batteryCycles
+      : configuration?.lastBatteryCycles ?? null;
+
+  let thermalStatus: "NORMAL" | "WARM" | "HOT" | "CRITICAL" = "NORMAL";
+  if (currentTemp !== null) {
+    if (currentTemp >= shutdown) {
+      thermalStatus = "CRITICAL";
+    } else if (currentTemp >= warning) {
+      thermalStatus = "HOT";
+    } else if (currentTemp >= 38.0) {
+      thermalStatus = "WARM";
+    }
+  }
+
+  const recentThermalTrend = rawLogs
+    .filter((log) => typeof log.batteryTempCelsius === "number")
+    .slice(0, 20)
+    .map((log) => ({
+      time: log.executedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+      temperatureCelsius: log.batteryTempCelsius as number,
+    }))
+    .reverse();
+
+  return {
+    temperatureCelsius: currentTemp,
+    maxRecordedTemp: maxTemp,
+    sohPercentage: soh,
+    bmsCycles: cycles,
+    thermalStatus,
+    thermalWarningThreshold: warning,
+    thermalShutdownThreshold: shutdown,
+    voltageVolts: liveTelemetry?.batteryVolts ?? null,
+    amperageAmps: liveTelemetry?.batteryAmps ?? null,
+    recentThermalTrend,
+  };
+}
+
 export default async function handleStatistics(
   request: NextApiRequest,
   response: NextApiResponse<StatisticsResponseData>
@@ -348,6 +521,9 @@ export default async function handleStatistics(
         0,
         0
       );
+      const liveSnapshot = EcoFlowMqttStreamService.getInstance().getLatestTelemetry(extractedUserId);
+      const defaultSolarForecast = await buildSolarForecastMetrics(configuration);
+      const defaultBms = buildBmsAnalyticsMetrics(configuration, liveSnapshot, []);
 
       response.status(200).json({
         success: true,
@@ -370,6 +546,8 @@ export default async function handleStatistics(
           atsHealth,
           financialSavings: defaultFinancialSavings,
           autonomyEstimate: defaultAutonomy,
+          solarForecast: defaultSolarForecast,
+          bmsAnalytics: defaultBms,
         },
       });
       return;
@@ -500,6 +678,9 @@ export default async function handleStatistics(
       actionTriggered: log.actionTriggered,
       executionDetails: log.executionDetails,
       executedAt: log.executedAt.toISOString(),
+      batteryTempCelsius: log.batteryTempCelsius ?? null,
+      batterySoh: log.batterySoh ?? null,
+      batteryCycles: log.batteryCycles ?? null,
     }));
 
     const todayKwh = estimatedEnergyKwh;
@@ -571,6 +752,10 @@ export default async function handleStatistics(
       currentOutputWatts
     );
 
+    const liveSnapshot = EcoFlowMqttStreamService.getInstance().getLatestTelemetry(extractedUserId);
+    const solarForecast = await buildSolarForecastMetrics(configuration);
+    const bmsAnalytics = buildBmsAnalyticsMetrics(configuration, liveSnapshot, rawLogs24h);
+
     response.status(200).json({
       success: true,
       data: {
@@ -592,6 +777,8 @@ export default async function handleStatistics(
         atsHealth,
         financialSavings,
         autonomyEstimate,
+        solarForecast,
+        bmsAnalytics,
       },
     });
   } catch (error) {

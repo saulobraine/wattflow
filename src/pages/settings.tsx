@@ -20,6 +20,10 @@ import {
   BatteryCharging,
   Clock,
   FileText,
+  CloudSun,
+  Thermometer,
+  MapPin,
+  Flame,
 } from "lucide-react";
 
 export default function SettingsPage() {
@@ -45,6 +49,50 @@ export default function SettingsPage() {
   const [batteryCapacityWh, setBatteryCapacityWh] = useState<number>(2048);
   const [isDailyReportActive, setIsDailyReportActive] = useState<boolean>(true);
   const [dailyReportTime, setDailyReportTime] = useState<string>("21:00");
+
+  // Estados da Etapa 2: Previsão Solar, Histerese Adaptativa & Segurança Térmica BMS
+  const [isAdaptiveHysteresisActive, setIsAdaptiveHysteresisActive] = useState<boolean>(false);
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
+  const [minAdaptiveThreshold, setMinAdaptiveThreshold] = useState<number>(20);
+  const [maxAdaptiveThreshold, setMaxAdaptiveThreshold] = useState<number>(50);
+  const [isDetectingLocation, setIsDetectingLocation] = useState<boolean>(false);
+  const [locationFeedback, setLocationFeedback] = useState<string | null>(null);
+
+  const [thermalWarningThreshold, setThermalWarningThreshold] = useState<number>(45.0);
+  const [thermalShutdownThreshold, setThermalShutdownThreshold] = useState<number>(50.0);
+
+  const handleDetectLocation = () => {
+    if (typeof window === "undefined" || !navigator.geolocation) {
+      setLocationFeedback("Geolocalização não é suportada por este navegador.");
+      return;
+    }
+    setIsDetectingLocation(true);
+    setLocationFeedback(null);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = parseFloat(position.coords.latitude.toFixed(4));
+        const lon = parseFloat(position.coords.longitude.toFixed(4));
+        setLatitude(lat);
+        setLongitude(lon);
+        setLocationFeedback(`Coordenadas obtidas: ${lat}, ${lon}`);
+        setIsDetectingLocation(false);
+      },
+      (error) => {
+        let msg = "Não foi possível obter a localização.";
+        if (error.code === error.PERMISSION_DENIED) {
+          msg = "Permissão de localização negada pelo navegador.";
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          msg = "Informação de localização indisponível.";
+        } else if (error.code === error.TIMEOUT) {
+          msg = "Tempo limite esgotado ao buscar localização.";
+        }
+        setLocationFeedback(msg);
+        setIsDetectingLocation(false);
+      },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
+  };
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -195,6 +243,21 @@ export default function SettingsPage() {
         );
         setIsDailyReportActive(json.data.isDailyReportActive ?? true);
         setDailyReportTime(json.data.dailyReportTime || "21:00");
+        setIsAdaptiveHysteresisActive(Boolean(json.data.isAdaptiveHysteresisActive));
+        setLatitude(typeof json.data.latitude === "number" ? json.data.latitude : null);
+        setLongitude(typeof json.data.longitude === "number" ? json.data.longitude : null);
+        setMinAdaptiveThreshold(
+          typeof json.data.minAdaptiveThreshold === "number" ? json.data.minAdaptiveThreshold : 20
+        );
+        setMaxAdaptiveThreshold(
+          typeof json.data.maxAdaptiveThreshold === "number" ? json.data.maxAdaptiveThreshold : 50
+        );
+        setThermalWarningThreshold(
+          typeof json.data.thermalWarningThreshold === "number" ? json.data.thermalWarningThreshold : 45.0
+        );
+        setThermalShutdownThreshold(
+          typeof json.data.thermalShutdownThreshold === "number" ? json.data.thermalShutdownThreshold : 50.0
+        );
       }
     } catch (err) {
       console.error("Erro ao carregar configurações:", err);
@@ -237,6 +300,13 @@ export default function SettingsPage() {
           batteryCapacityWh: Number(batteryCapacityWh),
           isDailyReportActive,
           dailyReportTime,
+          latitude: latitude !== null ? Number(latitude) : null,
+          longitude: longitude !== null ? Number(longitude) : null,
+          isAdaptiveHysteresisActive,
+          minAdaptiveThreshold: Number(minAdaptiveThreshold),
+          maxAdaptiveThreshold: Number(maxAdaptiveThreshold),
+          thermalWarningThreshold: Number(thermalWarningThreshold),
+          thermalShutdownThreshold: Number(thermalShutdownThreshold),
         }),
       });
 
@@ -1038,6 +1108,271 @@ export default function SettingsPage() {
                 <p>• Comutações e desgaste mecânico da chave ATS no dia</p>
                 <p>• Autonomia preditiva e status operacional da bateria</p>
               </div>
+            </div>
+          </div>
+
+          {/* 7. Previsão Solar & Histerese Adaptativa */}
+          <div className="animate-card stagger-6 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400">
+                  <CloudSun className="w-5 h-5" aria-hidden="true" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-100">
+                    7. Previsão Solar &amp; Histerese Adaptativa
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Ajuste dinâmico da reserva da bateria conforme a irradiância solar diária prevista via Open-Meteo
+                  </p>
+                </div>
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer self-start sm:self-auto">
+                <input
+                  type="checkbox"
+                  checked={isAdaptiveHysteresisActive}
+                  onChange={(e) => setIsAdaptiveHysteresisActive(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+                <span className="text-xs font-semibold text-slate-300">
+                  {isAdaptiveHysteresisActive ? "Ativado" : "Desativado"}
+                </span>
+              </label>
+            </div>
+
+            {/* Subseção de Coordenadas Geográficas (Open-Meteo) */}
+            <div className="space-y-3 p-4 sm:p-5 rounded-xl bg-slate-950 border border-slate-800/80">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-amber-400" aria-hidden="true" />
+                  <span className="text-sm font-bold text-slate-200">Localização Geográfica da Instalação</span>
+                </div>
+                <button
+                  type="button"
+                  disabled={isDetectingLocation}
+                  onClick={handleDetectLocation}
+                  className="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-850 active:scale-95 text-amber-300 border border-amber-500/30 text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {isDetectingLocation ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" aria-hidden="true" />
+                  ) : (
+                    <MapPin className="w-3.5 h-3.5 text-amber-400" aria-hidden="true" />
+                  )}
+                  {isDetectingLocation ? "Detectando GPS..." : "Obter Localização Atual"}
+                </button>
+              </div>
+
+              <p className="text-xs text-slate-400 leading-relaxed">
+                As coordenadas são necessárias para consultar gratuitamente a irradiância solar (MJ/m²) na API Open-Meteo sem chave de API.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label htmlFor="latitude-input" className="text-xs font-semibold text-slate-300">
+                    Latitude
+                  </label>
+                  <input
+                    id="latitude-input"
+                    type="number"
+                    step="any"
+                    min={-90}
+                    max={90}
+                    placeholder="Ex: -23.5505 (São Paulo)"
+                    value={latitude !== null ? latitude : ""}
+                    onChange={(e) => setLatitude(e.target.value === "" ? null : parseFloat(e.target.value))}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-sm text-slate-200 font-mono focus:outline-none focus:border-amber-500 transition-colors"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label htmlFor="longitude-input" className="text-xs font-semibold text-slate-300">
+                    Longitude
+                  </label>
+                  <input
+                    id="longitude-input"
+                    type="number"
+                    step="any"
+                    min={-180}
+                    max={180}
+                    placeholder="Ex: -46.6333 (São Paulo)"
+                    value={longitude !== null ? longitude : ""}
+                    onChange={(e) => setLongitude(e.target.value === "" ? null : parseFloat(e.target.value))}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-sm text-slate-200 font-mono focus:outline-none focus:border-amber-500 transition-colors"
+                  />
+                </div>
+              </div>
+
+              {locationFeedback && (
+                <div className="text-xs font-mono text-amber-300 bg-amber-950/40 border border-amber-800/40 p-2.5 rounded-lg flex items-center gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-amber-400 shrink-0" aria-hidden="true" />
+                  <span>{locationFeedback}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Sliders de Histerese Adaptativa */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2">
+              {/* Slider 1: Mínimo Adaptativo (Dias Ensolarados) */}
+              <div className="space-y-2 p-4 rounded-xl bg-slate-950 border border-slate-800/80">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="min-adaptive-threshold" className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                    Corte Mínimo (Dia Ensolarado)
+                  </label>
+                  <span className="text-sm font-extrabold font-mono text-emerald-400 px-2 py-0.5 rounded bg-emerald-950 border border-emerald-800/60">
+                    {minAdaptiveThreshold}%
+                  </span>
+                </div>
+                <input
+                  id="min-adaptive-threshold"
+                  type="range"
+                  min={10}
+                  max={50}
+                  step={1}
+                  value={minAdaptiveThreshold}
+                  onChange={(e) => setMinAdaptiveThreshold(parseInt(e.target.value, 10))}
+                  className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                />
+                <span className="text-[11px] text-slate-400 block leading-tight">
+                  Limite estendido em dias de Sol Pleno (≥ 18 MJ/m²). Permite descarregar mais a bateria porque a reposição matinal é garantida.
+                </span>
+              </div>
+
+              {/* Slider 2: Máximo Adaptativo (Dias Nublados / Chuva) */}
+              <div className="space-y-2 p-4 rounded-xl bg-slate-950 border border-slate-800/80">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="max-adaptive-threshold" className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-sky-400" />
+                    Corte Máximo (Dia Chuvoso / Nublado)
+                  </label>
+                  <span className="text-sm font-extrabold font-mono text-sky-400 px-2 py-0.5 rounded bg-sky-950 border border-sky-800/60">
+                    {maxAdaptiveThreshold}%
+                  </span>
+                </div>
+                <input
+                  id="max-adaptive-threshold"
+                  type="range"
+                  min={30}
+                  max={80}
+                  step={1}
+                  value={maxAdaptiveThreshold}
+                  onChange={(e) => setMaxAdaptiveThreshold(parseInt(e.target.value, 10))}
+                  className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-sky-500"
+                />
+                <span className="text-[11px] text-slate-400 block leading-tight">
+                  Reserva conservadora retida na bateria em dias com baixa captação solar (&lt; 12 MJ/m²), prevenindo falta de energia.
+                </span>
+              </div>
+            </div>
+
+            {/* Infográfico / Régua de Decisão Adaptativa */}
+            <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-2.5">
+              <span className="text-xs font-bold text-slate-300 block uppercase tracking-wider">
+                Lógica da Modulação Adaptativa Diária:
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                  <span className="font-bold text-slate-300 block mb-0.5">🌧️ Chuva (&lt; 12 MJ/m²)</span>
+                  <span className="text-slate-400 text-[11px] block">
+                    Corte sobe para <strong>{maxAdaptiveThreshold}%</strong> preservando autonomia.
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                  <span className="font-bold text-amber-300 block mb-0.5">🌤️ Parcial (12 a 18 MJ/m²)</span>
+                  <span className="text-slate-400 text-[11px] block">
+                    Corte interpolado proporcional entre <strong>{minAdaptiveThreshold}%</strong> e <strong>{maxAdaptiveThreshold}%</strong>.
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                  <span className="font-bold text-emerald-300 block mb-0.5">☀️ Sol Pleno (≥ 18 MJ/m²)</span>
+                  <span className="text-slate-400 text-[11px] block">
+                    Corte desce para <strong>{minAdaptiveThreshold}%</strong> para máxima economia financeira.
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 8. Monitoramento Térmico & BMS da Bateria */}
+          <div className="animate-card stagger-6 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-rose-500/10 text-rose-400">
+                  <Thermometer className="w-5 h-5" aria-hidden="true" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-100">
+                    8. Monitoramento Térmico &amp; BMS da Bateria
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Proteção de células LiFePO4 contra sobreaquecimento, estresse térmico e descontinuidade
+                  </p>
+                </div>
+              </div>
+              <span className="inline-flex items-center gap-1.5 text-xs font-mono px-2.5 py-1 rounded-full bg-slate-950 text-rose-300 border border-rose-900/50 self-start sm:self-auto">
+                <Flame className="w-3.5 h-3.5 text-rose-400" aria-hidden="true" />
+                BMS Shield 24/7
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="thermal-warning-input" className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-400" />
+                    Alerta Térmico Preventivo (°C)
+                  </label>
+                  <span className="text-[11px] font-mono text-slate-500">Padrão: 45.0°C</span>
+                </div>
+                <input
+                  id="thermal-warning-input"
+                  type="number"
+                  step="0.5"
+                  min={30}
+                  max={60}
+                  required
+                  placeholder="45.0"
+                  value={thermalWarningThreshold}
+                  onChange={(e) => setThermalWarningThreshold(parseFloat(e.target.value) || 45.0)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-amber-500 font-mono transition-colors"
+                />
+                <span className="text-[11px] text-slate-400 block leading-tight">
+                  Dispara notificação push/WhatsApp alertando que a temperatura das células está elevada.
+                </span>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="thermal-shutdown-input" className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-rose-500" />
+                    Corte de Emergência AC (°C)
+                  </label>
+                  <span className="text-[11px] font-mono text-slate-500">Padrão: 50.0°C</span>
+                </div>
+                <input
+                  id="thermal-shutdown-input"
+                  type="number"
+                  step="0.5"
+                  min={40}
+                  max={65}
+                  required
+                  placeholder="50.0"
+                  value={thermalShutdownThreshold}
+                  onChange={(e) => setThermalShutdownThreshold(parseFloat(e.target.value) || 50.0)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-rose-500 font-mono transition-colors"
+                />
+                <span className="text-[11px] text-slate-400 block leading-tight">
+                  Desliga imediatamente o inversor AC e comuta para a rede da concessionária para cessar o estresse da bateria.
+                </span>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-950/80 border border-rose-950/40 text-xs text-slate-400 space-y-1 flex items-start gap-2.5">
+              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" aria-hidden="true" />
+              <p>
+                <strong className="text-slate-200">Histerese Térmica de Segurança:</strong> Após um corte preventivo de emergência, a saída AC só será reativada pelo orquestrador quando a temperatura das células descer pelo menos 8°C abaixo do limiar de corte, resguardando a vida útil e a estabilidade química da bateria.
+              </p>
             </div>
           </div>
 
