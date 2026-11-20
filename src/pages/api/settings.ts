@@ -46,6 +46,17 @@ export interface SettingsResponseData {
   isDailyReportActive: boolean;
   dailyReportTime: string;
   lastDailyReportSentAt: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  isAdaptiveHysteresisActive: boolean;
+  minAdaptiveThreshold: number;
+  maxAdaptiveThreshold: number;
+  thermalWarningThreshold: number;
+  thermalShutdownThreshold: number;
+  lastBatteryTempCelsius: number | null;
+  lastBatterySoh: number | null;
+  lastBatteryCycles: number | null;
+  maxRecordedBatteryTemp: number | null;
 }
 
 interface SettingsResponseBody {
@@ -152,6 +163,17 @@ export default async function handleSettings(
           isDailyReportActive: existing.isDailyReportActive ?? true,
           dailyReportTime: existing.dailyReportTime || "21:00",
           lastDailyReportSentAt: existing.lastDailyReportSentAt ? existing.lastDailyReportSentAt.toISOString() : null,
+          latitude: existing.latitude ?? null,
+          longitude: existing.longitude ?? null,
+          isAdaptiveHysteresisActive: existing.isAdaptiveHysteresisActive ?? false,
+          minAdaptiveThreshold: existing.minAdaptiveThreshold ?? 20,
+          maxAdaptiveThreshold: existing.maxAdaptiveThreshold ?? 50,
+          thermalWarningThreshold: existing.thermalWarningThreshold ?? 45.0,
+          thermalShutdownThreshold: existing.thermalShutdownThreshold ?? 50.0,
+          lastBatteryTempCelsius: existing.lastBatteryTempCelsius ?? null,
+          lastBatterySoh: existing.lastBatterySoh ?? null,
+          lastBatteryCycles: existing.lastBatteryCycles ?? null,
+          maxRecordedBatteryTemp: existing.maxRecordedBatteryTemp ?? null,
         },
       });
       return;
@@ -200,6 +222,13 @@ export default async function handleSettings(
       isStormModeActive,
       isDailyReportActive,
       dailyReportTime,
+      latitude,
+      longitude,
+      isAdaptiveHysteresisActive,
+      minAdaptiveThreshold,
+      maxAdaptiveThreshold,
+      thermalWarningThreshold,
+      thermalShutdownThreshold,
     } = parsedBody.data;
 
     if (
@@ -325,6 +354,30 @@ export default async function handleSettings(
         typeof dailyReportTime === "string" && dailyReportTime.trim().length > 0
           ? dailyReportTime.trim()
           : existingConfig?.dailyReportTime ?? "21:00";
+      const resolvedLatitude =
+        latitude !== undefined ? latitude : existingConfig?.latitude ?? null;
+      const resolvedLongitude =
+        longitude !== undefined ? longitude : existingConfig?.longitude ?? null;
+      const resolvedAdaptiveHysteresis =
+        typeof isAdaptiveHysteresisActive === "boolean"
+          ? isAdaptiveHysteresisActive
+          : existingConfig?.isAdaptiveHysteresisActive ?? false;
+      const resolvedMinAdaptive =
+        typeof minAdaptiveThreshold === "number"
+          ? minAdaptiveThreshold
+          : existingConfig?.minAdaptiveThreshold ?? 20;
+      const resolvedMaxAdaptive =
+        typeof maxAdaptiveThreshold === "number"
+          ? maxAdaptiveThreshold
+          : existingConfig?.maxAdaptiveThreshold ?? 50;
+      const resolvedThermalWarning =
+        typeof thermalWarningThreshold === "number"
+          ? thermalWarningThreshold
+          : existingConfig?.thermalWarningThreshold ?? 45.0;
+      const resolvedThermalShutdown =
+        typeof thermalShutdownThreshold === "number"
+          ? thermalShutdownThreshold
+          : existingConfig?.thermalShutdownThreshold ?? 50.0;
 
       await prisma.userConfiguration.upsert({
         where: { userId: extractedUserId },
@@ -350,6 +403,13 @@ export default async function handleSettings(
           isStormModeActive: resolvedStormModeActive,
           isDailyReportActive: resolvedDailyReportActive,
           dailyReportTime: resolvedDailyReportTime,
+          latitude: resolvedLatitude,
+          longitude: resolvedLongitude,
+          isAdaptiveHysteresisActive: resolvedAdaptiveHysteresis,
+          minAdaptiveThreshold: resolvedMinAdaptive,
+          maxAdaptiveThreshold: resolvedMaxAdaptive,
+          thermalWarningThreshold: resolvedThermalWarning,
+          thermalShutdownThreshold: resolvedThermalShutdown,
         },
         create: {
           userId: extractedUserId,
@@ -374,6 +434,13 @@ export default async function handleSettings(
           isStormModeActive: resolvedStormModeActive,
           isDailyReportActive: resolvedDailyReportActive,
           dailyReportTime: resolvedDailyReportTime,
+          latitude: resolvedLatitude,
+          longitude: resolvedLongitude,
+          isAdaptiveHysteresisActive: resolvedAdaptiveHysteresis,
+          minAdaptiveThreshold: resolvedMinAdaptive,
+          maxAdaptiveThreshold: resolvedMaxAdaptive,
+          thermalWarningThreshold: resolvedThermalWarning,
+          thermalShutdownThreshold: resolvedThermalShutdown,
         },
       });
 

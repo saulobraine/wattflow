@@ -4,11 +4,13 @@ import { DeviceSerialNumber } from "../domain/values/DeviceSerialNumber";
 import { DesiredDeviceAction } from "../domain/values/DesiredDeviceAction";
 import { EcoFlowCredentials } from "../domain/models/EcoFlowCredentials";
 import { AutomationThresholdPair } from "../domain/models/AutomationThresholdPair";
+import { PercentageValue } from "../domain/values/PercentageValue";
 import { BatteryLevel } from "../domain/values/BatteryLevel";
 import {
   NotificationDispatcher,
   NotificationConfig,
 } from "../infrastructure/notifications/NotificationDispatcher";
+import { OpenMeteoSolarForecastService } from "../infrastructure/services/OpenMeteoSolarForecastService";
 
 export interface SyncExecutionResult {
   hasExecutedSuccessfully: boolean;
@@ -24,6 +26,9 @@ export interface ProvidedTelemetry {
   solarWatts: number;
   outputWatts: number;
   isAcOutputEnabled: boolean | null;
+  batteryTempCelsius?: number | null;
+  batterySoh?: number | null;
+  batteryCycles?: number | null;
 }
 
 /**
@@ -123,12 +128,24 @@ export class OrchestratorSyncUseCase {
       let outputWatts = 0;
       let isAcOutputEnabled: boolean | null = null;
       let batteryLevel: BatteryLevel;
+      let batteryTempCelsius: number | null = configurationRecord.lastBatteryTempCelsius;
+      let batterySoh: number | null = configurationRecord.lastBatterySoh;
+      let batteryCycles: number | null = configurationRecord.lastBatteryCycles;
 
       if (providedTelemetry) {
         numericBattery = providedTelemetry.batteryPercentage;
         numericSolarWatts = providedTelemetry.solarWatts;
         outputWatts = providedTelemetry.outputWatts;
         isAcOutputEnabled = providedTelemetry.isAcOutputEnabled;
+        if (providedTelemetry.batteryTempCelsius !== undefined && providedTelemetry.batteryTempCelsius !== null) {
+          batteryTempCelsius = providedTelemetry.batteryTempCelsius;
+        }
+        if (providedTelemetry.batterySoh !== undefined && providedTelemetry.batterySoh !== null) {
+          batterySoh = providedTelemetry.batterySoh;
+        }
+        if (providedTelemetry.batteryCycles !== undefined && providedTelemetry.batteryCycles !== null) {
+          batteryCycles = providedTelemetry.batteryCycles;
+        }
         batteryLevel = new BatteryLevel(numericBattery);
       } else {
         const telemetry = await ecoflowClient.fetchDeviceTelemetry(ecoflowDevice);
@@ -145,22 +162,28 @@ export class OrchestratorSyncUseCase {
         });
       }
 
+      const thermalWarning = configurationRecord.thermalWarningThreshold ?? 45.0;
+      const thermalShutdown = configurationRecord.thermalShutdownThreshold ?? 50.0;
+      const hasThermalShutdown =
+        batteryTempCelsius !== null && batteryTempCelsius >= thermalShutdown;
+      const hasThermalWarning =
+        batteryTempCelsius !== null && batteryTempCelsius >= thermalWarning;
+
       const isStormMode = configurationRecord.isStormModeActive;
       const isAutomationEnabled = configurationRecord.isAutomationActive;
       let actionResult = "Automação pausada: telemetria registrada sem alteração da saída AC.";
       let actionName = "MONITORAMENTO";
 
-      if (isStormMode) {
-        if (isAcOutputEnabled === true) {
+      if (hasThermalShutdown) {
+        if (isAcOutputEnabled !== false) {
           await ecoflowClient.setAcOutputState(ecoflowDevice, false);
           if (typeof this.repository.incrementAtsCycle === "function") {
             await this.repository.incrementAtsCycle(databaseRecordId);
           }
           this.dispatchSafeAlert(
             {
-              title: "Modo Tempestade Ativo",
-              message:
-                "Saída AC desligada. Cargas comutadas para a Concessionária para preservar 100% de reserva na bateria.",
+              title: "⚠️ CORTE TÉRMICO DE EMERGÊNCIA",
+              message: `Temperatura crítica das células atingiu ${batteryTempCelsius!.toFixed(1)}°C (limite ${thermalShutdown.toFixed(1)}°C). Saída AC desligada imediatamente e transferida para a concessionária.`,
               batteryPercentage: numericBattery,
               solarWatts: numericSolarWatts,
               actionState: "GRID",
@@ -168,24 +191,93 @@ export class OrchestratorSyncUseCase {
             notificationConfig
           );
         }
-        actionResult =
-          "Modo Tempestade / Alerta de Apagão Ativo: comutação suspensa, bateria preservada em reserva máxima.";
-        actionName = "STORM_MODE_RESERVE";
-      } else if (isAutomationEnabled) {
-        const desiredAction = thresholdPair.evaluateBattery(batteryLevel);
-        actionResult = await this.dispatchEcoFlowAcAction(
-          desiredAction,
-          ecoflowDevice,
-          ecoflowClient,
-          isAcOutputEnabled,
-          numericBattery,
-          numericSolarWatts,
-          notificationConfig,
-          databaseRecordId
-        );
-        desiredAction.transferActionName((nameString: string) => {
-          actionName = nameString;
-        });
+        actionName = "THERMAL_PROTECTION_DISARM";
+        actionResult = `Proteção térmica acionada: células atingiram ${batteryTempCelsius!.toFixed(1)}°C (limiar de corte: ${thermalShutdown.toFixed(1)}°C). Saída AC desligada preventivamente e cargas transferidas para a concessionária.`;
+      } else {
+        if (hasThermalWarning) {
+          this.dispatchSafeAlert(
+            {
+              title: "⚠️ Alerta de Temperatura EcoFlow",
+              message: `As células da bateria atingiram ${batteryTempCelsius!.toFixed(1)}°C (limiar de alerta: ${thermalWarning.toFixed(1)}°C). Verifique a ventilação do local.`,
+              batteryPercentage: numericBattery,
+              solarWatts: numericSolarWatts,
+              actionState: isAcOutputEnabled ? "SOLAR_BATTERY" : "GRID",
+            },
+            notificationConfig
+          );
+        }
+
+        if (isStormMode) {
+          if (isAcOutputEnabled === true) {
+            await ecoflowClient.setAcOutputState(ecoflowDevice, false);
+            if (typeof this.repository.incrementAtsCycle === "function") {
+              await this.repository.incrementAtsCycle(databaseRecordId);
+            }
+            this.dispatchSafeAlert(
+              {
+                title: "Modo Tempestade Ativo",
+                message:
+                  "Saída AC desligada. Cargas comutadas para a Concessionária para preservar 100% de reserva na bateria.",
+                batteryPercentage: numericBattery,
+                solarWatts: numericSolarWatts,
+                actionState: "GRID",
+              },
+              notificationConfig
+            );
+          }
+          actionResult =
+            "Modo Tempestade / Alerta de Apagão Ativo: comutação suspensa, bateria preservada em reserva máxima.";
+          actionName = "STORM_MODE_RESERVE";
+        } else if (isAutomationEnabled) {
+          let activeThresholdPair = thresholdPair;
+          if (
+            configurationRecord.isAdaptiveHysteresisActive &&
+            configurationRecord.latitude !== null &&
+            configurationRecord.longitude !== null
+          ) {
+            try {
+              const forecastService = OpenMeteoSolarForecastService.getInstance();
+              const forecast = await forecastService.getForecast(
+                configurationRecord.latitude,
+                configurationRecord.longitude,
+                configurationRecord.minAdaptiveThreshold,
+                configurationRecord.maxAdaptiveThreshold
+              );
+              if (typeof this.repository.updateSolarForecast === "function") {
+                await this.repository.updateSolarForecast(databaseRecordId, forecast.irradianceMj);
+              }
+              let configuredUpper = 90;
+              thresholdPair.transferThresholds((upper) => {
+                configuredUpper = upper;
+              });
+              const adaptiveLower = Math.min(forecast.effectiveTurnOffThreshold, configuredUpper - 1);
+              activeThresholdPair = new AutomationThresholdPair(
+                new PercentageValue(configuredUpper),
+                new PercentageValue(adaptiveLower)
+              );
+            } catch (forecastErr) {
+              console.warn(
+                "[OrchestratorSyncUseCase] Falha ao consultar previsão solar para histerese adaptativa:",
+                forecastErr
+              );
+            }
+          }
+
+          const desiredAction = activeThresholdPair.evaluateBattery(batteryLevel);
+          actionResult = await this.dispatchEcoFlowAcAction(
+            desiredAction,
+            ecoflowDevice,
+            ecoflowClient,
+            isAcOutputEnabled,
+            numericBattery,
+            numericSolarWatts,
+            notificationConfig,
+            databaseRecordId
+          );
+          desiredAction.transferActionName((nameString: string) => {
+            actionName = nameString;
+          });
+        }
       }
 
       await this.recordExecutionLogThrottled(
@@ -194,7 +286,10 @@ export class OrchestratorSyncUseCase {
         actionName,
         actionResult,
         numericSolarWatts,
-        outputWatts
+        outputWatts,
+        batteryTempCelsius,
+        batterySoh,
+        batteryCycles
       );
 
       return {
@@ -237,14 +332,18 @@ export class OrchestratorSyncUseCase {
     actionName: string,
     actionResult: string,
     numericSolarWatts: number,
-    outputWatts: number
+    outputWatts: number,
+    batteryTempCelsius?: number | null,
+    batterySoh?: number | null,
+    batteryCycles?: number | null
   ): Promise<void> {
     const isAtsAction =
       actionName === "ENABLE_ECOFLOW_AC" ||
       actionName === "DISABLE_ECOFLOW_AC" ||
       actionName === "BATTERY_HIGH_DISCHARGE" ||
       actionName === "BATTERY_LOW_RECHARGE" ||
-      actionName === "STORM_MODE_RESERVE";
+      actionName === "STORM_MODE_RESERVE" ||
+      actionName === "THERMAL_PROTECTION_DISARM";
 
     let lastState = OrchestratorSyncUseCase.lastLoggedStatesByRecordId.get(databaseRecordId);
     if (!lastState && typeof this.repository.findLatestExecutionLog === "function") {
@@ -284,14 +383,33 @@ export class OrchestratorSyncUseCase {
       loggedAtMs: now,
     });
 
-    await this.repository.recordExecutionLog(
-      databaseRecordId,
-      numericBattery,
-      actionName,
-      actionResult,
-      numericSolarWatts,
-      outputWatts
-    );
+    const hasBmsTelemetry =
+      (batteryTempCelsius !== undefined && batteryTempCelsius !== null) ||
+      (batterySoh !== undefined && batterySoh !== null) ||
+      (batteryCycles !== undefined && batteryCycles !== null);
+
+    if (hasBmsTelemetry) {
+      await this.repository.recordExecutionLog(
+        databaseRecordId,
+        numericBattery,
+        actionName,
+        actionResult,
+        numericSolarWatts,
+        outputWatts,
+        batteryTempCelsius,
+        batterySoh,
+        batteryCycles
+      );
+    } else {
+      await this.repository.recordExecutionLog(
+        databaseRecordId,
+        numericBattery,
+        actionName,
+        actionResult,
+        numericSolarWatts,
+        outputWatts
+      );
+    }
   }
 
   private async dispatchEcoFlowAcAction(

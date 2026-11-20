@@ -21,8 +21,18 @@ import {
   DollarSign,
   Timer,
   Wallet,
+  CloudSun,
+  Thermometer,
+  Flame,
+  CloudRain,
 } from "lucide-react";
-import type { FinancialSavingsMetrics, AutonomyEstimateMetrics } from "./api/statistics";
+import type {
+  FinancialSavingsMetrics,
+  AutonomyEstimateMetrics,
+  SolarForecastMetrics,
+  BmsAnalyticsMetrics,
+  SolarExpectationLevel,
+} from "./api/statistics";
 
 export interface AtsHealthData {
   lifespanCycles: number;
@@ -71,6 +81,8 @@ interface StatisticsData {
   atsHealth?: AtsHealthData;
   financialSavings?: FinancialSavingsMetrics;
   autonomyEstimate?: AutonomyEstimateMetrics;
+  solarForecast?: SolarForecastMetrics;
+  bmsAnalytics?: BmsAnalyticsMetrics;
 }
 
 export default function StatisticsPage() {
@@ -194,6 +206,69 @@ export default function StatisticsPage() {
           classes: "bg-slate-800 text-slate-400 border-slate-700",
         };
     }
+  };
+
+  const getSolarExpectationBadge = (level: SolarExpectationLevel | null | undefined) => {
+    switch (level) {
+      case "SOLAR_EXCELLENT":
+        return {
+          label: "Sol Pleno",
+          classes: "bg-amber-500/20 text-amber-300 border-amber-500/40",
+          icon: Sun,
+        };
+      case "SOLAR_GOOD":
+        return {
+          label: "Sol Parcial / Bom",
+          classes: "bg-sky-500/20 text-sky-300 border-sky-500/40",
+          icon: CloudSun,
+        };
+      case "SOLAR_MODERATE":
+        return {
+          label: "Sol Moderado",
+          classes: "bg-indigo-500/20 text-indigo-300 border-indigo-500/40",
+          icon: CloudSun,
+        };
+      case "SOLAR_POOR":
+      default:
+        return {
+          label: "Nublado / Chuva",
+          classes: "bg-slate-800 text-slate-300 border-slate-700",
+          icon: CloudRain,
+        };
+    }
+  };
+
+  const getBmsThermalTheme = (tempCelsius: number | null | undefined) => {
+    if (tempCelsius === null || tempCelsius === undefined) {
+      return {
+        text: "text-slate-400",
+        bg: "bg-slate-500",
+        badge: "bg-slate-800 text-slate-400 border-slate-700",
+        label: "Standby",
+      };
+    }
+    if (tempCelsius < 38) {
+      return {
+        text: "text-emerald-400",
+        bg: "bg-emerald-500",
+        badge: "bg-emerald-950/80 text-emerald-300 border-emerald-700/60",
+        label: "Normal / Fria",
+      };
+    }
+    if (tempCelsius <= 45) {
+      return {
+        text: "text-amber-400",
+        bg: "bg-amber-500",
+        badge: "bg-amber-950/80 text-amber-300 border-amber-700/60",
+        label: "Aquecimento Moderado",
+      };
+    }
+    return {
+      text: "text-rose-400",
+      bg: "bg-rose-500",
+      badge: "bg-rose-950/80 text-rose-300 border-rose-700/60",
+      label: "Alerta Térmico Crítico",
+    };
   };
 
   return (
@@ -756,7 +831,283 @@ export default function StatisticsPage() {
           </section>
         )}
 
-        {/* 4. Gráfico SVG de Linhas dos Últimos 30 Minutos (Média de 5 em 5 min) */}
+        {/* 4. Painel Analítico: Previsão Solar Preditiva & Diagnóstico BMS (Etapa 2) */}
+        <section
+          aria-label="Painel Analítico de Previsão Solar e BMS"
+          className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6"
+        >
+          {/* Card Analítico 1: Previsão Solar Preditiva & Histerese Adaptativa */}
+          {data?.solarForecast && (
+            <div className="animate-card stagger-5 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-5 flex flex-col justify-between">
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400 shrink-0 border border-amber-500/20">
+                      <CloudSun className="w-5 h-5 animate-float" aria-hidden="true" />
+                    </div>
+                    <div>
+                      <h3 className="text-base sm:text-lg font-bold text-slate-100 flex items-center gap-2">
+                        Previsão Solar Preditiva
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        Irradiância Open-Meteo &amp; Modulação Adaptativa de Descarga
+                      </p>
+                    </div>
+                  </div>
+
+                  {(() => {
+                    const badge = getSolarExpectationBadge(data.solarForecast?.expectation);
+                    const BadgeIcon = badge.icon;
+                    return (
+                      <span className={`inline-flex items-center gap-1.5 text-xs font-mono font-bold px-3 py-1 rounded-full border shadow-sm ${badge.classes}`}>
+                        <BadgeIcon className="w-3.5 h-3.5" aria-hidden="true" />
+                        {badge.label}
+                      </span>
+                    );
+                  })()}
+                </div>
+
+                {/* Banner de Destaque do Limiar */}
+                <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs uppercase font-semibold tracking-wider text-slate-400">
+                      Limiar de Corte Efetivo
+                    </span>
+                    <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-full border ${
+                      data.solarForecast.isAdaptiveActive
+                        ? "bg-amber-950 text-amber-300 border-amber-800/60"
+                        : "bg-slate-900 text-slate-400 border-slate-800"
+                    }`}>
+                      {data.solarForecast.isAdaptiveActive ? "Adaptativo Ativo" : "Estático / Standby"}
+                    </span>
+                  </div>
+
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl sm:text-3xl font-extrabold font-mono text-amber-300">
+                      ≤ {data.solarForecast.effectiveTurnOffThreshold}%
+                    </span>
+                    <span className="text-xs text-slate-400">
+                      (Corte padrão: 30%)
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-slate-400 leading-relaxed pt-1">
+                    {data.solarForecast.forecastSummary}
+                  </p>
+                </div>
+
+                {/* Grid das 3 Métricas Solares */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 text-xs">
+                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800/80">
+                    <span className="text-slate-400 block text-[11px]">Irradiância Prevista</span>
+                    <span className="text-base sm:text-lg font-bold font-mono text-slate-200 mt-0.5 block">
+                      {data.solarForecast.radiationMj !== null ? `${data.solarForecast.radiationMj.toFixed(1)} MJ/m²` : "--"}
+                    </span>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800/80">
+                    <span className="text-slate-400 block text-[11px]">Horas de Sol Estimadas</span>
+                    <span className="text-base sm:text-lg font-bold font-mono text-slate-200 mt-0.5 block">
+                      {data.solarForecast.sunshineDurationSeconds
+                        ? `${(data.solarForecast.sunshineDurationSeconds / 3600).toFixed(1)} h`
+                        : "--"}
+                    </span>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800/80">
+                    <span className="text-slate-400 block text-[11px]">Código Meteorológico</span>
+                    <span className="text-base sm:text-lg font-bold font-mono text-slate-200 mt-0.5 block">
+                      WMO: {data.solarForecast.weatherCode ?? "--"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-500 font-mono">
+                <span>Open-Meteo Integration</span>
+                <span>Atualização horária</span>
+              </div>
+            </div>
+          )}
+
+          {/* Card Analítico 2: Diagnóstico BMS & Segurança Térmica */}
+          {data?.bmsAnalytics && (
+            <div className="animate-card stagger-5 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-5 flex flex-col justify-between">
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-rose-500/10 text-rose-400 shrink-0 border border-rose-500/20">
+                      <Thermometer className="w-5 h-5 animate-float" aria-hidden="true" />
+                    </div>
+                    <div>
+                      <h3 className="text-base sm:text-lg font-bold text-slate-100 flex items-center gap-2">
+                        Diagnóstico BMS &amp; Segurança Térmica
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        Telemetria em tempo real das células LiFePO4 e proteção contra sobreaquecimento
+                      </p>
+                    </div>
+                  </div>
+
+                  {(() => {
+                    const thermalTheme = getBmsThermalTheme(data.bmsAnalytics?.temperatureCelsius);
+                    return (
+                      <span className={`inline-flex items-center gap-1.5 text-xs font-mono font-bold px-3 py-1 rounded-full border shadow-sm ${thermalTheme.badge}`}>
+                        <span className={`w-2 h-2 rounded-full ${thermalTheme.bg}`} />
+                        {thermalTheme.label}
+                      </span>
+                    );
+                  })()}
+                </div>
+
+                {/* Termômetro e Barra de Gradiente Térmico */}
+                <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs uppercase font-semibold tracking-wider text-slate-400 flex items-center gap-1.5">
+                      <Thermometer className="w-3.5 h-3.5 text-rose-400" aria-hidden="true" />
+                      Temperatura das Células
+                    </span>
+                    <span className="text-xs font-mono text-slate-400">
+                      Pico Histórico:{" "}
+                      <strong className="text-slate-200">
+                        {data.bmsAnalytics.maxRecordedTemp !== null
+                          ? `${data.bmsAnalytics.maxRecordedTemp.toFixed(1)}°C`
+                          : "--"}
+                      </strong>
+                    </span>
+                  </div>
+
+                  <div className="flex items-baseline gap-2">
+                    <span className={`text-3xl sm:text-4xl font-extrabold font-mono tracking-tight ${
+                      getBmsThermalTheme(data.bmsAnalytics.temperatureCelsius).text
+                    }`}>
+                      {data.bmsAnalytics.temperatureCelsius !== null
+                        ? `${data.bmsAnalytics.temperatureCelsius.toFixed(1)}°C`
+                        : "-- °C"}
+                    </span>
+                    <span className="text-xs text-slate-400 font-mono">
+                      (Alerta: {data.bmsAnalytics.thermalWarningThreshold}°C | Corte: {data.bmsAnalytics.thermalShutdownThreshold}°C)
+                    </span>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div
+                      className="w-full bg-slate-900 rounded-full h-3 p-0.5 border border-slate-800 overflow-hidden"
+                      role="progressbar"
+                      aria-valuenow={data.bmsAnalytics.temperatureCelsius ?? 0}
+                      aria-valuemin={20}
+                      aria-valuemax={60}
+                      aria-label="Temperatura das células da bateria EcoFlow"
+                    >
+                      <div
+                        className={`h-full rounded-full transition-all duration-700 ease-out ${
+                          (data.bmsAnalytics.temperatureCelsius ?? 0) < 38
+                            ? "bg-gradient-to-r from-emerald-500 to-emerald-400"
+                            : (data.bmsAnalytics.temperatureCelsius ?? 0) <= 45
+                            ? "bg-gradient-to-r from-emerald-500 via-amber-400 to-amber-500"
+                            : "bg-gradient-to-r from-amber-500 via-rose-500 to-red-600 animate-pulse"
+                        }`}
+                        style={{
+                          width: `${Math.max(5, Math.min(100, (((data.bmsAnalytics.temperatureCelsius ?? 25) - 20) / 40) * 100))}%`,
+                        }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-[10px] font-mono text-slate-500">
+                      <span>20°C (Fria)</span>
+                      <span className="text-amber-500/80">38°C (Atenção)</span>
+                      <span className="text-rose-500/80">50°C (Corte AC)</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Grid com SOH %, Ciclos BMS e Tensão */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
+                  <div className="p-3 sm:p-4 rounded-xl bg-slate-950 border border-slate-800/80 flex flex-col justify-between">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                        Saúde Química (SOH)
+                      </span>
+                      <Gauge className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
+                    </div>
+                    <div className="flex items-center gap-2.5 my-2">
+                      <div className="relative w-11 h-11 shrink-0 flex items-center justify-center">
+                        <svg className="w-11 h-11 transform -rotate-90" viewBox="0 0 36 36">
+                          <path
+                            className="text-slate-800"
+                            strokeWidth="3.5"
+                            stroke="currentColor"
+                            fill="none"
+                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                          />
+                          <path
+                            className="text-emerald-400 transition-all duration-700 ease-out"
+                            strokeDasharray={`${Math.max(0, Math.min(100, data.bmsAnalytics.sohPercentage ?? 100))}, 100`}
+                            strokeWidth="3.5"
+                            strokeLinecap="round"
+                            stroke="currentColor"
+                            fill="none"
+                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                          />
+                        </svg>
+                        <span className="absolute text-[11px] font-bold font-mono text-slate-100">
+                          {data.bmsAnalytics.sohPercentage ?? "--"}%
+                        </span>
+                      </div>
+                      <div className="text-xs">
+                        <span className="font-bold text-emerald-300 block">
+                          {(data.bmsAnalytics.sohPercentage ?? 100) >= 90 ? "Excelente" : "Degradação Leve"}
+                        </span>
+                        <span className="text-[10px] text-slate-400">LiFePO4 Cells</span>
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-slate-500 font-mono">Retenção de Carga</span>
+                  </div>
+
+                  <div className="p-3 sm:p-4 rounded-xl bg-slate-950 border border-slate-800/80 flex flex-col justify-between">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                        Ciclos BMS
+                      </span>
+                      <RefreshCw className="w-3.5 h-3.5 text-sky-400" aria-hidden="true" />
+                    </div>
+                    <div className="my-1.5">
+                      <div className="text-xl sm:text-2xl font-extrabold font-mono text-slate-100">
+                        {data.bmsAnalytics.bmsCycles !== null ? data.bmsAnalytics.bmsCycles : "--"}
+                      </div>
+                      <span className="text-[11px] text-slate-400 font-mono">/ ~3.000 ciclos nominais</span>
+                    </div>
+                    <span className="text-[10px] text-slate-500 font-mono">Contagem DOD</span>
+                  </div>
+
+                  <div className="p-3 sm:p-4 rounded-xl bg-slate-950 border border-slate-800/80 flex flex-col justify-between">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                        Tensão Barramento
+                      </span>
+                      <Zap className="w-3.5 h-3.5 text-amber-400" aria-hidden="true" />
+                    </div>
+                    <div className="my-1.5">
+                      <div className="text-xl sm:text-2xl font-extrabold font-mono text-amber-300">
+                        {data.bmsAnalytics.voltageVolts !== null ? `${data.bmsAnalytics.voltageVolts.toFixed(1)} V` : "-- V"}
+                      </div>
+                      <span className="text-[11px] text-slate-400 font-mono">
+                        Corrente: {data.bmsAnalytics.amperageAmps !== null ? `${data.bmsAnalytics.amperageAmps.toFixed(1)} A` : "-- A"}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-slate-500 font-mono">Barramento CC</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-500 font-mono">
+                <span>EcoFlow BMS Protocol</span>
+                <span>Proteção Ativa</span>
+              </div>
+            </div>
+          )}
+        </section>
+
+        {/* 5. Gráfico SVG de Linhas dos Últimos 30 Minutos (Média de 5 em 5 min) */}
         <section
           aria-label="Gráfico dos Últimos 30 Minutos com Média de 5 em 5 min"
           className="animate-card stagger-6 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4"

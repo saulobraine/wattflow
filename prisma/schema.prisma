@@ -67,6 +67,19 @@ model UserConfiguration {
   isDailyReportActive  Boolean            @default(true)
   dailyReportTime      String             @default("21:00")
   lastDailyReportSentAt DateTime?
+  latitude             Float?
+  longitude            Float?
+  isAdaptiveHysteresisActive Boolean        @default(false)
+  minAdaptiveThreshold Int                @default(20)
+  maxAdaptiveThreshold Int                @default(50)
+  lastSolarIrradianceMj Float?
+  lastSolarForecastCheckAt DateTime?
+  thermalWarningThreshold Float           @default(45.0)
+  thermalShutdownThreshold Float          @default(50.0)
+  lastBatteryTempCelsius Float?
+  lastBatterySoh       Int?
+  lastBatteryCycles    Int?
+  maxRecordedBatteryTemp Float?
   telegramBotToken     String             @default("")
   telegramChatId       String             @default("")
   whatsappPhoneNumber  String             @default("")
@@ -85,6 +98,9 @@ model SyncExecutionLog {
   batteryPercentage   Int
   solarInputWatts     Int               @default(0)
   outputWatts         Int               @default(0)
+  batteryTempCelsius  Float?
+  batterySoh          Int?
+  batteryCycles       Int?
   actionTriggered     String
   executionDetails    String?
   executedAt          DateTime          @default(now())

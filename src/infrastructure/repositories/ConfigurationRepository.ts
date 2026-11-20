@@ -29,6 +29,19 @@ export interface RetrievedConfigurationRecord {
   isDailyReportActive: boolean;
   dailyReportTime: string;
   lastDailyReportSentAt: Date | null;
+  latitude: number | null;
+  longitude: number | null;
+  isAdaptiveHysteresisActive: boolean;
+  minAdaptiveThreshold: number;
+  maxAdaptiveThreshold: number;
+  lastSolarIrradianceMj: number | null;
+  lastSolarForecastCheckAt: Date | null;
+  thermalWarningThreshold: number;
+  thermalShutdownThreshold: number;
+  lastBatteryTempCelsius: number | null;
+  lastBatterySoh: number | null;
+  lastBatteryCycles: number | null;
+  maxRecordedBatteryTemp: number | null;
 }
 
 /**
@@ -110,7 +123,10 @@ export class ConfigurationRepository {
     actionTriggered: string,
     executionDetails: string,
     solarInputWatts = 0,
-    outputWatts = 0
+    outputWatts = 0,
+    batteryTempCelsius?: number | null,
+    batterySoh?: number | null,
+    batteryCycles?: number | null
   ): Promise<void> {
     await this.databaseClient.syncExecutionLog.create({
       data: {
@@ -120,6 +136,48 @@ export class ConfigurationRepository {
         outputWatts: outputWatts,
         actionTriggered: actionTriggered,
         executionDetails: executionDetails,
+        batteryTempCelsius: batteryTempCelsius ?? null,
+        batterySoh: batterySoh ?? null,
+        batteryCycles: batteryCycles ?? null,
+      },
+    });
+  }
+
+  public async updateBmsTelemetry(
+    configurationId: string,
+    bms: {
+      tempCelsius: number;
+      soh?: number | null;
+      cycles?: number | null;
+    }
+  ): Promise<void> {
+    const current = await this.databaseClient.userConfiguration.findUnique({
+      where: { id: configurationId },
+      select: { maxRecordedBatteryTemp: true },
+    });
+    const previousMax = current?.maxRecordedBatteryTemp ?? 0;
+    const newMax = Math.max(previousMax, bms.tempCelsius);
+
+    await this.databaseClient.userConfiguration.update({
+      where: { id: configurationId },
+      data: {
+        lastBatteryTempCelsius: bms.tempCelsius,
+        ...(bms.soh !== undefined && bms.soh !== null ? { lastBatterySoh: bms.soh } : {}),
+        ...(bms.cycles !== undefined && bms.cycles !== null ? { lastBatteryCycles: bms.cycles } : {}),
+        maxRecordedBatteryTemp: newMax,
+      },
+    });
+  }
+
+  public async updateSolarForecast(
+    configurationId: string,
+    irradianceMj: number
+  ): Promise<void> {
+    await this.databaseClient.userConfiguration.update({
+      where: { id: configurationId },
+      data: {
+        lastSolarIrradianceMj: irradianceMj,
+        lastSolarForecastCheckAt: new Date(),
       },
     });
   }
@@ -223,6 +281,19 @@ export class ConfigurationRepository {
       isDailyReportActive: rawRecord.isDailyReportActive ?? true,
       dailyReportTime: rawRecord.dailyReportTime ?? "21:00",
       lastDailyReportSentAt: rawRecord.lastDailyReportSentAt ?? null,
+      latitude: rawRecord.latitude ?? null,
+      longitude: rawRecord.longitude ?? null,
+      isAdaptiveHysteresisActive: rawRecord.isAdaptiveHysteresisActive ?? false,
+      minAdaptiveThreshold: rawRecord.minAdaptiveThreshold ?? 20,
+      maxAdaptiveThreshold: rawRecord.maxAdaptiveThreshold ?? 50,
+      lastSolarIrradianceMj: rawRecord.lastSolarIrradianceMj ?? null,
+      lastSolarForecastCheckAt: rawRecord.lastSolarForecastCheckAt ?? null,
+      thermalWarningThreshold: rawRecord.thermalWarningThreshold ?? 45.0,
+      thermalShutdownThreshold: rawRecord.thermalShutdownThreshold ?? 50.0,
+      lastBatteryTempCelsius: rawRecord.lastBatteryTempCelsius ?? null,
+      lastBatterySoh: rawRecord.lastBatterySoh ?? null,
+      lastBatteryCycles: rawRecord.lastBatteryCycles ?? null,
+      maxRecordedBatteryTemp: rawRecord.maxRecordedBatteryTemp ?? null,
     };
   }
 }
