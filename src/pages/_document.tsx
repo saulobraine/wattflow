@@ -14,12 +14,6 @@ export default function Document() {
         <meta name="apple-mobile-web-app-title" content="WattFlow" />
         <meta name="application-name" content="WattFlow" />
         <meta name="mobile-web-app-capable" content="yes" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@300;400;500;600;700&display=swap"
-          rel="stylesheet"
-        />
       </Head>
       <body className="bg-slate-950 font-sans text-slate-100 selection:bg-emerald-500 selection:text-white">
         <Main />
