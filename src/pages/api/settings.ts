@@ -39,6 +39,13 @@ export interface SettingsResponseData {
   atsLifespanCycles: number;
   atsCurrentCycles: number;
   atsLastSwitchedAt: string | null;
+  energyCostPerKwh: number;
+  currencySymbol: string;
+  batteryCapacityWh: number;
+  isStormModeActive: boolean;
+  isDailyReportActive: boolean;
+  dailyReportTime: string;
+  lastDailyReportSentAt: string | null;
 }
 
 interface SettingsResponseBody {
@@ -138,6 +145,13 @@ export default async function handleSettings(
           atsLifespanCycles: existing.atsLifespanCycles ?? 10000,
           atsCurrentCycles: existing.atsCurrentCycles ?? 0,
           atsLastSwitchedAt: existing.atsLastSwitchedAt ? existing.atsLastSwitchedAt.toISOString() : null,
+          energyCostPerKwh: existing.energyCostPerKwh ?? 0.92,
+          currencySymbol: existing.currencySymbol ?? "R$",
+          batteryCapacityWh: existing.batteryCapacityWh ?? 2048,
+          isStormModeActive: existing.isStormModeActive ?? false,
+          isDailyReportActive: existing.isDailyReportActive ?? true,
+          dailyReportTime: existing.dailyReportTime || "21:00",
+          lastDailyReportSentAt: existing.lastDailyReportSentAt ? existing.lastDailyReportSentAt.toISOString() : null,
         },
       });
       return;
@@ -180,6 +194,12 @@ export default async function handleSettings(
       isNotificationActive,
       atsLifespanCycles,
       atsCurrentCycles,
+      energyCostPerKwh,
+      currencySymbol,
+      batteryCapacityWh,
+      isStormModeActive,
+      isDailyReportActive,
+      dailyReportTime,
     } = parsedBody.data;
 
     if (
@@ -281,6 +301,30 @@ export default async function handleSettings(
         typeof atsCurrentCycles === "number"
           ? atsCurrentCycles
           : existingConfig?.atsCurrentCycles ?? 0;
+      const resolvedEnergyCostPerKwh =
+        typeof energyCostPerKwh === "number"
+          ? energyCostPerKwh
+          : existingConfig?.energyCostPerKwh ?? 0.92;
+      const resolvedCurrencySymbol =
+        typeof currencySymbol === "string" && currencySymbol.trim().length > 0
+          ? currencySymbol.trim()
+          : existingConfig?.currencySymbol ?? "R$";
+      const resolvedBatteryCapacityWh =
+        typeof batteryCapacityWh === "number"
+          ? batteryCapacityWh
+          : existingConfig?.batteryCapacityWh ?? 2048;
+      const resolvedStormModeActive =
+        typeof isStormModeActive === "boolean"
+          ? isStormModeActive
+          : existingConfig?.isStormModeActive ?? false;
+      const resolvedDailyReportActive =
+        typeof isDailyReportActive === "boolean"
+          ? isDailyReportActive
+          : existingConfig?.isDailyReportActive ?? true;
+      const resolvedDailyReportTime =
+        typeof dailyReportTime === "string" && dailyReportTime.trim().length > 0
+          ? dailyReportTime.trim()
+          : existingConfig?.dailyReportTime ?? "21:00";
 
       await prisma.userConfiguration.upsert({
         where: { userId: extractedUserId },
@@ -300,6 +344,12 @@ export default async function handleSettings(
           isNotificationActive: resolvedNotificationActive,
           atsLifespanCycles: resolvedAtsLifespanCycles,
           atsCurrentCycles: resolvedAtsCurrentCycles,
+          energyCostPerKwh: resolvedEnergyCostPerKwh,
+          currencySymbol: resolvedCurrencySymbol,
+          batteryCapacityWh: resolvedBatteryCapacityWh,
+          isStormModeActive: resolvedStormModeActive,
+          isDailyReportActive: resolvedDailyReportActive,
+          dailyReportTime: resolvedDailyReportTime,
         },
         create: {
           userId: extractedUserId,
@@ -318,6 +368,12 @@ export default async function handleSettings(
           isNotificationActive: resolvedNotificationActive,
           atsLifespanCycles: resolvedAtsLifespanCycles,
           atsCurrentCycles: resolvedAtsCurrentCycles,
+          energyCostPerKwh: resolvedEnergyCostPerKwh,
+          currencySymbol: resolvedCurrencySymbol,
+          batteryCapacityWh: resolvedBatteryCapacityWh,
+          isStormModeActive: resolvedStormModeActive,
+          isDailyReportActive: resolvedDailyReportActive,
+          dailyReportTime: resolvedDailyReportTime,
         },
       });
 

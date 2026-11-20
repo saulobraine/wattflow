@@ -25,6 +25,27 @@ export interface AtsHealthMetrics {
   isProratedEstimate?: boolean;
 }
 
+export interface FinancialSavingsMetrics {
+  todayKwh: number;
+  todaySavings: number;
+  monthKwh: number;
+  monthSavings: number;
+  totalKwh: number;
+  totalSavings: number;
+  energyCostPerKwh: number;
+  currencySymbol: string;
+}
+
+export interface AutonomyEstimateMetrics {
+  runtimeMinutes: number | null;
+  formattedRuntime: string;
+  isRecharging: boolean;
+  isIdle: boolean;
+  netDrainWatts: number;
+  remainingWh: number;
+  status: "CHARGING" | "DISCHARGING" | "IDLE" | "DEPLETED";
+}
+
 interface StatisticsResponseData {
   success: boolean;
   message?: string;
@@ -53,6 +74,96 @@ interface StatisticsResponseData {
       executedAt: string;
     }>;
     atsHealth: AtsHealthMetrics;
+    financialSavings: FinancialSavingsMetrics;
+    autonomyEstimate: AutonomyEstimateMetrics;
+  };
+}
+
+function calculateFinancialSavings(
+  todayKwh: number,
+  monthKwh: number,
+  totalKwh: number,
+  energyCostPerKwh: number,
+  currencySymbol: string
+): FinancialSavingsMetrics {
+  const safeTariff = energyCostPerKwh > 0 ? energyCostPerKwh : 0.92;
+  const safeSymbol = currencySymbol || "R$";
+
+  return {
+    todayKwh: Number(todayKwh.toFixed(2)),
+    todaySavings: Number((todayKwh * safeTariff).toFixed(2)),
+    monthKwh: Number(monthKwh.toFixed(2)),
+    monthSavings: Number((monthKwh * safeTariff).toFixed(2)),
+    totalKwh: Number(totalKwh.toFixed(2)),
+    totalSavings: Number((totalKwh * safeTariff).toFixed(2)),
+    energyCostPerKwh: safeTariff,
+    currencySymbol: safeSymbol,
+  };
+}
+
+function calculateAutonomyEstimate(
+  batteryCapacityWh: number,
+  batteryPercentage: number,
+  solarInputWatts: number,
+  outputWatts: number
+): AutonomyEstimateMetrics {
+  const safeCapacity = batteryCapacityWh > 0 ? batteryCapacityWh : 2048;
+  const clampedPercentage = Math.max(0, Math.min(100, batteryPercentage));
+  const remainingWh = Math.round(safeCapacity * (clampedPercentage / 100));
+  const netDrainWatts = outputWatts - solarInputWatts;
+
+  if (clampedPercentage <= 0) {
+    return {
+      runtimeMinutes: 0,
+      formattedRuntime: "0h 00m",
+      isRecharging: false,
+      isIdle: false,
+      netDrainWatts,
+      remainingWh: 0,
+      status: "DEPLETED",
+    };
+  }
+
+  if (outputWatts <= 5) {
+    const isRecharging = solarInputWatts > 10;
+    return {
+      runtimeMinutes: null,
+      formattedRuntime: isRecharging ? "Em Carga / Solar" : "Standby / Sem Carga",
+      isRecharging,
+      isIdle: true,
+      netDrainWatts,
+      remainingWh,
+      status: isRecharging ? "CHARGING" : "IDLE",
+    };
+  }
+
+  if (solarInputWatts >= outputWatts) {
+    return {
+      runtimeMinutes: null,
+      formattedRuntime: "Em Carga / Solar",
+      isRecharging: true,
+      isIdle: false,
+      netDrainWatts,
+      remainingWh,
+      status: "CHARGING",
+    };
+  }
+
+  const runtimeHours = remainingWh / netDrainWatts;
+  const runtimeMinutes = Math.round(runtimeHours * 60);
+  const hours = Math.floor(runtimeMinutes / 60);
+  const mins = runtimeMinutes % 60;
+  const formattedRuntime = `${hours}h ${mins.toString().padStart(2, "0")}m`;
+  const status = clampedPercentage <= 5 ? "DEPLETED" : "DISCHARGING";
+
+  return {
+    runtimeMinutes,
+    formattedRuntime,
+    isRecharging: false,
+    isIdle: false,
+    netDrainWatts,
+    remainingWh,
+    status,
   };
 }
 
@@ -224,6 +335,20 @@ export default async function handleStatistics(
     const atsHealth = calculateAtsHealth(configuration, recentSwitchCount, switchSpanDays);
 
     if (!configuration || rawLogs24h.length === 0) {
+      const defaultFinancialSavings = calculateFinancialSavings(
+        0,
+        0,
+        0,
+        configuration?.energyCostPerKwh ?? 0.92,
+        configuration?.currencySymbol ?? "R$"
+      );
+      const defaultAutonomy = calculateAutonomyEstimate(
+        configuration?.batteryCapacityWh ?? 2048,
+        0,
+        0,
+        0
+      );
+
       response.status(200).json({
         success: true,
         data: {
@@ -243,6 +368,8 @@ export default async function handleStatistics(
           chartPoints: [],
           recentLogs: [],
           atsHealth,
+          financialSavings: defaultFinancialSavings,
+          autonomyEstimate: defaultAutonomy,
         },
       });
       return;
@@ -375,6 +502,74 @@ export default async function handleStatistics(
       executedAt: log.executedAt.toISOString(),
     }));
 
+    const todayKwh = estimatedEnergyKwh;
+    let monthKwh = todayKwh;
+    let totalKwh = todayKwh;
+
+    if (configuration) {
+      const startOfMonth = new Date(nowTimestamp);
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+
+      const monthLogs = await prisma.syncExecutionLog.findMany({
+        where: {
+          userConfigurationId: configuration.id,
+          executedAt: { gte: startOfMonth },
+        },
+        select: {
+          solarInputWatts: true,
+          outputWatts: true,
+          batteryPercentage: true,
+          executedAt: true,
+        },
+        orderBy: { executedAt: "asc" },
+      });
+
+      if (monthLogs.length > 0) {
+        const monthPoints: SolarTelemetryPoint[] = monthLogs.map((log) => ({
+          watts: new SolarGenerationWatts(log.solarInputWatts),
+          outputWatts: log.outputWatts ?? 0,
+          batteryPercentage: log.batteryPercentage,
+          timestamp: log.executedAt,
+        }));
+        const monthCollection = new SolarReadingCollection(monthPoints);
+        const monthHours = Math.max(1, Math.ceil((nowTimestamp - startOfMonth.getTime()) / (1000 * 60 * 60)));
+        const monthWh = monthCollection.calculateAccumulatedEnergyWattHours(monthHours);
+        monthKwh = Math.max(todayKwh, Number((monthWh / 1000).toFixed(2)));
+      }
+
+      const oldestLog = await prisma.syncExecutionLog.findFirst({
+        where: { userConfigurationId: configuration.id },
+        orderBy: { executedAt: "asc" },
+        select: { executedAt: true },
+      });
+
+      if (oldestLog && oldestLog.executedAt < startOfMonth) {
+        const totalDays = Math.max(1, (nowTimestamp - oldestLog.executedAt.getTime()) / (1000 * 60 * 60 * 24));
+        const daysInMonthSoFar = Math.max(1, (nowTimestamp - startOfMonth.getTime()) / (1000 * 60 * 60 * 24));
+        const avgDailyKwh = monthKwh / daysInMonthSoFar;
+        totalKwh = Math.max(monthKwh, Number((avgDailyKwh * totalDays).toFixed(2)));
+      } else {
+        totalKwh = monthKwh;
+      }
+    }
+
+    const financialSavings = calculateFinancialSavings(
+      todayKwh,
+      monthKwh,
+      totalKwh,
+      configuration?.energyCostPerKwh ?? 0.92,
+      configuration?.currencySymbol ?? "R$"
+    );
+
+    const latestBattery = latestLog ? latestLog.batteryPercentage : 0;
+    const autonomyEstimate = calculateAutonomyEstimate(
+      configuration?.batteryCapacityWh ?? 2048,
+      latestBattery,
+      currentWatts,
+      currentOutputWatts
+    );
+
     response.status(200).json({
       success: true,
       data: {
@@ -394,6 +589,8 @@ export default async function handleStatistics(
         chartPoints,
         recentLogs,
         atsHealth,
+        financialSavings,
+        autonomyEstimate,
       },
     });
   } catch (error) {
