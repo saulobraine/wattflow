@@ -100,6 +100,16 @@ export interface SettingsResponseData {
   intermediateEndTime: string | null;
   peakDischargeReserveLimit: number;
   blockAcChargingDuringPeak: boolean;
+  // Feature BMS: Monitoramento de Saúde da Bateria & Proteção Térmica
+  isThermalProtectionActive: boolean;
+  thermalThrottleTempThreshold: number;
+  thermalCutoffTempThreshold: number;
+  thermalRecoveryTempThreshold: number;
+  thermalThrottleSpeedWatts: number;
+  isThermalThrottleActive: boolean;
+  isThermalCutoffActive: boolean;
+  lastThermalEventAt: string | null;
+  lastThermalActionMessage: string | null;
 }
 
 interface SettingsResponseBody {
@@ -257,6 +267,16 @@ export default async function handleSettings(
           intermediateEndTime: existing.intermediateEndTime ?? existing.intermediateEndTime2 ?? "21:30",
           peakDischargeReserveLimit: existing.peakDischargeReserveLimit ?? existing.peakReserveThreshold ?? 20,
           blockAcChargingDuringPeak: existing.blockAcChargingDuringPeak ?? true,
+          // Feature BMS: Monitoramento de Saúde da Bateria & Proteção Térmica
+          isThermalProtectionActive: existing.isThermalProtectionActive ?? true,
+          thermalThrottleTempThreshold: existing.thermalThrottleTempThreshold ?? 42,
+          thermalCutoffTempThreshold: existing.thermalCutoffTempThreshold ?? 48,
+          thermalRecoveryTempThreshold: existing.thermalRecoveryTempThreshold ?? 44,
+          thermalThrottleSpeedWatts: existing.thermalThrottleSpeedWatts ?? 200,
+          isThermalThrottleActive: existing.isThermalThrottleActive ?? false,
+          isThermalCutoffActive: existing.isThermalCutoffActive ?? false,
+          lastThermalEventAt: existing.lastThermalEventAt ? existing.lastThermalEventAt.toISOString() : null,
+          lastThermalActionMessage: existing.lastThermalActionMessage ?? null,
         },
       });
       return;
@@ -345,6 +365,11 @@ export default async function handleSettings(
       intermediateEndTime,
       peakDischargeReserveLimit,
       blockAcChargingDuringPeak,
+      isThermalProtectionActive,
+      thermalThrottleTempThreshold,
+      thermalCutoffTempThreshold,
+      thermalRecoveryTempThreshold,
+      thermalThrottleSpeedWatts,
     } = parsedBody.data;
 
     if (
@@ -640,6 +665,26 @@ export default async function handleSettings(
         typeof blockAcChargingDuringPeak === "boolean"
           ? blockAcChargingDuringPeak
           : existingConfig?.blockAcChargingDuringPeak ?? true;
+      const resolvedThermalProtection =
+        typeof isThermalProtectionActive === "boolean"
+          ? isThermalProtectionActive
+          : existingConfig?.isThermalProtectionActive ?? true;
+      const resolvedThermalThrottleTemp =
+        typeof thermalThrottleTempThreshold === "number"
+          ? thermalThrottleTempThreshold
+          : existingConfig?.thermalThrottleTempThreshold ?? 42;
+      const resolvedThermalCutoffTemp =
+        typeof thermalCutoffTempThreshold === "number"
+          ? thermalCutoffTempThreshold
+          : existingConfig?.thermalCutoffTempThreshold ?? 48;
+      const resolvedThermalRecoveryTemp =
+        typeof thermalRecoveryTempThreshold === "number"
+          ? thermalRecoveryTempThreshold
+          : existingConfig?.thermalRecoveryTempThreshold ?? 44;
+      const resolvedThermalThrottleSpeed =
+        typeof thermalThrottleSpeedWatts === "number"
+          ? thermalThrottleSpeedWatts
+          : existingConfig?.thermalThrottleSpeedWatts ?? 200;
 
       await prisma.userConfiguration.upsert({
         where: { userId: extractedUserId },
@@ -705,6 +750,11 @@ export default async function handleSettings(
           intermediateEndTime: resolvedIntermediateEndTime,
           peakDischargeReserveLimit: resolvedPeakDischargeReserve,
           blockAcChargingDuringPeak: resolvedBlockAcChargingPeak,
+          isThermalProtectionActive: resolvedThermalProtection,
+          thermalThrottleTempThreshold: resolvedThermalThrottleTemp,
+          thermalCutoffTempThreshold: resolvedThermalCutoffTemp,
+          thermalRecoveryTempThreshold: resolvedThermalRecoveryTemp,
+          thermalThrottleSpeedWatts: resolvedThermalThrottleSpeed,
         },
         create: {
           userId: extractedUserId,
@@ -769,6 +819,11 @@ export default async function handleSettings(
           intermediateEndTime: resolvedIntermediateEndTime,
           peakDischargeReserveLimit: resolvedPeakDischargeReserve,
           blockAcChargingDuringPeak: resolvedBlockAcChargingPeak,
+          isThermalProtectionActive: resolvedThermalProtection,
+          thermalThrottleTempThreshold: resolvedThermalThrottleTemp,
+          thermalCutoffTempThreshold: resolvedThermalCutoffTemp,
+          thermalRecoveryTempThreshold: resolvedThermalRecoveryTemp,
+          thermalThrottleSpeedWatts: resolvedThermalThrottleSpeed,
         },
       });
 

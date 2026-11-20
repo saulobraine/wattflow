@@ -297,6 +297,32 @@ export const settingsPostBodySchema = z.object({
     .max(150, "Limiar de chuva não pode exceder 150mm.")
     .optional(),
   autoStormPrechargeAc: z.boolean({ message: "Flag autoStormPrechargeAc deve ser booleana." }).optional(),
+  // Feature BMS: Monitoramento de Saúde da Bateria & Proteção Térmica
+  isThermalProtectionActive: z.boolean({ message: "Flag isThermalProtectionActive deve ser booleana." }).optional(),
+  thermalThrottleTempThreshold: z
+    .number({ message: "Limiar de throttling térmico deve ser um número." })
+    .int("Limiar de throttling deve ser um número inteiro.")
+    .min(30, "Limiar de throttling térmico deve ser de pelo menos 30°C.")
+    .max(50, "Limiar de throttling térmico não pode exceder 50°C.")
+    .optional(),
+  thermalCutoffTempThreshold: z
+    .number({ message: "Limiar de corte térmico deve ser um número." })
+    .int("Limiar de corte térmico deve ser um número inteiro.")
+    .min(40, "Limiar de corte térmico deve ser de pelo menos 40°C.")
+    .max(60, "Limiar de corte térmico não pode exceder 60°C.")
+    .optional(),
+  thermalRecoveryTempThreshold: z
+    .number({ message: "Limiar de recuperação térmica deve ser um número." })
+    .int("Limiar de recuperação térmica deve ser um número inteiro.")
+    .min(30, "Limiar de recuperação térmica deve ser de pelo menos 30°C.")
+    .max(50, "Limiar de recuperação térmica não pode exceder 50°C.")
+    .optional(),
+  thermalThrottleSpeedWatts: z
+    .number({ message: "Potência de recarga em throttling deve ser um número." })
+    .int("Potência de recarga em throttling deve ser um número inteiro.")
+    .min(100, "Potência de recarga em throttling deve ser de no mínimo 100W.")
+    .max(1000, "Potência de recarga em throttling não pode exceder 1.000W.")
+    .optional(),
 });
 
 export const stormModePostBodySchema = z.object({
