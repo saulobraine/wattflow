@@ -438,3 +438,21 @@ export const statisticsExportQuerySchema = z.object({
     .default("csv"),
 });
 
+// Módulo de Relatórios Analíticos & Exportação de Dados em CSV e PDF
+export const reportsExportQuerySchema = z.object({
+  format: z
+    .enum(["csv", "pdf", "json"], {
+      message: "Formato inválido. Opções: csv, pdf, json.",
+    })
+    .default("csv"),
+  period: z
+    .enum(["24h", "7d", "30d", "month", "custom"], {
+      message: "Período inválido. Opções: 24h, 7d, 30d, month, custom.",
+    })
+    .default("30d"),
+  startDate: z.string().trim().optional(),
+  endDate: z.string().trim().optional(),
+  delimiter: z.enum([";", ","]).default(";"),
+});
+
+
