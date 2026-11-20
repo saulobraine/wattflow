@@ -323,6 +323,69 @@ export const settingsPostBodySchema = z.object({
     .min(100, "Potência de recarga em throttling deve ser de no mínimo 100W.")
     .max(1000, "Potência de recarga em throttling não pode exceder 1.000W.")
     .optional(),
+  // Parâmetros Financeiros de Retorno sobre Investimento (CAPEX / Payback)
+  totalCapexBrl: z
+    .number({ message: "O investimento total deve ser um número." })
+    .min(0, "O investimento não pode ser negativo.")
+    .max(10000000, "O investimento excede o limite máximo permitido.")
+    .optional(),
+  installationDate: z
+    .string()
+    .trim()
+    .refine(
+      (val) => !val || !isNaN(Date.parse(val)),
+      "Data de instalação inválida. Utilize o formato YYYY-MM-DD ou ISO."
+    )
+    .nullable()
+    .optional(),
+  annualEnergyInflationRate: z
+    .number({ message: "A taxa de inflação energética deve ser um número." })
+    .min(0, "A taxa de inflação não pode ser negativa.")
+    .max(50, "A taxa de inflação não pode exceder 50% a.a.")
+    .optional(),
+  targetPaybackYears: z
+    .number({ message: "A meta de payback deve ser um número." })
+    .min(0.5, "A meta de payback deve ser de pelo menos 6 meses.")
+    .max(30, "A meta de payback não pode exceder 30 anos.")
+    .optional(),
+  capexNotes: z
+    .string()
+    .trim()
+    .max(500, "Anotações do CAPEX não podem exceder 500 caracteres.")
+    .nullable()
+    .optional(),
+});
+
+export const paybackPostBodySchema = z.object({
+  totalCapexBrl: z
+    .number({ message: "O investimento total deve ser um número." })
+    .min(0, "O investimento não pode ser negativo.")
+    .max(10000000, "O investimento excede o limite máximo permitido."),
+  installationDate: z
+    .string()
+    .trim()
+    .refine(
+      (val) => !val || !isNaN(Date.parse(val)),
+      "Data de instalação inválida. Utilize o formato YYYY-MM-DD ou ISO."
+    )
+    .nullable()
+    .optional(),
+  annualEnergyInflationRate: z
+    .number({ message: "A taxa de inflação energética deve ser um número." })
+    .min(0, "A taxa de inflação não pode ser negativa.")
+    .max(50, "A taxa de inflação não pode exceder 50% a.a.")
+    .optional(),
+  targetPaybackYears: z
+    .number({ message: "A meta de payback deve ser um número." })
+    .min(0.5, "A meta de payback deve ser de pelo menos 6 meses.")
+    .max(30, "A meta de payback não pode exceder 30 anos.")
+    .optional(),
+  capexNotes: z
+    .string()
+    .trim()
+    .max(500, "Anotações do CAPEX não podem exceder 500 caracteres.")
+    .nullable()
+    .optional(),
 });
 
 export const stormModePostBodySchema = z.object({

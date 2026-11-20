@@ -7,6 +7,7 @@ import { WeatherWidget } from "../components/WeatherWidget";
 import { StormAlertBanner } from "../components/StormAlertBanner";
 import { TariffStatusBadge } from "../components/TariffStatusBadge";
 import { BatteryHealthWidget } from "../components/BatteryHealthWidget";
+import { PaybackSummaryWidget } from "../components/PaybackSummaryWidget";
 import {
   BatteryCharging,
   Power,
@@ -744,6 +745,9 @@ export default function DashboardPage() {
             </div>
           </div>
         </section>
+
+        {/* Módulo de Retorno sobre Investimento (Payback Solar & Amortização do CAPEX) */}
+        <PaybackSummaryWidget />
 
         {/* Seção Executiva de Inteligência Avançada (Previsão Solar, Clima, Inversor & BMS EcoFlow) */}
         <section
