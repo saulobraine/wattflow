@@ -53,6 +53,13 @@ export interface RetrievedConfigurationRecord {
   intermediateStartTime2: string;
   intermediateEndTime2: string;
   peakReserveThreshold: number;
+  // Feature 4.6: Suporte a Tarifação Horária Inteligente (Tarifa Branca / Time-of-Use)
+  isTimeOfUseActive?: boolean;
+  timeOfUseWeekdaysOnly?: boolean;
+  intermediateStartTime?: string | null;
+  intermediateEndTime?: string | null;
+  peakDischargeReserveLimit?: number;
+  blockAcChargingDuringPeak?: boolean;
   inverterMaxWatts: number;
   isAlertOnBlackout: boolean;
   isAlertOnGridRestore: boolean;
@@ -341,6 +348,12 @@ export class ConfigurationRepository {
       intermediateStartTime2: rawRecord.intermediateStartTime2 ?? "20:30",
       intermediateEndTime2: rawRecord.intermediateEndTime2 ?? "21:30",
       peakReserveThreshold: rawRecord.peakReserveThreshold ?? 15,
+      isTimeOfUseActive: rawRecord.isTimeOfUseActive ?? rawRecord.isDynamicTariffActive ?? false,
+      timeOfUseWeekdaysOnly: rawRecord.timeOfUseWeekdaysOnly ?? true,
+      intermediateStartTime: rawRecord.intermediateStartTime ?? rawRecord.intermediateStartTime1 ?? "16:30",
+      intermediateEndTime: rawRecord.intermediateEndTime ?? rawRecord.intermediateEndTime2 ?? "21:30",
+      peakDischargeReserveLimit: rawRecord.peakDischargeReserveLimit ?? rawRecord.peakReserveThreshold ?? 20,
+      blockAcChargingDuringPeak: rawRecord.blockAcChargingDuringPeak ?? true,
       inverterMaxWatts: rawRecord.inverterMaxWatts ?? 2400,
       isAlertOnBlackout: rawRecord.isAlertOnBlackout ?? true,
       isAlertOnGridRestore: rawRecord.isAlertOnGridRestore ?? true,

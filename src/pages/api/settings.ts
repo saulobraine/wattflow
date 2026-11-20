@@ -93,6 +93,13 @@ export interface SettingsResponseData {
   lastStormAlertDescription: string | null;
   lastStormAlertTriggeredAt: string | null;
   lastStormAlertEndedAt: string | null;
+  // Feature 4.6: Suporte a Tarifação Horária Inteligente (Tarifa Branca / Time-of-Use)
+  isTimeOfUseActive: boolean;
+  timeOfUseWeekdaysOnly: boolean;
+  intermediateStartTime: string | null;
+  intermediateEndTime: string | null;
+  peakDischargeReserveLimit: number;
+  blockAcChargingDuringPeak: boolean;
 }
 
 interface SettingsResponseBody {
@@ -244,6 +251,12 @@ export default async function handleSettings(
           lastStormAlertDescription: existing.lastStormAlertDescription ?? null,
           lastStormAlertTriggeredAt: existing.lastStormAlertTriggeredAt?.toISOString() ?? null,
           lastStormAlertEndedAt: existing.lastStormAlertEndedAt?.toISOString() ?? null,
+          isTimeOfUseActive: existing.isTimeOfUseActive ?? existing.isDynamicTariffActive ?? false,
+          timeOfUseWeekdaysOnly: existing.timeOfUseWeekdaysOnly ?? true,
+          intermediateStartTime: existing.intermediateStartTime ?? existing.intermediateStartTime1 ?? "16:30",
+          intermediateEndTime: existing.intermediateEndTime ?? existing.intermediateEndTime2 ?? "21:30",
+          peakDischargeReserveLimit: existing.peakDischargeReserveLimit ?? existing.peakReserveThreshold ?? 20,
+          blockAcChargingDuringPeak: existing.blockAcChargingDuringPeak ?? true,
         },
       });
       return;
@@ -326,6 +339,12 @@ export default async function handleSettings(
       autoStormReserveThreshold,
       autoStormRainThresholdMm,
       autoStormPrechargeAc,
+      isTimeOfUseActive,
+      timeOfUseWeekdaysOnly,
+      intermediateStartTime,
+      intermediateEndTime,
+      peakDischargeReserveLimit,
+      blockAcChargingDuringPeak,
     } = parsedBody.data;
 
     if (
@@ -593,6 +612,34 @@ export default async function handleSettings(
         typeof autoStormPrechargeAc === "boolean"
           ? autoStormPrechargeAc
           : existingConfig?.autoStormPrechargeAc ?? true;
+      const resolvedTimeOfUseActive =
+        typeof isTimeOfUseActive === "boolean"
+          ? isTimeOfUseActive
+          : typeof isDynamicTariffActive === "boolean"
+          ? isDynamicTariffActive
+          : existingConfig?.isTimeOfUseActive ?? existingConfig?.isDynamicTariffActive ?? false;
+      const resolvedTimeOfUseWeekdays =
+        typeof timeOfUseWeekdaysOnly === "boolean"
+          ? timeOfUseWeekdaysOnly
+          : existingConfig?.timeOfUseWeekdaysOnly ?? true;
+      const resolvedIntermediateStartTime =
+        intermediateStartTime !== undefined
+          ? intermediateStartTime
+          : existingConfig?.intermediateStartTime ?? existingConfig?.intermediateStartTime1 ?? "16:30";
+      const resolvedIntermediateEndTime =
+        intermediateEndTime !== undefined
+          ? intermediateEndTime
+          : existingConfig?.intermediateEndTime ?? existingConfig?.intermediateEndTime2 ?? "21:30";
+      const resolvedPeakDischargeReserve =
+        typeof peakDischargeReserveLimit === "number"
+          ? peakDischargeReserveLimit
+          : typeof peakReserveThreshold === "number"
+          ? peakReserveThreshold
+          : existingConfig?.peakDischargeReserveLimit ?? existingConfig?.peakReserveThreshold ?? 20;
+      const resolvedBlockAcChargingPeak =
+        typeof blockAcChargingDuringPeak === "boolean"
+          ? blockAcChargingDuringPeak
+          : existingConfig?.blockAcChargingDuringPeak ?? true;
 
       await prisma.userConfiguration.upsert({
         where: { userId: extractedUserId },
@@ -652,6 +699,12 @@ export default async function handleSettings(
           autoStormReserveThreshold: resolvedAutoStormReserve,
           autoStormRainThresholdMm: resolvedAutoStormRain,
           autoStormPrechargeAc: resolvedAutoStormPrecharge,
+          isTimeOfUseActive: resolvedTimeOfUseActive,
+          timeOfUseWeekdaysOnly: resolvedTimeOfUseWeekdays,
+          intermediateStartTime: resolvedIntermediateStartTime,
+          intermediateEndTime: resolvedIntermediateEndTime,
+          peakDischargeReserveLimit: resolvedPeakDischargeReserve,
+          blockAcChargingDuringPeak: resolvedBlockAcChargingPeak,
         },
         create: {
           userId: extractedUserId,
@@ -710,6 +763,12 @@ export default async function handleSettings(
           autoStormReserveThreshold: resolvedAutoStormReserve,
           autoStormRainThresholdMm: resolvedAutoStormRain,
           autoStormPrechargeAc: resolvedAutoStormPrecharge,
+          isTimeOfUseActive: resolvedTimeOfUseActive,
+          timeOfUseWeekdaysOnly: resolvedTimeOfUseWeekdays,
+          intermediateStartTime: resolvedIntermediateStartTime,
+          intermediateEndTime: resolvedIntermediateEndTime,
+          peakDischargeReserveLimit: resolvedPeakDischargeReserve,
+          blockAcChargingDuringPeak: resolvedBlockAcChargingPeak,
         },
       });
 

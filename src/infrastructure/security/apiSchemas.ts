@@ -230,6 +230,26 @@ export const settingsPostBodySchema = z.object({
     .min(5, "Reserva de ponta deve ser de no mínimo 5%.")
     .max(50, "Reserva de ponta não pode exceder 50%.")
     .optional(),
+  // Feature 4.6: Suporte a Tarifação Horária Inteligente (Tarifa Branca / Time-of-Use)
+  isTimeOfUseActive: z.boolean().optional(),
+  timeOfUseWeekdaysOnly: z.boolean().optional(),
+  intermediateStartTime: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Horário intermediário inválido (formato HH:mm).")
+    .nullable()
+    .optional(),
+  intermediateEndTime: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Horário intermediário inválido (formato HH:mm).")
+    .nullable()
+    .optional(),
+  peakDischargeReserveLimit: z
+    .number({ message: "Reserva de ponta deve ser um número." })
+    .int("Reserva de ponta deve ser um número inteiro.")
+    .min(10, "Reserva de ponta deve ser de no mínimo 10%.")
+    .max(50, "Reserva de ponta não pode exceder 50%.")
+    .optional(),
+  blockAcChargingDuringPeak: z.boolean().optional(),
   inverterMaxWatts: z
     .number({ message: "Potência do inversor deve ser um número." })
     .int("Potência do inversor deve ser um número inteiro.")

@@ -40,6 +40,7 @@ vi.mock("../../http/EcoFlowHttpClient", () => {
     EcoFlowHttpClient: vi.fn().mockImplementation(function () {
       return {
         setAcOutputState: mockSetAcOutputState,
+        setAcChargingSpeed: vi.fn().mockResolvedValue({ isSuccess: true, feedbackMessage: "OK" }),
         fetchDeviceTelemetry: mockFetchDeviceTelemetry,
         fetchMqttCertification: vi.fn().mockResolvedValue({
           protocol: "mqtts",
