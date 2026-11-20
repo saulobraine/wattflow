@@ -143,6 +143,43 @@ export const settingsPostBodySchema = z.object({
     .string()
     .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Horário inválido. Utilize o formato HH:mm (ex: 21:00).")
     .optional(),
+  latitude: z
+    .number({ message: "Latitude deve ser um número." })
+    .min(-90, "Latitude deve estar entre -90 e 90.")
+    .max(90, "Latitude deve estar entre -90 e 90.")
+    .nullable()
+    .optional(),
+  longitude: z
+    .number({ message: "Longitude deve ser um número." })
+    .min(-180, "Longitude deve estar entre -180 e 180.")
+    .max(180, "Longitude deve estar entre -180 e 180.")
+    .nullable()
+    .optional(),
+  isAdaptiveHysteresisActive: z
+    .boolean({ message: "Flag isAdaptiveHysteresisActive deve ser booleana." })
+    .optional(),
+  minAdaptiveThreshold: z
+    .number({ message: "Limite adaptativo mínimo deve ser um número." })
+    .int("O limite adaptativo mínimo deve ser um número inteiro.")
+    .min(10, "Limite adaptativo mínimo deve ser de pelo menos 10%.")
+    .max(50, "Limite adaptativo mínimo não pode exceder 50%.")
+    .optional(),
+  maxAdaptiveThreshold: z
+    .number({ message: "Limite adaptativo máximo deve ser um número." })
+    .int("O limite adaptativo máximo deve ser um número inteiro.")
+    .min(30, "Limite adaptativo máximo deve ser de pelo menos 30%.")
+    .max(80, "Limite adaptativo máximo não pode exceder 80%.")
+    .optional(),
+  thermalWarningThreshold: z
+    .number({ message: "Limiar de alerta térmico deve ser um número." })
+    .min(30, "Limiar de alerta térmico deve ser de pelo menos 30°C.")
+    .max(60, "Limiar de alerta térmico não pode exceder 60°C.")
+    .optional(),
+  thermalShutdownThreshold: z
+    .number({ message: "Limiar de corte térmico deve ser um número." })
+    .min(40, "Limiar de corte térmico deve ser de pelo menos 40°C.")
+    .max(65, "Limiar de corte térmico não pode exceder 65°C.")
+    .optional(),
 });
 
 export const stormModePostBodySchema = z.object({

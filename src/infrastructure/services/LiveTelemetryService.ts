@@ -99,6 +99,9 @@ export class LiveTelemetryService {
         solarWatts: memoryTelemetry.solarInputWatts,
         outputWatts: memoryTelemetry.outputWatts,
         isAcOutputEnabled: memoryTelemetry.isAcOutputEnabled,
+        batteryTempCelsius: memoryTelemetry.batteryTempCelsius,
+        batterySoh: memoryTelemetry.batterySoh,
+        batteryCycles: memoryTelemetry.batteryCycles,
       });
 
       const safePromise = executionPromise.catch((error) => {

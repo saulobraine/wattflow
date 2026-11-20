@@ -214,7 +214,7 @@ describe("Security Regression Suite - Storm Mode Race Condition & Idempotency", 
 
     expect(res.statusCode).toBe(200);
     // Garante que não houve comutação redundante nem race condition
-    expect(res.body.data?.acSwitchedToGrid).toBe(false);
+    expect((res.body.data as { acSwitchedToGrid?: boolean })?.acSwitchedToGrid).toBe(false);
 
     if (originalAuthSecret) process.env.AUTH_SECRET = originalAuthSecret;
   });
