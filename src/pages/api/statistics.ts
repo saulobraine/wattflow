@@ -523,6 +523,7 @@ export default async function handleStatistics(
           executedAt: true,
         },
         orderBy: { executedAt: "asc" },
+        take: 5000,
       });
 
       if (monthLogs.length > 0) {
