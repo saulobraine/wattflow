@@ -10,9 +10,10 @@ import {
   NotificationDispatcher,
   NotificationConfig,
 } from "../infrastructure/notifications/NotificationDispatcher";
-import { OpenMeteoSolarForecastService } from "../infrastructure/services/OpenMeteoSolarForecastService";
+import { OpenMeteoSolarForecastService, SolarExpectationLevel } from "../infrastructure/services/OpenMeteoSolarForecastService";
 import { TariffScheduleService } from "../domain/services/TariffScheduleService";
 import { CriticalAlertService } from "../infrastructure/services/CriticalAlertService";
+import { SolarSmartChargingService } from "../domain/services/SolarSmartChargingService";
 
 export interface SyncExecutionResult {
   hasExecutedSuccessfully: boolean;
@@ -351,6 +352,61 @@ export class OrchestratorSyncUseCase {
             desiredAction.transferActionName((nameString: string) => {
               actionName = nameString;
             });
+          }
+        }
+      }
+
+      // Feature 3.2: Solar Smart Charging (Etapa 4)
+      if (configurationRecord.isSmartChargingActive) {
+        let solarForecastLevel: SolarExpectationLevel | null = null;
+        if (
+          configurationRecord.latitude !== null &&
+          configurationRecord.longitude !== null
+        ) {
+          try {
+            const forecastService = OpenMeteoSolarForecastService.getInstance();
+            const forecastData = await forecastService.getForecast(
+              configurationRecord.latitude,
+              configurationRecord.longitude
+            );
+            if (forecastData) {
+              solarForecastLevel = forecastData.expectationLevel;
+            }
+          } catch (forecastErr) {
+            console.warn("[OrchestratorSyncUseCase] Falha ao consultar previsão solar para Smart Charging:", forecastErr);
+          }
+        }
+
+        const smartChargingService = SolarSmartChargingService.getInstance();
+        const smartChargeResult = smartChargingService.evaluate({
+          isSmartChargingActive: configurationRecord.isSmartChargingActive,
+          minAcChargingWatts: configurationRecord.minAcChargingWatts,
+          maxAcChargingWatts: configurationRecord.maxAcChargingWatts,
+          currentAcChargingWatts: configurationRecord.currentAcChargingWatts,
+          chargeOnlyOffPeak: configurationRecord.chargeOnlyOffPeak,
+          cloudyPrechargeActive: configurationRecord.cloudyPrechargeActive,
+          isStormModeActive: configurationRecord.isStormModeActive,
+          batteryPercentage: numericBattery,
+          solarWatts: numericSolarWatts,
+          outputWatts,
+          solarForecastLevel,
+          tariffConfig: configurationRecord,
+        });
+
+        if (smartChargeResult.shouldSendAdjustCommand) {
+          try {
+            await ecoflowClient.setAcChargingSpeed(
+              ecoflowDevice,
+              smartChargeResult.targetWatts
+            );
+            if (typeof this.repository.updateCurrentAcChargingWatts === "function") {
+              await this.repository.updateCurrentAcChargingWatts(
+                databaseRecordId,
+                smartChargeResult.targetWatts
+              );
+            }
+          } catch (speedError: unknown) {
+            console.error("[OrchestratorSyncUseCase] Falha ao modular velocidade de recarga AC:", speedError);
           }
         }
       }

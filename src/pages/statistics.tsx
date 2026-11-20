@@ -25,6 +25,7 @@ import {
   Thermometer,
   Flame,
   CloudRain,
+  Layers,
 } from "lucide-react";
 import type {
   FinancialSavingsMetrics,
@@ -33,6 +34,7 @@ import type {
   BmsAnalyticsMetrics,
   SolarExpectationLevel,
   TariffPeriod,
+  ApplianceSimulationMetrics,
 } from "./api/statistics";
 
 export interface AtsHealthData {
@@ -84,6 +86,7 @@ interface StatisticsData {
   autonomyEstimate?: AutonomyEstimateMetrics;
   solarForecast?: SolarForecastMetrics;
   bmsAnalytics?: BmsAnalyticsMetrics;
+  applianceSimulation?: ApplianceSimulationMetrics;
 }
 
 export default function StatisticsPage() {
@@ -1239,6 +1242,114 @@ export default function StatisticsPage() {
             </div>
           )}
         </section>
+
+        {/* 5. Painel Analítico de Cargas & Projeção de Autonomia (Etapa 4) */}
+        {data?.applianceSimulation && (
+          <section
+            aria-label="Projeção Analítica de Cargas e Autonomia"
+            className="animate-card stagger-5 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-5"
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-cyan-500/10 text-cyan-400 shrink-0 border border-cyan-500/20">
+                  <Layers className="w-5 h-5 animate-float" aria-hidden="true" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-slate-100 flex items-center gap-2">
+                    Projeção Analítica de Autonomia &amp; Perfil de Cargas
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Balanço entre a telemetria medida em tempo real e a simulação de cargas ativas
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                <span className="inline-flex items-center gap-1.5 text-xs font-mono font-bold px-3 py-1 rounded-full bg-cyan-950/80 text-cyan-300 border border-cyan-700/60 shadow-sm">
+                  <BatteryCharging className="w-3.5 h-3.5 text-cyan-400" aria-hidden="true" />
+                  {data.applianceSimulation.activeAppliancesCount} / {data.applianceSimulation.totalAppliancesCount} Aparelhos Ativos
+                </span>
+              </div>
+            </div>
+
+            {/* Grid dos 4 Indicadores Analíticos */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              {/* 1. Potência Simulada */}
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800/90 flex flex-col justify-between">
+                <div>
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-amber-400" />
+                    Demanda Simulada
+                  </span>
+                  <div className="text-2xl sm:text-3xl font-extrabold text-amber-300 font-mono tracking-tight mt-2">
+                    {data.applianceSimulation.totalSimulatedWatts} W
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-2 pt-2 border-t border-slate-800/60 font-mono">
+                  Soma das cargas ativas
+                </p>
+              </div>
+
+              {/* 2. Autonomia Simulada */}
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800/90 flex flex-col justify-between">
+                <div>
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Timer className="w-3.5 h-3.5 text-emerald-400" />
+                    Autonomia Simulada
+                  </span>
+                  <div className="text-2xl sm:text-3xl font-extrabold text-emerald-400 font-mono tracking-tight mt-2">
+                    {data.applianceSimulation.formattedSimulatedRuntime}
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-2 pt-2 border-t border-slate-800/60 font-mono">
+                  Duração estimada com as cargas
+                </p>
+              </div>
+
+              {/* 3. Autonomia Real Medida */}
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800/90 flex flex-col justify-between">
+                <div>
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-sky-400" />
+                    Autonomia Real Medida
+                  </span>
+                  <div className="text-2xl sm:text-3xl font-extrabold text-sky-300 font-mono tracking-tight mt-2">
+                    {data.applianceSimulation.formattedBaselineRuntime}
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-2 pt-2 border-t border-slate-800/60 font-mono">
+                  Baseado na saída AC atual
+                </p>
+              </div>
+
+              {/* 4. Delta de Impacto */}
+              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800/90 flex flex-col justify-between">
+                <div>
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Activity className="w-3.5 h-3.5 text-cyan-400" />
+                    Variação Temporal
+                  </span>
+                  <div className={`text-2xl sm:text-3xl font-extrabold font-mono tracking-tight mt-2 ${
+                    (data.applianceSimulation.runtimeDeltaMinutes ?? 0) >= 0
+                      ? "text-emerald-400"
+                      : "text-amber-400"
+                  }`}>
+                    {data.applianceSimulation.runtimeDeltaMinutes !== null
+                      ? `${data.applianceSimulation.runtimeDeltaMinutes >= 0 ? "+" : ""}${Math.floor(
+                          Math.abs(data.applianceSimulation.runtimeDeltaMinutes) / 60
+                        )}h ${Math.abs(data.applianceSimulation.runtimeDeltaMinutes) % 60}m`
+                      : "--"}
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-2 pt-2 border-t border-slate-800/60 font-mono">
+                  {(data.applianceSimulation.runtimeDeltaMinutes ?? 0) >= 0
+                    ? "Economia de tempo projetada"
+                    : "Redução de tempo por carga extra"}
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* 5. Gráfico SVG de Linhas dos Últimos 30 Minutos (Média de 5 em 5 min) */}
         <section

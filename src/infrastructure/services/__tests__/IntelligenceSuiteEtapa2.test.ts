@@ -120,6 +120,14 @@ function buildMockEtapa2Record(
     isAlertOnThermalRisk: true,
     isAlertOnAtsFailure: true,
     alertCooldownMinutes: 10,
+    // Etapa 4:
+    isSmartChargingActive: false,
+    minAcChargingWatts: 200,
+    maxAcChargingWatts: 1200,
+    currentAcChargingWatts: 400,
+    chargeOnlyOffPeak: true,
+    cloudyPrechargeActive: true,
+    lastSmartChargeAdjustAt: null,
     ...overrides,
   };
 }

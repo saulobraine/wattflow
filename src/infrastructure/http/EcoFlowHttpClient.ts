@@ -230,6 +230,71 @@ export class EcoFlowHttpClient {
     return `[EcoFlow] Falha ao acionar saída AC: ${failureDetail}`;
   }
 
+  /**
+   * Modula dinamicamente a potência de recarga AC (Slow / Fast Charging Watts).
+   * Feature 3.2: Solar Smart Charging (Etapa 4).
+   */
+  public async setAcChargingSpeed(
+    serialNumber: DeviceSerialNumber,
+    watts: number
+  ): Promise<{ isSuccess: boolean; feedbackMessage: string }> {
+    let rawSerialNumber = "";
+    serialNumber.transferSerialNumber((serialString: string) => {
+      rawSerialNumber = serialString;
+    });
+
+    const clampedWatts = Math.max(100, Math.min(3600, Math.round(watts)));
+    const timestampString = Date.now().toString();
+    const nonceString = Math.floor(100000 + Math.random() * 900000).toString();
+    const requestId = Math.floor(100 + Math.random() * 900);
+
+    const standardPayload: Record<string, unknown> = {
+      sn: rawSerialNumber,
+      id: requestId,
+      version: "1.0",
+      moduleType: 5,
+      operateType: "acChgCfg",
+      params: {
+        chgWatts: clampedWatts,
+        fastChgWatts: clampedWatts,
+        slowChgWatts: clampedWatts,
+      },
+    };
+
+    const standardResult = await this.sendPutCommand(this.baseApiUrl, standardPayload, nonceString, timestampString);
+    if (standardResult.isSuccess) {
+      return {
+        isSuccess: true,
+        feedbackMessage: `[EcoFlow] Potência de recarga AC ajustada para ${clampedWatts}W (moduleType 5 acChgCfg).`,
+      };
+    }
+
+    const fallbackPayload: Record<string, unknown> = {
+      sn: rawSerialNumber,
+      id: requestId,
+      version: "1.0",
+      operateType: "acChgCfg",
+      params: {
+        chgWatts: clampedWatts,
+        fastChgWatts: clampedWatts,
+        slowChgWatts: clampedWatts,
+      },
+    };
+
+    const fallbackResult = await this.sendPutCommand(this.baseApiUrl, fallbackPayload, nonceString, timestampString);
+    if (fallbackResult.isSuccess) {
+      return {
+        isSuccess: true,
+        feedbackMessage: `[EcoFlow] Potência de recarga AC ajustada para ${clampedWatts}W (acChgCfg).`,
+      };
+    }
+
+    return {
+      isSuccess: false,
+      feedbackMessage: `[EcoFlow] Falha ao modular recarga AC: ${standardResult.errorMessage || fallbackResult.errorMessage || "Erro na API EcoFlow"}`,
+    };
+  }
+
   private async performTelemetryRequest(targetBaseUrl: string, serialNumber: string): Promise<TelemetryHttpAttempt> {
     const timestampString = Date.now().toString();
     const nonceString = Math.floor(100000 + Math.random() * 900000).toString();

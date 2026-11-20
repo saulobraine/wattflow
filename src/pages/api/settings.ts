@@ -75,6 +75,14 @@ export interface SettingsResponseData {
   isAlertOnThermalRisk: boolean;
   isAlertOnAtsFailure: boolean;
   alertCooldownMinutes: number;
+  // Feature 3.2: Solar Smart Charging (Etapa 4)
+  isSmartChargingActive: boolean;
+  minAcChargingWatts: number;
+  maxAcChargingWatts: number;
+  currentAcChargingWatts: number;
+  chargeOnlyOffPeak: boolean;
+  cloudyPrechargeActive: boolean;
+  lastSmartChargeAdjustAt: string | null;
 }
 
 interface SettingsResponseBody {
@@ -210,6 +218,13 @@ export default async function handleSettings(
           isAlertOnThermalRisk: existing.isAlertOnThermalRisk ?? true,
           isAlertOnAtsFailure: existing.isAlertOnAtsFailure ?? true,
           alertCooldownMinutes: existing.alertCooldownMinutes ?? 10,
+          isSmartChargingActive: existing.isSmartChargingActive ?? false,
+          minAcChargingWatts: existing.minAcChargingWatts ?? 200,
+          maxAcChargingWatts: existing.maxAcChargingWatts ?? 1200,
+          currentAcChargingWatts: existing.currentAcChargingWatts ?? 400,
+          chargeOnlyOffPeak: existing.chargeOnlyOffPeak ?? true,
+          cloudyPrechargeActive: existing.cloudyPrechargeActive ?? true,
+          lastSmartChargeAdjustAt: existing.lastSmartChargeAdjustAt?.toISOString() ?? null,
         },
       });
       return;
@@ -283,6 +298,11 @@ export default async function handleSettings(
       isAlertOnThermalRisk,
       isAlertOnAtsFailure,
       alertCooldownMinutes,
+      isSmartChargingActive,
+      minAcChargingWatts,
+      maxAcChargingWatts,
+      chargeOnlyOffPeak,
+      cloudyPrechargeActive,
     } = parsedBody.data;
 
     if (
@@ -504,6 +524,26 @@ export default async function handleSettings(
         typeof alertCooldownMinutes === "number"
           ? alertCooldownMinutes
           : existingConfig?.alertCooldownMinutes ?? 10;
+      const resolvedSmartCharging =
+        typeof isSmartChargingActive === "boolean"
+          ? isSmartChargingActive
+          : existingConfig?.isSmartChargingActive ?? false;
+      const resolvedMinAcChargingWatts =
+        typeof minAcChargingWatts === "number"
+          ? minAcChargingWatts
+          : existingConfig?.minAcChargingWatts ?? 200;
+      const resolvedMaxAcChargingWatts =
+        typeof maxAcChargingWatts === "number"
+          ? maxAcChargingWatts
+          : existingConfig?.maxAcChargingWatts ?? 1200;
+      const resolvedChargeOnlyOffPeak =
+        typeof chargeOnlyOffPeak === "boolean"
+          ? chargeOnlyOffPeak
+          : existingConfig?.chargeOnlyOffPeak ?? true;
+      const resolvedCloudyPrecharge =
+        typeof cloudyPrechargeActive === "boolean"
+          ? cloudyPrechargeActive
+          : existingConfig?.cloudyPrechargeActive ?? true;
 
       await prisma.userConfiguration.upsert({
         where: { userId: extractedUserId },
@@ -554,6 +594,11 @@ export default async function handleSettings(
           isAlertOnThermalRisk: resolvedAlertThermalRisk,
           isAlertOnAtsFailure: resolvedAlertAtsFailure,
           alertCooldownMinutes: resolvedAlertCooldown,
+          isSmartChargingActive: resolvedSmartCharging,
+          minAcChargingWatts: resolvedMinAcChargingWatts,
+          maxAcChargingWatts: resolvedMaxAcChargingWatts,
+          chargeOnlyOffPeak: resolvedChargeOnlyOffPeak,
+          cloudyPrechargeActive: resolvedCloudyPrecharge,
         },
         create: {
           userId: extractedUserId,
@@ -603,6 +648,11 @@ export default async function handleSettings(
           isAlertOnThermalRisk: resolvedAlertThermalRisk,
           isAlertOnAtsFailure: resolvedAlertAtsFailure,
           alertCooldownMinutes: resolvedAlertCooldown,
+          isSmartChargingActive: resolvedSmartCharging,
+          minAcChargingWatts: resolvedMinAcChargingWatts,
+          maxAcChargingWatts: resolvedMaxAcChargingWatts,
+          chargeOnlyOffPeak: resolvedChargeOnlyOffPeak,
+          cloudyPrechargeActive: resolvedCloudyPrecharge,
         },
       });
 

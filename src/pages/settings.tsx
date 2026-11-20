@@ -26,7 +26,19 @@ import {
   Flame,
   BellRing,
   AlertTriangle,
+  SunMedium,
+  Layers,
+  Plus,
+  Trash2,
+  Laptop,
+  Tv,
+  Wifi,
+  Lightbulb,
+  Sliders,
+  Refrigerator,
+  AirVent,
 } from "lucide-react";
+import type { ApplianceItem } from "./api/appliances";
 
 export default function SettingsPage() {
   const [ecoflowEndpointRegion, setEcoflowEndpointRegion] = useState("https://api.ecoflow.com");
@@ -84,6 +96,26 @@ export default function SettingsPage() {
   const [isAlertOnThermalRisk, setIsAlertOnThermalRisk] = useState<boolean>(true);
   const [isAlertOnAtsFailure, setIsAlertOnAtsFailure] = useState<boolean>(true);
   const [alertCooldownMinutes, setAlertCooldownMinutes] = useState<number>(10);
+
+  // Estados da Etapa 4: Solar Smart Charging (Recarga AC) & Gestão de Cargas
+  const [isSmartChargingActive, setIsSmartChargingActive] = useState<boolean>(false);
+  const [minAcChargingWatts, setMinAcChargingWatts] = useState<number>(200);
+  const [maxAcChargingWatts, setMaxAcChargingWatts] = useState<number>(1200);
+  const [currentAcChargingWatts, setCurrentAcChargingWatts] = useState<number>(400);
+  const [chargeOnlyOffPeak, setChargeOnlyOffPeak] = useState<boolean>(true);
+  const [cloudyPrechargeActive, setCloudyPrechargeActive] = useState<boolean>(true);
+  const [lastSmartChargeAdjustAt, setLastSmartChargeAdjustAt] = useState<string | null>(null);
+
+  // Estados de Gerenciamento de Aparelhos (CRUD /api/appliances)
+  const [appliancesList, setAppliancesList] = useState<ApplianceItem[]>([]);
+  const [isLoadingAppliances, setIsLoadingAppliances] = useState<boolean>(false);
+  const [newApplianceName, setNewApplianceName] = useState<string>("");
+  const [newApplianceCategory, setNewApplianceCategory] = useState<string>("ESSENTIAL");
+  const [newApplianceWatts, setNewApplianceWatts] = useState<number>(100);
+  const [newApplianceIcon, setNewApplianceIcon] = useState<string>("Zap");
+  const [applianceActionFeedback, setApplianceActionFeedback] = useState<string | null>(null);
+  const [isCreatingAppliance, setIsCreatingAppliance] = useState<boolean>(false);
+  const [deletingApplianceId, setDeletingApplianceId] = useState<string | null>(null);
 
   const handleDetectLocation = () => {
     if (typeof window === "undefined" || !navigator.geolocation) {
@@ -311,6 +343,19 @@ export default function SettingsPage() {
         setAlertCooldownMinutes(
           typeof json.data.alertCooldownMinutes === "number" ? json.data.alertCooldownMinutes : 10
         );
+        setIsSmartChargingActive(Boolean(json.data.isSmartChargingActive));
+        setMinAcChargingWatts(
+          typeof json.data.minAcChargingWatts === "number" ? json.data.minAcChargingWatts : 200
+        );
+        setMaxAcChargingWatts(
+          typeof json.data.maxAcChargingWatts === "number" ? json.data.maxAcChargingWatts : 1200
+        );
+        setCurrentAcChargingWatts(
+          typeof json.data.currentAcChargingWatts === "number" ? json.data.currentAcChargingWatts : 400
+        );
+        setChargeOnlyOffPeak(json.data.chargeOnlyOffPeak ?? true);
+        setCloudyPrechargeActive(json.data.cloudyPrechargeActive ?? true);
+        setLastSmartChargeAdjustAt(json.data.lastSmartChargeAdjustAt || null);
       }
     } catch (err) {
       console.error("Erro ao carregar configurações:", err);
@@ -323,8 +368,81 @@ export default function SettingsPage() {
     }
   };
 
+  const loadAppliances = async () => {
+    setIsLoadingAppliances(true);
+    try {
+      const response = await fetch("/api/appliances");
+      const json = await response.json();
+      if (json.success && json.data) {
+        setAppliancesList(json.data.appliances || []);
+      }
+    } catch (err) {
+      console.error("Erro ao carregar aparelhos:", err);
+    } finally {
+      setIsLoadingAppliances(false);
+    }
+  };
+
+  const handleCreateAppliance = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!newApplianceName.trim() || newApplianceWatts <= 0) {
+      setApplianceActionFeedback("Informe um nome e potência em Watts válidos.");
+      return;
+    }
+    setIsCreatingAppliance(true);
+    setApplianceActionFeedback(null);
+    try {
+      const response = await fetch("/api/appliances", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newApplianceName.trim(),
+          category: newApplianceCategory,
+          averageWatts: Number(newApplianceWatts),
+          icon: newApplianceIcon || "Zap",
+          isActiveInSimulation: false,
+        }),
+      });
+      const json = await response.json();
+      if (json.success) {
+        setNewApplianceName("");
+        setNewApplianceWatts(100);
+        setApplianceActionFeedback("Aparelho cadastrado com sucesso!");
+        await loadAppliances();
+      } else {
+        setApplianceActionFeedback(json.message || "Erro ao cadastrar aparelho.");
+      }
+    } catch {
+      setApplianceActionFeedback("Falha na comunicação com o servidor.");
+    } finally {
+      setIsCreatingAppliance(false);
+    }
+  };
+
+  const handleDeleteAppliance = async (id: string) => {
+    setDeletingApplianceId(id);
+    setApplianceActionFeedback(null);
+    try {
+      const response = await fetch(`/api/appliances?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      const json = await response.json();
+      if (json.success) {
+        setAppliancesList((prev) => prev.filter((a) => a.id !== id));
+        setApplianceActionFeedback("Aparelho excluído com sucesso.");
+      } else {
+        setApplianceActionFeedback(json.message || "Erro ao excluir aparelho.");
+      }
+    } catch {
+      setApplianceActionFeedback("Falha ao comunicar com o servidor.");
+    } finally {
+      setDeletingApplianceId(null);
+    }
+  };
+
   useEffect(() => {
     loadSettings();
+    loadAppliances();
   }, []);
 
   const handleSubmit = async (event: FormEvent) => {
@@ -378,6 +496,11 @@ export default function SettingsPage() {
           isAlertOnThermalRisk,
           isAlertOnAtsFailure,
           alertCooldownMinutes: Number(alertCooldownMinutes),
+          isSmartChargingActive,
+          minAcChargingWatts: Number(minAcChargingWatts),
+          maxAcChargingWatts: Number(maxAcChargingWatts),
+          chargeOnlyOffPeak,
+          cloudyPrechargeActive,
         }),
       });
 
@@ -1798,6 +1921,370 @@ export default function SettingsPage() {
                   </label>
                 ))}
               </div>
+            </div>
+          </div>
+
+          {/* 11. Solar Smart Charging & Modulação de Recarga AC (Feature 3.2) */}
+          <div className="p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400">
+                  <SunMedium className="w-5 h-5" aria-hidden="true" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                    11. Solar Smart Charging &amp; Modulação de Recarga AC
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Ajuste dinâmico da velocidade de carregamento AC com bloqueio no pico e pré-recarga econômica
+                  </p>
+                </div>
+              </div>
+
+              <label className="flex items-center gap-2 cursor-pointer self-start sm:self-auto">
+                <span className="text-xs font-semibold text-slate-300">
+                  {isSmartChargingActive ? "Smart Charging Ativo" : "Smart Charging Desativado"}
+                </span>
+                <input
+                  type="checkbox"
+                  checked={isSmartChargingActive}
+                  onChange={(e) => setIsSmartChargingActive(e.target.checked)}
+                  className="w-5 h-5 rounded border-slate-700 bg-slate-950 text-amber-500 focus:ring-0 focus:ring-offset-0 cursor-pointer accent-amber-500"
+                />
+              </label>
+            </div>
+
+            <div className={`space-y-6 transition-opacity duration-200 ${isSmartChargingActive ? "opacity-100" : "opacity-60"}`}>
+              {/* Sliders de Potência Mínima e Máxima de Recarga AC */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {/* 1. Potência Mínima */}
+                <div className="p-4 rounded-xl bg-slate-950 border border-slate-800/80 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="min-ac-watts" className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                      <Zap className="w-3.5 h-3.5 text-amber-400" aria-hidden="true" />
+                      Potência Mínima de Recarga AC
+                    </label>
+                    <span className="text-xs font-mono font-bold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30">
+                      {minAcChargingWatts} W
+                    </span>
+                  </div>
+
+                  <input
+                    id="min-ac-watts"
+                    type="range"
+                    min={200}
+                    max={600}
+                    step={50}
+                    value={minAcChargingWatts}
+                    onChange={(e) => setMinAcChargingWatts(Number(e.target.value))}
+                    disabled={!isSmartChargingActive}
+                    className="w-full accent-amber-500 cursor-pointer disabled:cursor-not-allowed"
+                  />
+
+                  <div className="flex justify-between text-[10px] font-mono text-slate-500">
+                    <span>200 W (Suave)</span>
+                    <span>400 W (Padrão)</span>
+                    <span>600 W (Rápido)</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 leading-relaxed pt-1">
+                    Taxa econômica de manutenção usada em horários neutros ou pré-recarga noturna.
+                  </p>
+                </div>
+
+                {/* 2. Potência Máxima */}
+                <div className="p-4 rounded-xl bg-slate-950 border border-slate-800/80 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="max-ac-watts" className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                      <Zap className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
+                      Potência Máxima de Recarga AC
+                    </label>
+                    <span className="text-xs font-mono font-bold text-emerald-300 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
+                      {maxAcChargingWatts} W
+                    </span>
+                  </div>
+
+                  <input
+                    id="max-ac-watts"
+                    type="range"
+                    min={600}
+                    max={2400}
+                    step={100}
+                    value={maxAcChargingWatts}
+                    onChange={(e) => setMaxAcChargingWatts(Number(e.target.value))}
+                    disabled={!isSmartChargingActive}
+                    className="w-full accent-emerald-500 cursor-pointer disabled:cursor-not-allowed"
+                  />
+
+                  <div className="flex justify-between text-[10px] font-mono text-slate-500">
+                    <span>600 W</span>
+                    <span>1.200 W (Padrão)</span>
+                    <span>2.400 W (Turbo)</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 leading-relaxed pt-1">
+                    Limite máximo da tomada acionado pelo Modo Tempestade ou absorção rápida de excedente.
+                  </p>
+                </div>
+              </div>
+
+              {/* Toggles de Bloqueio no Pico e Pré-Recarga de Chuva */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <label className="p-4 rounded-xl bg-slate-950 border border-slate-800/80 flex items-start gap-3 cursor-pointer hover:border-slate-700 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={chargeOnlyOffPeak}
+                    onChange={(e) => setChargeOnlyOffPeak(e.target.checked)}
+                    disabled={!isSmartChargingActive}
+                    className="w-4 h-4 mt-0.5 rounded border-slate-700 bg-slate-900 text-amber-500 focus:ring-0 focus:ring-offset-0 cursor-pointer accent-amber-500"
+                  />
+                  <div className="space-y-1">
+                    <span className="text-xs font-bold text-slate-200 block">
+                      Bloquear Recarga AC no Horário de Ponta
+                    </span>
+                    <span className="text-[11px] text-slate-400 block leading-relaxed">
+                      Evita recarregar a bateria na tomada durante o horário de ponta da Tarifa Branca ANEEL (R$ 1,85+/kWh).
+                    </span>
+                  </div>
+                </label>
+
+                <label className="p-4 rounded-xl bg-slate-950 border border-slate-800/80 flex items-start gap-3 cursor-pointer hover:border-slate-700 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={cloudyPrechargeActive}
+                    onChange={(e) => setCloudyPrechargeActive(e.target.checked)}
+                    disabled={!isSmartChargingActive}
+                    className="w-4 h-4 mt-0.5 rounded border-slate-700 bg-slate-900 text-sky-500 focus:ring-0 focus:ring-offset-0 cursor-pointer accent-sky-500"
+                  />
+                  <div className="space-y-1">
+                    <span className="text-xs font-bold text-slate-200 block">
+                      Pré-Recarga Noturna em Caso de Chuva
+                    </span>
+                    <span className="text-[11px] text-slate-400 block leading-relaxed">
+                      Na madrugada (02:00 - 05:00), se a previsão do dia for de chuva/nublado, recarrega suavemente na tarifa econômica até 85%.
+                    </span>
+                  </div>
+                </label>
+              </div>
+
+              {/* Nota Técnica de Precedência */}
+              <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800/70 text-[11px] text-slate-400 space-y-1 font-mono">
+                <span className="text-slate-300 font-semibold block">Regra de Precedência do Sistema:</span>
+                <p>
+                  1. <strong className="text-amber-300">Modo Tempestade:</strong> Força recarga máxima imediata ({maxAcChargingWatts}W) ignorando tarifas.
+                </p>
+                <p>
+                  2. <strong className="text-rose-300">Horário de Ponta:</strong> Reduz potência AC para {minAcChargingWatts}W ou 0W para blindagem financeira.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* 12. Gerenciador de Aparelhos & Cargas Residenciais (Feature 2.3) */}
+          <div className="p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
+                  <Layers className="w-5 h-5" aria-hidden="true" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                    12. Gerenciador de Aparelhos &amp; Cargas Residenciais
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Cadastre e organize aparelhos para alimentar o Simulador de Autonomia durante blecautes
+                  </p>
+                </div>
+              </div>
+
+              <span className="text-xs font-mono font-semibold text-emerald-300 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/30">
+                {appliancesList.length} aparelhos cadastrados
+              </span>
+            </div>
+
+            {/* Formulário para Cadastrar Novo Aparelho */}
+            <div className="p-4 sm:p-5 rounded-xl bg-slate-950 border border-slate-800/90 space-y-4">
+              <div className="flex items-center gap-2">
+                <Plus className="w-4 h-4 text-emerald-400" aria-hidden="true" />
+                <h4 className="text-xs sm:text-sm font-bold text-slate-200 uppercase tracking-wider">
+                  Adicionar Novo Aparelho
+                </h4>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                {/* Nome */}
+                <div className="space-y-1 sm:col-span-2 lg:col-span-1">
+                  <label htmlFor="new-appliance-name" className="text-slate-400 font-medium block">
+                    Nome do Aparelho
+                  </label>
+                  <input
+                    id="new-appliance-name"
+                    type="text"
+                    placeholder="Ex: Micro-ondas, Freezer..."
+                    value={newApplianceName}
+                    onChange={(e) => setNewApplianceName(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700/80 rounded-lg px-3 py-2 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                {/* Potência Média (Watts) */}
+                <div className="space-y-1">
+                  <label htmlFor="new-appliance-watts" className="text-slate-400 font-medium block">
+                    Potência Média (Watts)
+                  </label>
+                  <input
+                    id="new-appliance-watts"
+                    type="number"
+                    min={5}
+                    max={10000}
+                    placeholder="Ex: 120"
+                    value={newApplianceWatts}
+                    onChange={(e) => setNewApplianceWatts(Number(e.target.value))}
+                    className="w-full bg-slate-900 border border-slate-700/80 rounded-lg px-3 py-2 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-emerald-500 font-mono"
+                  />
+                </div>
+
+                {/* Categoria */}
+                <div className="space-y-1">
+                  <label htmlFor="new-appliance-category" className="text-slate-400 font-medium block">
+                    Categoria
+                  </label>
+                  <select
+                    id="new-appliance-category"
+                    value={newApplianceCategory}
+                    onChange={(e) => setNewApplianceCategory(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700/80 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-emerald-500 cursor-pointer"
+                  >
+                    <option value="ESSENTIAL">Essencial (Crítico)</option>
+                    <option value="COMFORT">Conforto</option>
+                    <option value="HEAVY">Carga Pesada</option>
+                    <option value="CUSTOM">Personalizado</option>
+                  </select>
+                </div>
+
+                {/* Ícone */}
+                <div className="space-y-1">
+                  <label htmlFor="new-appliance-icon" className="text-slate-400 font-medium block">
+                    Ícone Representativo
+                  </label>
+                  <select
+                    id="new-appliance-icon"
+                    value={newApplianceIcon}
+                    onChange={(e) => setNewApplianceIcon(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700/80 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-emerald-500 cursor-pointer"
+                  >
+                    <option value="Zap">Raio / Elétrico (Zap)</option>
+                    <option value="Refrigerator">Geladeira (Refrigerator)</option>
+                    <option value="Wifi">Roteador / Wi-Fi</option>
+                    <option value="Laptop">Notebook / Computador</option>
+                    <option value="Tv">Smart TV / Telão</option>
+                    <option value="AirVent">Ar-Condicionado / Climatizador</option>
+                    <option value="Lightbulb">Iluminação / Lâmpada</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                {applianceActionFeedback && (
+                  <span className="text-xs font-mono text-emerald-400 animate-fade-in">
+                    {applianceActionFeedback}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={handleCreateAppliance}
+                  disabled={isCreatingAppliance || !newApplianceName.trim()}
+                  className="sm:ml-auto px-4 py-2 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-emerald-950"
+                >
+                  {isCreatingAppliance ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Plus className="w-3.5 h-3.5" aria-hidden="true" />
+                  )}
+                  {isCreatingAppliance ? "Cadastrando..." : "Cadastrar Aparelho"}
+                </button>
+              </div>
+            </div>
+
+            {/* Lista dos Aparelhos Cadastrados */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                Aparelhos Atuais ({appliancesList.length})
+              </h4>
+
+              {isLoadingAppliances ? (
+                <div className="p-8 text-center text-slate-500 text-xs flex items-center justify-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
+                  Carregando lista de aparelhos...
+                </div>
+              ) : appliancesList.length === 0 ? (
+                <div className="p-6 rounded-xl bg-slate-950 border border-slate-800 text-center text-xs text-slate-500">
+                  Nenhum aparelho cadastrado ainda. O auto-seed será aplicado na primeira consulta.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                  {appliancesList.map((appliance) => {
+                    const isDeleting = deletingApplianceId === appliance.id;
+                    const catTheme =
+                      appliance.category === "ESSENTIAL"
+                        ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/30"
+                        : appliance.category === "HEAVY"
+                        ? "bg-rose-500/10 text-rose-300 border-rose-500/30"
+                        : appliance.category === "COMFORT"
+                        ? "bg-sky-500/10 text-sky-300 border-sky-500/30"
+                        : "bg-purple-500/10 text-purple-300 border-purple-500/30";
+
+                    return (
+                      <div
+                        key={appliance.id}
+                        className="p-3.5 rounded-xl bg-slate-950 border border-slate-800/80 flex items-center justify-between gap-3 group hover:border-slate-700 transition-colors"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="p-2 rounded-lg bg-slate-900 text-emerald-400 border border-slate-800 shrink-0">
+                            {appliance.icon === "Refrigerator" && <Refrigerator className="w-4 h-4" />}
+                            {appliance.icon === "Wifi" && <Wifi className="w-4 h-4" />}
+                            {appliance.icon === "Laptop" && <Laptop className="w-4 h-4" />}
+                            {appliance.icon === "Tv" && <Tv className="w-4 h-4" />}
+                            {appliance.icon === "AirVent" && <AirVent className="w-4 h-4" />}
+                            {appliance.icon === "Lightbulb" && <Lightbulb className="w-4 h-4" />}
+                            {appliance.icon !== "Refrigerator" &&
+                              appliance.icon !== "Wifi" &&
+                              appliance.icon !== "Laptop" &&
+                              appliance.icon !== "Tv" &&
+                              appliance.icon !== "AirVent" &&
+                              appliance.icon !== "Lightbulb" && <Zap className="w-4 h-4" />}
+                          </div>
+                          <div className="min-w-0">
+                            <span className="text-xs font-semibold text-slate-100 block truncate">
+                              {appliance.name}
+                            </span>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className="text-[11px] font-mono font-bold text-amber-300">
+                                {appliance.averageWatts} W
+                              </span>
+                              <span className={`text-[9px] font-semibold px-1.5 py-0.2 rounded border ${catTheme}`}>
+                                {appliance.category}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteAppliance(appliance.id)}
+                          disabled={isDeleting}
+                          aria-label={`Excluir aparelho ${appliance.name}`}
+                          className="p-2 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 active:scale-95 transition-all cursor-pointer shrink-0 disabled:opacity-40"
+                        >
+                          {isDeleting ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-400" />
+                          ) : (
+                            <Trash2 className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
