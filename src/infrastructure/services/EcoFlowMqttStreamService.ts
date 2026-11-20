@@ -26,6 +26,8 @@ export interface LiveTelemetrySnapshot {
   batteryAmps?: number | null;
 }
 
+export type TelemetryListener = (snapshot: LiveTelemetrySnapshot) => void;
+
 export interface MqttStreamConfig {
   userId: string;
   credentials: EcoFlowCredentials;
@@ -57,6 +59,7 @@ export class EcoFlowMqttStreamService {
   private static instance: EcoFlowMqttStreamService | null = null;
 
   private readonly streamsByUser = new Map<string, UserMqttStreamState>();
+  private readonly telemetryListenersByUser = new Map<string, Set<TelemetryListener>>();
 
   private constructor() {}
 
@@ -67,6 +70,73 @@ export class EcoFlowMqttStreamService {
 
     EcoFlowMqttStreamService.instance = new EcoFlowMqttStreamService();
     return EcoFlowMqttStreamService.instance;
+  }
+
+  /**
+   * Registra um listener ativo para receber snapshots de telemetria em tempo real para o usuário especificado.
+   * Retorna uma função limpa de cancelamento (unsubscribe) que remove o listener e expurga o Set/Map quando vazio.
+   */
+  public subscribeTelemetry(
+    userId: string,
+    listener: (snapshot: LiveTelemetrySnapshot) => void
+  ): () => void {
+    const normalizedUserId = userId?.trim();
+    if (!normalizedUserId) {
+      return () => {};
+    }
+
+    if (!this.telemetryListenersByUser.has(normalizedUserId)) {
+      this.telemetryListenersByUser.set(normalizedUserId, new Set());
+    }
+    this.telemetryListenersByUser.get(normalizedUserId)!.add(listener);
+
+    return () => {
+      const userListeners = this.telemetryListenersByUser.get(normalizedUserId);
+      if (userListeners) {
+        userListeners.delete(listener);
+        if (userListeners.size === 0) {
+          this.telemetryListenersByUser.delete(normalizedUserId);
+        }
+      }
+    };
+  }
+
+  /**
+   * Retorna a contagem de listeners ativos de telemetria (para um usuário ou no total).
+   */
+  public getActiveListenersCount(userId?: string): number {
+    if (userId !== undefined) {
+      return this.telemetryListenersByUser.get(userId.trim())?.size ?? 0;
+    }
+    let total = 0;
+    for (const set of this.telemetryListenersByUser.values()) {
+      total += set.size;
+    }
+    return total;
+  }
+
+  /**
+   * Notifica todos os listeners ativos de um usuário sobre a chegada de um novo snapshot de telemetria.
+   */
+  public broadcastTelemetry(userId: string, snapshot: LiveTelemetrySnapshot): void {
+    const normalizedUserId = userId?.trim();
+    if (!normalizedUserId) {
+      return;
+    }
+
+    const listeners = this.telemetryListenersByUser.get(normalizedUserId);
+    if (listeners && listeners.size > 0) {
+      listeners.forEach((listener) => {
+        try {
+          listener(snapshot);
+        } catch (listenerError) {
+          console.warn(
+            `[EcoFlow SSE] Erro ao notificar listener para user=${normalizedUserId}:`,
+            listenerError
+          );
+        }
+      });
+    }
   }
 
   public async startForUser(databaseClient: PrismaClient, userId: string): Promise<void> {
@@ -194,11 +264,11 @@ export class EcoFlowMqttStreamService {
     if (userId !== undefined) {
       const normalized = userId.trim();
       const state = this.streamsByUser.get(normalized);
-      if (!state) {
-        return;
+      if (state) {
+        this.disposeUserClient(state);
+        this.streamsByUser.delete(normalized);
       }
-      this.disposeUserClient(state);
-      this.streamsByUser.delete(normalized);
+      this.telemetryListenersByUser.delete(normalized);
       return;
     }
 
@@ -206,6 +276,7 @@ export class EcoFlowMqttStreamService {
       this.disposeUserClient(state);
     }
     this.streamsByUser.clear();
+    this.telemetryListenersByUser.clear();
   }
 
   private disposeUserClient(state: UserMqttStreamState): void {
@@ -356,6 +427,10 @@ export class EcoFlowMqttStreamService {
 
       const quotaData = this.resolveQuotaPayload(parsedJson);
       this.updateUserSnapshot(userState, quotaData, parsedJson);
+
+      if (userState.latestTelemetry) {
+        this.broadcastTelemetry(streamConfig.userId, userState.latestTelemetry);
+      }
 
       const hasDatabaseContext = streamConfig.databaseClient && streamConfig.userConfigurationId;
       if (hasDatabaseContext) {
