@@ -60,6 +60,14 @@ export interface RetrievedConfigurationRecord {
   isAlertOnThermalRisk: boolean;
   isAlertOnAtsFailure: boolean;
   alertCooldownMinutes: number;
+  // Feature 3.2: Solar Smart Charging (Etapa 4)
+  isSmartChargingActive: boolean;
+  minAcChargingWatts: number;
+  maxAcChargingWatts: number;
+  currentAcChargingWatts: number;
+  chargeOnlyOffPeak: boolean;
+  cloudyPrechargeActive: boolean;
+  lastSmartChargeAdjustAt: Date | null;
 }
 
 /**
@@ -330,6 +338,26 @@ export class ConfigurationRepository {
       isAlertOnThermalRisk: rawRecord.isAlertOnThermalRisk ?? true,
       isAlertOnAtsFailure: rawRecord.isAlertOnAtsFailure ?? true,
       alertCooldownMinutes: rawRecord.alertCooldownMinutes ?? 10,
+      isSmartChargingActive: rawRecord.isSmartChargingActive ?? false,
+      minAcChargingWatts: rawRecord.minAcChargingWatts ?? 200,
+      maxAcChargingWatts: rawRecord.maxAcChargingWatts ?? 1200,
+      currentAcChargingWatts: rawRecord.currentAcChargingWatts ?? 400,
+      chargeOnlyOffPeak: rawRecord.chargeOnlyOffPeak ?? true,
+      cloudyPrechargeActive: rawRecord.cloudyPrechargeActive ?? true,
+      lastSmartChargeAdjustAt: rawRecord.lastSmartChargeAdjustAt ?? null,
     };
+  }
+
+  public async updateCurrentAcChargingWatts(
+    configurationId: string,
+    watts: number
+  ): Promise<void> {
+    await this.databaseClient.userConfiguration.update({
+      where: { id: configurationId },
+      data: {
+        currentAcChargingWatts: watts,
+        lastSmartChargeAdjustAt: new Date(),
+      },
+    });
   }
 }

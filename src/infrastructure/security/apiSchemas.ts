@@ -245,6 +245,22 @@ export const settingsPostBodySchema = z.object({
     .min(1, "Cooldown de alerta deve ser de pelo menos 1 minuto.")
     .max(120, "Cooldown não pode exceder 120 minutos.")
     .optional(),
+  // Feature 3.2: Solar Smart Charging (Etapa 4)
+  isSmartChargingActive: z.boolean({ message: "Flag isSmartChargingActive deve ser booleana." }).optional(),
+  minAcChargingWatts: z
+    .number({ message: "Potência mínima de recarga deve ser um número." })
+    .int("Potência mínima deve ser um número inteiro.")
+    .min(100, "Potência mínima de recarga deve ser de pelo menos 100W.")
+    .max(1000, "Potência mínima não pode exceder 1.000W.")
+    .optional(),
+  maxAcChargingWatts: z
+    .number({ message: "Potência máxima de recarga deve ser um número." })
+    .int("Potência máxima deve ser um número inteiro.")
+    .min(200, "Potência máxima de recarga deve ser de pelo menos 200W.")
+    .max(3600, "Potência máxima não pode exceder 3.600W.")
+    .optional(),
+  chargeOnlyOffPeak: z.boolean({ message: "Flag chargeOnlyOffPeak deve ser booleana." }).optional(),
+  cloudyPrechargeActive: z.boolean({ message: "Flag cloudyPrechargeActive deve ser booleana." }).optional(),
 });
 
 export const stormModePostBodySchema = z.object({
@@ -305,4 +321,34 @@ export const testNotificationPostBodySchema = z.object({
   telegramChatId: z.string().max(64, "Chat ID do Telegram excede 64 caracteres.").optional(),
   whatsappPhoneNumber: z.string().max(32, "Telefone excede 32 caracteres.").optional(),
   whatsappApiKey: z.string().max(256, "API Key do WhatsApp excede 256 caracteres.").optional(),
+});
+
+// Feature 2.3: Painel de Autonomia por Carga (Etapa 4)
+export const appliancePostBodySchema = z.object({
+  name: z
+    .string({ message: "Nome do aparelho é obrigatório." })
+    .trim()
+    .min(1, "Nome do aparelho deve ter no mínimo 1 caractere.")
+    .max(64, "Nome do aparelho não pode exceder 64 caracteres."),
+  category: z.enum(["ESSENTIAL", "COMFORT", "HEAVY", "CUSTOM"], {
+    message: "Categoria inválida. Escolha entre ESSENTIAL, COMFORT, HEAVY ou CUSTOM.",
+  }),
+  averageWatts: z
+    .number({ message: "Potência média deve ser um número." })
+    .int("Potência média deve ser um número inteiro em Watts.")
+    .min(5, "Potência média mínima é de 5W.")
+    .max(10000, "Potência média não pode exceder 10.000W."),
+  isActiveInSimulation: z.boolean().optional(),
+  icon: z.string().trim().max(32, "Ícone não pode exceder 32 caracteres.").optional(),
+});
+
+export const applianceToggleBodySchema = z.object({
+  applianceId: z.string().trim().min(1, "ID do aparelho obrigatório.").max(128),
+  isActiveInSimulation: z.boolean({ message: "isActiveInSimulation deve ser booleano." }),
+});
+
+export const applianceBatchToggleSchema = z.object({
+  action: z.literal("toggleSimulation"),
+  applianceIds: z.array(z.string().trim().min(1).max(128)),
+  isActive: z.boolean().optional(),
 });

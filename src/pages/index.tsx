@@ -28,7 +28,16 @@ import {
   SunMedium,
   BellRing,
   AlertTriangle,
+  Layers,
+  Refrigerator,
+  Wifi,
+  Laptop,
+  Tv,
+  AirVent,
+  Lightbulb,
+  Check,
 } from "lucide-react";
+import type { ApplianceItem } from "./api/appliances";
 import type {
   FinancialSavingsMetrics,
   AutonomyEstimateMetrics,
@@ -57,6 +66,13 @@ interface DashboardData {
   lastSolarWatts: number | null;
   lastOutputWatts?: number | null;
   inverterMaxWatts?: number;
+  isSmartChargingActive?: boolean;
+  minAcChargingWatts?: number;
+  maxAcChargingWatts?: number;
+  currentAcChargingWatts?: number;
+  chargeOnlyOffPeak?: boolean;
+  cloudyPrechargeActive?: boolean;
+  lastSmartChargeAdjustAt?: string | null;
   lastAction: string | null;
   lastSyncTime: string | null;
   logs: SyncLogItem[];
@@ -75,6 +91,54 @@ export default function DashboardPage() {
   const [savingsData, setSavingsData] = useState<FinancialSavingsMetrics | null>(null);
   const [solarForecast, setSolarForecast] = useState<SolarForecastMetrics | null>(null);
   const [bmsAnalytics, setBmsAnalytics] = useState<BmsAnalyticsMetrics | null>(null);
+  const [appliances, setAppliances] = useState<ApplianceItem[]>([]);
+  const [batteryCapacityWh, setBatteryCapacityWh] = useState<number>(2048);
+  const [isTogglingAppliance, setIsTogglingAppliance] = useState<string | null>(null);
+
+  const fetchAppliances = async () => {
+    try {
+      const res = await fetch("/api/appliances");
+      const json = await res.json();
+      if (json.success && json.data) {
+        setAppliances(json.data.appliances || []);
+        if (json.data.batteryCapacityWh) {
+          setBatteryCapacityWh(json.data.batteryCapacityWh);
+        }
+      }
+    } catch (e) {
+      console.error("Erro ao carregar aparelhos:", e);
+    }
+  };
+
+  const handleToggleAppliance = async (applianceId: string, currentActive: boolean) => {
+    const nextVal = !currentActive;
+    setAppliances((prev) =>
+      prev.map((a) => (a.id === applianceId ? { ...a, isActiveInSimulation: nextVal } : a))
+    );
+    setIsTogglingAppliance(applianceId);
+    try {
+      const res = await fetch("/api/appliances", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          applianceId,
+          isActiveInSimulation: nextVal,
+        }),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        setAppliances((prev) =>
+          prev.map((a) => (a.id === applianceId ? { ...a, isActiveInSimulation: currentActive } : a))
+        );
+      }
+    } catch {
+      setAppliances((prev) =>
+        prev.map((a) => (a.id === applianceId ? { ...a, isActiveInSimulation: currentActive } : a))
+      );
+    } finally {
+      setIsTogglingAppliance(null);
+    }
+  };
 
   const fetchStatus = async () => {
     try {
@@ -115,6 +179,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchStatus();
+    fetchAppliances();
     const interval = setInterval(fetchStatus, 2000);
     return () => clearInterval(interval);
   }, []);
@@ -1152,6 +1217,349 @@ export default function DashboardPage() {
             <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-500 font-mono">
               <span>BMS Telemetry: MQTT Stream &amp; Polling</span>
               <span>Proteção Térmica: Ativa</span>
+            </div>
+          </div>
+        </section>
+
+        {/* Seção Etapa 4: Simulador de Autonomia por Carga & Solar Smart Charging */}
+        <section
+          aria-label="Simulador de Autonomia por Carga & Solar Smart Charging"
+          className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6"
+        >
+          {/* Card 1: Simulador de Autonomia por Carga (lg:col-span-2) */}
+          <div className="lg:col-span-2 animate-card stagger-5 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-5 flex flex-col justify-between">
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 shrink-0 border border-emerald-500/20">
+                    <Layers className="w-5 h-5 animate-float" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <h2 className="text-base sm:text-lg font-bold text-slate-100 flex items-center gap-2">
+                      Simulador de Autonomia por Carga
+                    </h2>
+                    <p className="text-xs text-slate-400">
+                      Selecione os eletrodomésticos ativos para projetar a duração exata da bateria
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-mono font-bold px-3 py-1 rounded-full border shadow-sm bg-emerald-500/10 text-emerald-300 border-emerald-500/30">
+                    <BatteryCharging className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
+                    {appliances.filter((a) => a.isActiveInSimulation).length} / {appliances.length} Cargas Ativas
+                  </span>
+                </div>
+              </div>
+
+              {/* Chips / Cards Clicáveis dos Aparelhos */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs text-slate-400">
+                  <span className="font-semibold uppercase tracking-wider text-[11px]">
+                    Toque no aparelho para ligar / desligar na simulação:
+                  </span>
+                  <span className="text-[11px] font-mono text-slate-500 hidden sm:inline">
+                    Auto-sincronizado com /api/appliances
+                  </span>
+                </div>
+
+                {appliances.length === 0 ? (
+                  <div className="p-6 rounded-xl bg-slate-950 border border-slate-800 text-center text-xs text-slate-500">
+                    Inicializando cargas essenciais residenciais...
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                    {appliances.map((appliance) => {
+                      const isActive = appliance.isActiveInSimulation;
+                      const isToggling = isTogglingAppliance === appliance.id;
+
+                      return (
+                        <button
+                          key={appliance.id}
+                          type="button"
+                          onClick={() => handleToggleAppliance(appliance.id, isActive)}
+                          disabled={isToggling}
+                          aria-pressed={isActive}
+                          className={`p-3 rounded-xl border text-left transition-all duration-200 cursor-pointer active:scale-95 flex flex-col justify-between group relative overflow-hidden ${
+                            isActive
+                              ? "bg-emerald-500/10 border-emerald-500/50 shadow-md shadow-emerald-950/30 text-slate-100"
+                              : "bg-slate-950/80 border-slate-800/90 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-1 mb-2">
+                            <div className={`p-2 rounded-lg transition-colors ${
+                              isActive ? "bg-emerald-500/20 text-emerald-300" : "bg-slate-900 text-slate-500 group-hover:text-slate-300"
+                            }`}>
+                              {appliance.icon === "Refrigerator" && <Refrigerator className="w-4 h-4" />}
+                              {appliance.icon === "Wifi" && <Wifi className="w-4 h-4" />}
+                              {appliance.icon === "Laptop" && <Laptop className="w-4 h-4" />}
+                              {appliance.icon === "Tv" && <Tv className="w-4 h-4" />}
+                              {appliance.icon === "AirVent" && <AirVent className="w-4 h-4" />}
+                              {appliance.icon === "Lightbulb" && <Lightbulb className="w-4 h-4" />}
+                              {appliance.icon !== "Refrigerator" &&
+                                appliance.icon !== "Wifi" &&
+                                appliance.icon !== "Laptop" &&
+                                appliance.icon !== "Tv" &&
+                                appliance.icon !== "AirVent" &&
+                                appliance.icon !== "Lightbulb" && <Zap className="w-4 h-4" />}
+                            </div>
+
+                            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full font-bold border transition-colors ${
+                              isActive
+                                ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                                : "bg-slate-900 text-slate-600 border-slate-800"
+                            }`}>
+                              {isActive ? "ON" : "OFF"}
+                            </span>
+                          </div>
+
+                          <div>
+                            <span className="text-xs font-bold block truncate">
+                              {appliance.name}
+                            </span>
+                            <div className="flex items-center justify-between gap-1 mt-1 text-[11px] font-mono">
+                              <span className={isActive ? "text-amber-300 font-semibold" : "text-slate-500"}>
+                                {appliance.averageWatts} W
+                              </span>
+                              <span className="text-[9px] uppercase text-slate-500 tracking-wider">
+                                {appliance.category}
+                              </span>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Comparativo de Autonomia: Consumo Real vs Simulação */}
+              {(() => {
+                const batteryWh = batteryCapacityWh || 2048;
+                const batteryPct = data?.lastBatteryPercentage ?? 80;
+                const remainingWh = batteryWh * (batteryPct / 100);
+
+                const activeSimulatedWatts = appliances
+                  .filter((a) => a.isActiveInSimulation)
+                  .reduce((sum, a) => sum + a.averageWatts, 0);
+
+                const simulatedMinutes =
+                  activeSimulatedWatts > 0
+                    ? Math.round((remainingWh / Math.max(10, activeSimulatedWatts)) * 60)
+                    : 0;
+
+                const realOutputWatts = data?.lastOutputWatts ?? 0;
+                const netDrainWatts = Math.max(10, realOutputWatts - (data?.lastSolarWatts ?? 0));
+                const realBaselineMinutes = Math.round((remainingWh / netDrainWatts) * 60);
+
+                const deltaMinutes = activeSimulatedWatts > 0 ? simulatedMinutes - realBaselineMinutes : 0;
+
+                const formatTime = (mins: number) => {
+                  if (mins <= 0) return "0m";
+                  const h = Math.floor(mins / 60);
+                  const m = Math.round(mins % 60);
+                  return h === 0 ? `${m}m` : `${h}h ${m.toString().padStart(2, "0")}m`;
+                };
+
+                return (
+                  <div className="p-4 rounded-xl bg-slate-950/90 border border-slate-800/90 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1 border-b border-slate-800/80 pb-2">
+                      <span className="text-xs uppercase font-semibold tracking-wider text-slate-300 flex items-center gap-1.5">
+                        <Activity className="w-3.5 h-3.5 text-emerald-400" />
+                        Projeção Comparativa de Autonomia (SOC: {batteryPct}%)
+                      </span>
+                      <span className="text-xs font-mono text-slate-400">
+                        Carga Total Simulada: <strong className="text-emerald-300">{activeSimulatedWatts} W</strong>
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {/* 1. Consumo Real Medido */}
+                      <div className="p-3 rounded-lg bg-slate-900 border border-slate-800">
+                        <span className="text-[11px] text-slate-400 block">Consumo Real Medido</span>
+                        <div className="text-xl sm:text-2xl font-bold font-mono text-slate-100 my-0.5">
+                          {realOutputWatts} W
+                        </div>
+                        <span className="text-xs font-mono text-sky-400 block">
+                          ~{formatTime(realBaselineMinutes)} restantes
+                        </span>
+                      </div>
+
+                      {/* 2. Com a Simulação Ativa */}
+                      <div className="p-3 rounded-lg bg-slate-900 border border-slate-800">
+                        <span className="text-[11px] text-slate-400 block">Cenário Simulado</span>
+                        <div className="text-xl sm:text-2xl font-bold font-mono text-emerald-300 my-0.5">
+                          {activeSimulatedWatts} W
+                        </div>
+                        <span className="text-xs font-mono text-emerald-400 block">
+                          {activeSimulatedWatts > 0 ? `~${formatTime(simulatedMinutes)} projetadas` : "Selecione cargas"}
+                        </span>
+                      </div>
+
+                      {/* 3. Impacto Temporal */}
+                      <div className="p-3 rounded-lg bg-slate-900 border border-slate-800">
+                        <span className="text-[11px] text-slate-400 block">Impacto na Autonomia</span>
+                        <div className={`text-xl sm:text-2xl font-bold font-mono my-0.5 ${
+                          activeSimulatedWatts === 0
+                            ? "text-slate-500"
+                            : deltaMinutes >= 0
+                            ? "text-emerald-400"
+                            : "text-amber-400"
+                        }`}>
+                          {activeSimulatedWatts === 0
+                            ? "--"
+                            : `${deltaMinutes >= 0 ? "+" : ""}${formatTime(deltaMinutes)}`}
+                        </div>
+                        <span className="text-[10px] text-slate-400 block">
+                          {activeSimulatedWatts === 0
+                            ? "Nenhum aparelho ativo"
+                            : deltaMinutes >= 0
+                            ? "Economia de carga vs real"
+                            : "Estresse de carga vs real"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-500 font-mono">
+              <span>Simulador Off-Grid EcoFlow</span>
+              <TransitionLink href="/settings" className="text-emerald-400 hover:underline">
+                Gerenciar Aparelhos &rarr;
+              </TransitionLink>
+            </div>
+          </div>
+
+          {/* Card 2: Solar Smart Charging & Recarga AC (lg:col-span-1) */}
+          <div className="animate-card stagger-5 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-5 flex flex-col justify-between">
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400 shrink-0 border border-amber-500/20">
+                    <SunMedium className="w-5 h-5 animate-float" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <h2 className="text-base sm:text-lg font-bold text-slate-100 flex items-center gap-2">
+                      Solar Smart Charging
+                    </h2>
+                    <p className="text-xs text-slate-400">
+                      Modulação de recarga AC e blindagem de tarifa
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  <span className={`inline-flex items-center gap-1.5 text-xs font-mono font-bold px-3 py-1 rounded-full border shadow-sm ${
+                    data?.isSmartChargingActive
+                      ? "bg-amber-500/10 text-amber-300 border-amber-500/30"
+                      : "bg-slate-800 text-slate-400 border-slate-700"
+                  }`}>
+                    <span className={`w-2 h-2 rounded-full ${data?.isSmartChargingActive ? "bg-amber-400" : "bg-slate-500"}`} />
+                    {data?.isSmartChargingActive ? "Ativo" : "Standby"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Destaque da Potência Atual de Carregamento AC */}
+              <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs uppercase font-semibold tracking-wider text-slate-400 flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-amber-400" />
+                    Potência de Recarga AC
+                  </span>
+                  <span className="text-xs font-mono text-slate-400">
+                    Limite: <strong className="text-slate-200">{data?.maxAcChargingWatts ?? 1200} W</strong>
+                  </span>
+                </div>
+
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl sm:text-4xl font-extrabold font-mono tracking-tight text-amber-300">
+                    {data?.currentAcChargingWatts ?? 400} W
+                  </span>
+                  <span className="text-xs text-slate-400 font-mono">
+                    (Min: {data?.minAcChargingWatts ?? 200}W | Max: {data?.maxAcChargingWatts ?? 1200}W)
+                  </span>
+                </div>
+
+                {/* Barra de Progresso da Velocidade de Recarga */}
+                <div className="space-y-1">
+                  <div
+                    className="w-full bg-slate-900 rounded-full h-3 p-0.5 border border-slate-800 overflow-hidden"
+                    role="progressbar"
+                    aria-valuenow={data?.currentAcChargingWatts ?? 400}
+                    aria-valuemin={data?.minAcChargingWatts ?? 200}
+                    aria-valuemax={data?.maxAcChargingWatts ?? 1200}
+                    aria-label="Potência atual de recarga AC da EcoFlow"
+                  >
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-amber-500 to-amber-400 transition-all duration-700 ease-out"
+                      style={{
+                        width: `${Math.max(
+                          5,
+                          Math.min(
+                            100,
+                            (((data?.currentAcChargingWatts ?? 400) - (data?.minAcChargingWatts ?? 200)) /
+                              Math.max(1, (data?.maxAcChargingWatts ?? 1200) - (data?.minAcChargingWatts ?? 200))) *
+                              100
+                          )
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[10px] font-mono text-slate-500">
+                    <span>{data?.minAcChargingWatts ?? 200}W (Mínimo)</span>
+                    <span>{data?.maxAcChargingWatts ?? 1200}W (Máximo)</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Badges de Status Operacionais em Tempo Real */}
+              <div className="space-y-2 text-xs">
+                {isStormModeActive ? (
+                  <div className="p-3 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-200 flex items-center gap-2 font-mono font-bold animate-pulse">
+                    <CloudLightning className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span>MODO TEMPESTADE: Carga Máxima ({data?.maxAcChargingWatts ?? 1200}W)</span>
+                  </div>
+                ) : savingsData?.currentTariffPeriod === "PEAK" && (data?.chargeOnlyOffPeak ?? true) ? (
+                  <div className="p-3 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-200 flex items-center gap-2 font-mono font-bold">
+                    <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                    <span>BLOQUEIO DE PONTA ATIVO: Economizando R$ 1,85+/kWh</span>
+                  </div>
+                ) : solarForecast?.expectation === "SOLAR_POOR" && (data?.cloudyPrechargeActive ?? true) ? (
+                  <div className="p-3 rounded-xl bg-sky-500/20 border border-sky-500/40 text-sky-200 flex items-center gap-2 font-mono font-bold">
+                    <CloudRain className="w-4 h-4 text-sky-400 shrink-0" />
+                    <span>PRÉ-RECARGA DE CHUVA: Preparando reserva até 85%</span>
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-300 flex items-center gap-2 font-mono">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>Modulação Solar &amp; Tarifa Normalizada</span>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
+                  <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800/80">
+                    <span className="text-slate-500 block">Bloqueio Ponta</span>
+                    <span className={`font-bold ${data?.chargeOnlyOffPeak ?? true ? "text-emerald-400" : "text-slate-400"}`}>
+                      {data?.chargeOnlyOffPeak ?? true ? "Ativado" : "Desativado"}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800/80">
+                    <span className="text-slate-500 block">Pré-Recarga Chuva</span>
+                    <span className={`font-bold ${data?.cloudyPrechargeActive ?? true ? "text-sky-400" : "text-slate-400"}`}>
+                      {data?.cloudyPrechargeActive ?? true ? "Ativado" : "Desativado"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-500 font-mono">
+              <span>EcoFlow AC Charging: MQTT &amp; REST</span>
+              <span>Proteção Anti-Oscilação: 50W</span>
             </div>
           </div>
         </section>
