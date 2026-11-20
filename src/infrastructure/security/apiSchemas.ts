@@ -180,6 +180,71 @@ export const settingsPostBodySchema = z.object({
     .min(40, "Limiar de corte térmico deve ser de pelo menos 40°C.")
     .max(65, "Limiar de corte térmico não pode exceder 65°C.")
     .optional(),
+  isDynamicTariffActive: z
+    .boolean({ message: "Flag isDynamicTariffActive deve ser booleana." })
+    .optional(),
+  peakTariffPerKwh: z
+    .number({ message: "Tarifa de ponta deve ser um número." })
+    .positive("Tarifa de ponta deve ser maior que zero.")
+    .max(50, "Tarifa de ponta excede o limite razoável.")
+    .optional(),
+  intermediateTariffPerKwh: z
+    .number({ message: "Tarifa intermediária deve ser um número." })
+    .positive("Tarifa intermediária deve ser maior que zero.")
+    .max(50, "Tarifa intermediária excede o limite razoável.")
+    .optional(),
+  offPeakTariffPerKwh: z
+    .number({ message: "Tarifa fora de ponta deve ser um número." })
+    .positive("Tarifa fora de ponta deve ser maior que zero.")
+    .max(50, "Tarifa fora de ponta excede o limite razoável.")
+    .optional(),
+  peakStartTime: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Horário de início da ponta inválido (formato HH:mm).")
+    .optional(),
+  peakEndTime: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Horário de fim da ponta inválido (formato HH:mm).")
+    .optional(),
+  intermediateStartTime1: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Horário intermediário inválido (formato HH:mm).")
+    .optional(),
+  intermediateEndTime1: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Horário intermediário inválido (formato HH:mm).")
+    .optional(),
+  intermediateStartTime2: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Horário intermediário inválido (formato HH:mm).")
+    .optional(),
+  intermediateEndTime2: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Horário intermediário inválido (formato HH:mm).")
+    .optional(),
+  peakReserveThreshold: z
+    .number({ message: "Reserva de ponta deve ser um número." })
+    .int("Reserva de ponta deve ser um número inteiro.")
+    .min(5, "Reserva de ponta deve ser de no mínimo 5%.")
+    .max(50, "Reserva de ponta não pode exceder 50%.")
+    .optional(),
+  inverterMaxWatts: z
+    .number({ message: "Potência do inversor deve ser um número." })
+    .int("Potência do inversor deve ser um número inteiro.")
+    .min(500, "Potência do inversor deve ser de pelo menos 500W.")
+    .max(20000, "Potência do inversor não pode exceder 20.000W.")
+    .optional(),
+  isAlertOnBlackout: z.boolean().optional(),
+  isAlertOnGridRestore: z.boolean().optional(),
+  isAlertOnOverload: z.boolean().optional(),
+  isAlertOnThermalRisk: z.boolean().optional(),
+  isAlertOnAtsFailure: z.boolean().optional(),
+  alertCooldownMinutes: z
+    .number({ message: "Cooldown de alerta deve ser um número." })
+    .int("Cooldown deve ser um número inteiro em minutos.")
+    .min(1, "Cooldown de alerta deve ser de pelo menos 1 minuto.")
+    .max(120, "Cooldown não pode exceder 120 minutos.")
+    .optional(),
 });
 
 export const stormModePostBodySchema = z.object({
