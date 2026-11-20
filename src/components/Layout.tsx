@@ -5,8 +5,9 @@ import { Zap, Sliders, Settings, Activity, LogOut, User, BarChart3 } from "lucid
 import { useAuth } from "../context/AuthContext";
 import { TransitionLink } from "./TransitionLink";
 import { Tooltip, TooltipTrigger, TooltipContent } from "./ui/tooltip";
+import { PwaInstallPrompt } from "./PwaInstallPrompt";
 
-// Bottom nav visible only on mobile (< 640px / sm breakpoint)
+// Bottom nav mobile com 5 abas fixas, safe-area e alvos de toque >= 44x44px (md:hidden)
 const BottomNav = ({
   navItems,
   pathname,
@@ -17,8 +18,7 @@ const BottomNav = ({
   <nav
     role="navigation"
     aria-label="Navegação Mobile Inferior"
-    className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-lg border-t border-slate-800/90 shadow-2xl"
-    style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+    className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-lg border-t border-slate-800/90 shadow-2xl pb-[env(safe-area-inset-bottom,0px)]"
   >
     <div className="flex items-stretch justify-around h-16 max-w-md mx-auto px-1">
       {navItems.map((item) => {
@@ -30,7 +30,7 @@ const BottomNav = ({
             href={item.href}
             aria-current={isActive ? "page" : undefined}
             aria-label={item.label}
-            className={`relative flex flex-1 flex-col items-center justify-center py-1 gap-0.5 text-[10px] font-medium transition-all duration-200 active:scale-95 ${
+            className={`relative flex flex-1 flex-col items-center justify-center min-w-[44px] min-h-[44px] py-1 gap-0.5 text-[10px] font-medium transition-all duration-200 active:scale-95 ${
               isActive
                 ? "text-emerald-400 font-semibold"
                 : "text-slate-400 hover:text-slate-200"
@@ -56,7 +56,7 @@ const BottomNav = ({
                 aria-hidden="true"
               />
             </div>
-            <span className="leading-tight truncate max-w-[76px] text-center">
+            <span className="leading-tight truncate max-w-[64px] text-center">
               {item.label}
             </span>
           </TransitionLink>
@@ -86,10 +86,18 @@ export function Layout({ children, title }: LayoutProps) {
   }, []);
 
   const navItems = [
-    { href: "/", label: "Dashboard", icon: Activity },
+    { href: "/", label: "Painel", icon: Activity },
     { href: "/statistics", label: "Estatísticas", icon: BarChart3 },
     { href: "/automations", label: "Automações", icon: Sliders },
-    { href: "/settings", label: "Credenciais (BYOK)", icon: Settings },
+    { href: "/settings", label: "Credenciais", icon: Settings },
+  ];
+
+  const bottomNavItems = [
+    { href: "/", label: "Painel", icon: Activity },
+    { href: "/statistics", label: "Estatísticas", icon: BarChart3 },
+    { href: "/automations", label: "Automações", icon: Sliders },
+    { href: "/settings", label: "Credenciais", icon: Settings },
+    { href: "/profile", label: "Perfil", icon: User },
   ];
 
   const browserTitle = title
@@ -174,7 +182,7 @@ export function Layout({ children, title }: LayoutProps) {
               <nav
                 role="navigation"
                 aria-label="Navegação Principal"
-                className="hidden sm:flex items-center gap-1 sm:gap-1.5"
+                className="hidden md:flex items-center gap-1 sm:gap-1.5"
               >
                 {navItems.map((item) => {
                   const Icon = item.icon;
@@ -277,7 +285,7 @@ export function Layout({ children, title }: LayoutProps) {
 
         <main
           role="main"
-          className="max-w-6xl w-full mx-auto px-4 py-4 sm:py-6 page-content animate-fade-in"
+          className="max-w-6xl w-full mx-auto px-4 py-4 sm:py-6 pb-20 md:pb-8 page-content animate-fade-in"
         >
           {title && (
             <div className="mb-6 animate-slide-down">
@@ -289,12 +297,13 @@ export function Layout({ children, title }: LayoutProps) {
 
         <footer
           role="contentinfo"
-          className="mt-6 border-t border-slate-800/80 py-5 text-center text-xs text-slate-500 pb-20 sm:pb-5"
+          className="mt-6 border-t border-slate-800/80 py-5 text-center text-xs text-slate-500 pb-24 md:pb-5"
         >
           <p><strong className="font-semibold text-slate-400">wattflow</strong> - desenvolvido com ♥ por Braine</p>
         </footer>
 
-        <BottomNav navItems={navItems} pathname={router.pathname} />
+        <PwaInstallPrompt />
+        <BottomNav navItems={bottomNavItems} pathname={router.pathname} />
       </div>
     </>
   );
