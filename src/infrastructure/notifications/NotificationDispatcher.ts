@@ -164,14 +164,33 @@ export class NotificationDispatcher {
   ): Promise<{ isSuccess: boolean; errorMessage?: string }> {
     try {
       const cleanPhone = phone.replace(/[^0-9]/g, "");
+      const cleanApiKey = apiKey.trim();
+
+      if (!/^\d{10,15}$/.test(cleanPhone)) {
+        return {
+          isSuccess: false,
+          errorMessage: "Número de WhatsApp inválido (esperado entre 10 e 15 dígitos numéricos).",
+        };
+      }
+
+      if (!/^[a-zA-Z0-9_-]+$/.test(cleanApiKey)) {
+        return {
+          isSuccess: false,
+          errorMessage: "API Key do CallMeBot contém caracteres inválidos.",
+        };
+      }
+
       const callMeBotUrl = new URL("https://api.callmebot.com/whatsapp.php");
       const searchParams = callMeBotUrl.searchParams;
       searchParams.set("phone", cleanPhone);
       searchParams.set("text", plainText);
-      searchParams.set("apikey", apiKey.trim());
+      searchParams.set("apikey", cleanApiKey);
 
       const response = await fetch(callMeBotUrl.toString(), {
         method: "GET",
+        headers: {
+          "User-Agent": "WattFlow-SecureNotifier/1.0",
+        },
         signal: AbortSignal.timeout(EXTERNAL_HTTP_TIMEOUT_MS),
       });
       const textResponse = await response.text();

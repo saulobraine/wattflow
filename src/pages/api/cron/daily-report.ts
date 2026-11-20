@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../../infrastructure/database/prismaClient";
 import { extractUserFromRequest } from "../../../infrastructure/auth/sessionHelper";
@@ -12,10 +13,32 @@ interface DailyReportResponse {
   processedCount: number;
   dispatchedCount: number;
   details?: Array<{
-    userId: string;
+    userId?: string;
     dispatched: boolean;
     reason?: string;
   }>;
+}
+
+export function isAuthorizedCronRequest(
+  authHeader: string | undefined,
+  cronSecret: string | undefined
+): boolean {
+  if (!cronSecret || cronSecret.trim().length === 0) {
+    return false;
+  }
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return false;
+  }
+
+  const expectedHeader = `Bearer ${cronSecret}`;
+  const actualBuffer = Buffer.from(authHeader, "utf8");
+  const expectedBuffer = Buffer.from(expectedHeader, "utf8");
+
+  if (actualBuffer.length !== expectedBuffer.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(actualBuffer, expectedBuffer);
 }
 
 function wasAlreadySentToday(lastSentAt: Date | null): boolean {
@@ -47,10 +70,9 @@ export default async function handleDailyReportCron(
     return;
   }
 
-  // Permite execução via CRON_SECRET no header Authorization, ou por usuário logado (teste manual)
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = request.headers.authorization;
-  const isCronAuthorized = cronSecret && authHeader === `Bearer ${cronSecret}`;
+  const isCronAuthorized = isAuthorizedCronRequest(authHeader, cronSecret);
 
   let sessionUser: Awaited<ReturnType<typeof extractUserFromRequest>> = null;
   try {
@@ -59,9 +81,8 @@ export default async function handleDailyReportCron(
     // Modo cron sem sessão de usuário
   }
 
-  const isManualTest = Boolean(request.query.force === "true" || request.body?.force === true);
-
-  if (!isCronAuthorized && !sessionUser && cronSecret) {
+  // Fail-Closed: se não for cron autenticado e não tiver sessão de usuário válida, rejeita imediatamente com 401
+  if (!isCronAuthorized && !sessionUser) {
     response.status(401).json({
       success: false,
       message: "Não autorizado para executar o cron de relatório diário.",
@@ -71,12 +92,15 @@ export default async function handleDailyReportCron(
     return;
   }
 
-  let singleUserId: string | null = null;
-  if (sessionUser && isManualTest) {
+  // Isolamento Multi-Tenant estrito: se a requisição for de usuário comum, força o escopo apenas para ele
+  let targetUserIdScope: string | null = null;
+  if (sessionUser && !isCronAuthorized) {
     sessionUser.provideIdentity((userId) => {
-      singleUserId = userId;
+      targetUserIdScope = userId;
     });
   }
+
+  const isManualTest = Boolean(request.query.force === "true" || request.body?.force === true);
 
   try {
     const now = new Date();
@@ -87,7 +111,7 @@ export default async function handleDailyReportCron(
       where: {
         isDailyReportActive: true,
         isNotificationActive: true,
-        ...(singleUserId ? { userId: singleUserId } : {}),
+        ...(targetUserIdScope ? { userId: targetUserIdScope } : {}),
       },
       include: {
         user: { select: { email: true, fullName: true } },
@@ -158,6 +182,7 @@ export default async function handleDailyReportCron(
           executedAt: true,
         },
         orderBy: { executedAt: "asc" },
+        take: 5000,
       });
 
       let monthKwh = todayKwh;
@@ -277,12 +302,16 @@ export default async function handleDailyReportCron(
       results.push({ userId: config.userId, dispatched: true });
     }
 
+    const sanitizedDetails = isCronAuthorized
+      ? results
+      : results.map(({ dispatched, reason }) => ({ dispatched, reason }));
+
     response.status(200).json({
       success: true,
       message: `Processamento do relatório diário concluído (${dispatchedCount} enviado(s)).`,
       processedCount: configurations.length,
       dispatchedCount,
-      details: results,
+      details: sanitizedDetails,
     });
   } catch (error) {
     console.error("[DailyReport Cron] Erro ao processar relatório diário:", error);
