@@ -57,6 +57,24 @@ export interface SettingsResponseData {
   lastBatterySoh: number | null;
   lastBatteryCycles: number | null;
   maxRecordedBatteryTemp: number | null;
+  isDynamicTariffActive: boolean;
+  peakTariffPerKwh: number;
+  intermediateTariffPerKwh: number;
+  offPeakTariffPerKwh: number;
+  peakStartTime: string;
+  peakEndTime: string;
+  intermediateStartTime1: string;
+  intermediateEndTime1: string;
+  intermediateStartTime2: string;
+  intermediateEndTime2: string;
+  peakReserveThreshold: number;
+  inverterMaxWatts: number;
+  isAlertOnBlackout: boolean;
+  isAlertOnGridRestore: boolean;
+  isAlertOnOverload: boolean;
+  isAlertOnThermalRisk: boolean;
+  isAlertOnAtsFailure: boolean;
+  alertCooldownMinutes: number;
 }
 
 interface SettingsResponseBody {
@@ -174,6 +192,24 @@ export default async function handleSettings(
           lastBatterySoh: existing.lastBatterySoh ?? null,
           lastBatteryCycles: existing.lastBatteryCycles ?? null,
           maxRecordedBatteryTemp: existing.maxRecordedBatteryTemp ?? null,
+          isDynamicTariffActive: existing.isDynamicTariffActive ?? false,
+          peakTariffPerKwh: existing.peakTariffPerKwh ?? 1.85,
+          intermediateTariffPerKwh: existing.intermediateTariffPerKwh ?? 1.15,
+          offPeakTariffPerKwh: existing.offPeakTariffPerKwh ?? 0.65,
+          peakStartTime: existing.peakStartTime || "17:30",
+          peakEndTime: existing.peakEndTime || "20:30",
+          intermediateStartTime1: existing.intermediateStartTime1 || "16:30",
+          intermediateEndTime1: existing.intermediateEndTime1 || "17:30",
+          intermediateStartTime2: existing.intermediateStartTime2 || "20:30",
+          intermediateEndTime2: existing.intermediateEndTime2 || "21:30",
+          peakReserveThreshold: existing.peakReserveThreshold ?? 15,
+          inverterMaxWatts: existing.inverterMaxWatts ?? 2400,
+          isAlertOnBlackout: existing.isAlertOnBlackout ?? true,
+          isAlertOnGridRestore: existing.isAlertOnGridRestore ?? true,
+          isAlertOnOverload: existing.isAlertOnOverload ?? true,
+          isAlertOnThermalRisk: existing.isAlertOnThermalRisk ?? true,
+          isAlertOnAtsFailure: existing.isAlertOnAtsFailure ?? true,
+          alertCooldownMinutes: existing.alertCooldownMinutes ?? 10,
         },
       });
       return;
@@ -229,6 +265,24 @@ export default async function handleSettings(
       maxAdaptiveThreshold,
       thermalWarningThreshold,
       thermalShutdownThreshold,
+      isDynamicTariffActive,
+      peakTariffPerKwh,
+      intermediateTariffPerKwh,
+      offPeakTariffPerKwh,
+      peakStartTime,
+      peakEndTime,
+      intermediateStartTime1,
+      intermediateEndTime1,
+      intermediateStartTime2,
+      intermediateEndTime2,
+      peakReserveThreshold,
+      inverterMaxWatts,
+      isAlertOnBlackout,
+      isAlertOnGridRestore,
+      isAlertOnOverload,
+      isAlertOnThermalRisk,
+      isAlertOnAtsFailure,
+      alertCooldownMinutes,
     } = parsedBody.data;
 
     if (
@@ -378,6 +432,78 @@ export default async function handleSettings(
         typeof thermalShutdownThreshold === "number"
           ? thermalShutdownThreshold
           : existingConfig?.thermalShutdownThreshold ?? 50.0;
+      const resolvedDynamicTariff =
+        typeof isDynamicTariffActive === "boolean"
+          ? isDynamicTariffActive
+          : existingConfig?.isDynamicTariffActive ?? false;
+      const resolvedPeakTariff =
+        typeof peakTariffPerKwh === "number"
+          ? peakTariffPerKwh
+          : existingConfig?.peakTariffPerKwh ?? 1.85;
+      const resolvedIntermediateTariff =
+        typeof intermediateTariffPerKwh === "number"
+          ? intermediateTariffPerKwh
+          : existingConfig?.intermediateTariffPerKwh ?? 1.15;
+      const resolvedOffPeakTariff =
+        typeof offPeakTariffPerKwh === "number"
+          ? offPeakTariffPerKwh
+          : existingConfig?.offPeakTariffPerKwh ?? 0.65;
+      const resolvedPeakStartTime =
+        typeof peakStartTime === "string" && peakStartTime.trim().length > 0
+          ? peakStartTime.trim()
+          : existingConfig?.peakStartTime ?? "17:30";
+      const resolvedPeakEndTime =
+        typeof peakEndTime === "string" && peakEndTime.trim().length > 0
+          ? peakEndTime.trim()
+          : existingConfig?.peakEndTime ?? "20:30";
+      const resolvedInterStartTime1 =
+        typeof intermediateStartTime1 === "string" && intermediateStartTime1.trim().length > 0
+          ? intermediateStartTime1.trim()
+          : existingConfig?.intermediateStartTime1 ?? "16:30";
+      const resolvedInterEndTime1 =
+        typeof intermediateEndTime1 === "string" && intermediateEndTime1.trim().length > 0
+          ? intermediateEndTime1.trim()
+          : existingConfig?.intermediateEndTime1 ?? "17:30";
+      const resolvedInterStartTime2 =
+        typeof intermediateStartTime2 === "string" && intermediateStartTime2.trim().length > 0
+          ? intermediateStartTime2.trim()
+          : existingConfig?.intermediateStartTime2 ?? "20:30";
+      const resolvedInterEndTime2 =
+        typeof intermediateEndTime2 === "string" && intermediateEndTime2.trim().length > 0
+          ? intermediateEndTime2.trim()
+          : existingConfig?.intermediateEndTime2 ?? "21:30";
+      const resolvedPeakReserve =
+        typeof peakReserveThreshold === "number"
+          ? peakReserveThreshold
+          : existingConfig?.peakReserveThreshold ?? 15;
+      const resolvedInverterMaxWatts =
+        typeof inverterMaxWatts === "number"
+          ? inverterMaxWatts
+          : existingConfig?.inverterMaxWatts ?? 2400;
+      const resolvedAlertBlackout =
+        typeof isAlertOnBlackout === "boolean"
+          ? isAlertOnBlackout
+          : existingConfig?.isAlertOnBlackout ?? true;
+      const resolvedAlertGridRestore =
+        typeof isAlertOnGridRestore === "boolean"
+          ? isAlertOnGridRestore
+          : existingConfig?.isAlertOnGridRestore ?? true;
+      const resolvedAlertOverload =
+        typeof isAlertOnOverload === "boolean"
+          ? isAlertOnOverload
+          : existingConfig?.isAlertOnOverload ?? true;
+      const resolvedAlertThermalRisk =
+        typeof isAlertOnThermalRisk === "boolean"
+          ? isAlertOnThermalRisk
+          : existingConfig?.isAlertOnThermalRisk ?? true;
+      const resolvedAlertAtsFailure =
+        typeof isAlertOnAtsFailure === "boolean"
+          ? isAlertOnAtsFailure
+          : existingConfig?.isAlertOnAtsFailure ?? true;
+      const resolvedAlertCooldown =
+        typeof alertCooldownMinutes === "number"
+          ? alertCooldownMinutes
+          : existingConfig?.alertCooldownMinutes ?? 10;
 
       await prisma.userConfiguration.upsert({
         where: { userId: extractedUserId },
@@ -410,6 +536,24 @@ export default async function handleSettings(
           maxAdaptiveThreshold: resolvedMaxAdaptive,
           thermalWarningThreshold: resolvedThermalWarning,
           thermalShutdownThreshold: resolvedThermalShutdown,
+          isDynamicTariffActive: resolvedDynamicTariff,
+          peakTariffPerKwh: resolvedPeakTariff,
+          intermediateTariffPerKwh: resolvedIntermediateTariff,
+          offPeakTariffPerKwh: resolvedOffPeakTariff,
+          peakStartTime: resolvedPeakStartTime,
+          peakEndTime: resolvedPeakEndTime,
+          intermediateStartTime1: resolvedInterStartTime1,
+          intermediateEndTime1: resolvedInterEndTime1,
+          intermediateStartTime2: resolvedInterStartTime2,
+          intermediateEndTime2: resolvedInterEndTime2,
+          peakReserveThreshold: resolvedPeakReserve,
+          inverterMaxWatts: resolvedInverterMaxWatts,
+          isAlertOnBlackout: resolvedAlertBlackout,
+          isAlertOnGridRestore: resolvedAlertGridRestore,
+          isAlertOnOverload: resolvedAlertOverload,
+          isAlertOnThermalRisk: resolvedAlertThermalRisk,
+          isAlertOnAtsFailure: resolvedAlertAtsFailure,
+          alertCooldownMinutes: resolvedAlertCooldown,
         },
         create: {
           userId: extractedUserId,
@@ -441,6 +585,24 @@ export default async function handleSettings(
           maxAdaptiveThreshold: resolvedMaxAdaptive,
           thermalWarningThreshold: resolvedThermalWarning,
           thermalShutdownThreshold: resolvedThermalShutdown,
+          isDynamicTariffActive: resolvedDynamicTariff,
+          peakTariffPerKwh: resolvedPeakTariff,
+          intermediateTariffPerKwh: resolvedIntermediateTariff,
+          offPeakTariffPerKwh: resolvedOffPeakTariff,
+          peakStartTime: resolvedPeakStartTime,
+          peakEndTime: resolvedPeakEndTime,
+          intermediateStartTime1: resolvedInterStartTime1,
+          intermediateEndTime1: resolvedInterEndTime1,
+          intermediateStartTime2: resolvedInterStartTime2,
+          intermediateEndTime2: resolvedInterEndTime2,
+          peakReserveThreshold: resolvedPeakReserve,
+          inverterMaxWatts: resolvedInverterMaxWatts,
+          isAlertOnBlackout: resolvedAlertBlackout,
+          isAlertOnGridRestore: resolvedAlertGridRestore,
+          isAlertOnOverload: resolvedAlertOverload,
+          isAlertOnThermalRisk: resolvedAlertThermalRisk,
+          isAlertOnAtsFailure: resolvedAlertAtsFailure,
+          alertCooldownMinutes: resolvedAlertCooldown,
         },
       });
 

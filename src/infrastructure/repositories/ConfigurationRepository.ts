@@ -42,6 +42,24 @@ export interface RetrievedConfigurationRecord {
   lastBatterySoh: number | null;
   lastBatteryCycles: number | null;
   maxRecordedBatteryTemp: number | null;
+  isDynamicTariffActive: boolean;
+  peakTariffPerKwh: number;
+  intermediateTariffPerKwh: number;
+  offPeakTariffPerKwh: number;
+  peakStartTime: string;
+  peakEndTime: string;
+  intermediateStartTime1: string;
+  intermediateEndTime1: string;
+  intermediateStartTime2: string;
+  intermediateEndTime2: string;
+  peakReserveThreshold: number;
+  inverterMaxWatts: number;
+  isAlertOnBlackout: boolean;
+  isAlertOnGridRestore: boolean;
+  isAlertOnOverload: boolean;
+  isAlertOnThermalRisk: boolean;
+  isAlertOnAtsFailure: boolean;
+  alertCooldownMinutes: number;
 }
 
 /**
@@ -294,6 +312,24 @@ export class ConfigurationRepository {
       lastBatterySoh: rawRecord.lastBatterySoh ?? null,
       lastBatteryCycles: rawRecord.lastBatteryCycles ?? null,
       maxRecordedBatteryTemp: rawRecord.maxRecordedBatteryTemp ?? null,
+      isDynamicTariffActive: rawRecord.isDynamicTariffActive ?? false,
+      peakTariffPerKwh: rawRecord.peakTariffPerKwh ?? 1.85,
+      intermediateTariffPerKwh: rawRecord.intermediateTariffPerKwh ?? 1.15,
+      offPeakTariffPerKwh: rawRecord.offPeakTariffPerKwh ?? 0.65,
+      peakStartTime: rawRecord.peakStartTime ?? "17:30",
+      peakEndTime: rawRecord.peakEndTime ?? "20:30",
+      intermediateStartTime1: rawRecord.intermediateStartTime1 ?? "16:30",
+      intermediateEndTime1: rawRecord.intermediateEndTime1 ?? "17:30",
+      intermediateStartTime2: rawRecord.intermediateStartTime2 ?? "20:30",
+      intermediateEndTime2: rawRecord.intermediateEndTime2 ?? "21:30",
+      peakReserveThreshold: rawRecord.peakReserveThreshold ?? 15,
+      inverterMaxWatts: rawRecord.inverterMaxWatts ?? 2400,
+      isAlertOnBlackout: rawRecord.isAlertOnBlackout ?? true,
+      isAlertOnGridRestore: rawRecord.isAlertOnGridRestore ?? true,
+      isAlertOnOverload: rawRecord.isAlertOnOverload ?? true,
+      isAlertOnThermalRisk: rawRecord.isAlertOnThermalRisk ?? true,
+      isAlertOnAtsFailure: rawRecord.isAlertOnAtsFailure ?? true,
+      alertCooldownMinutes: rawRecord.alertCooldownMinutes ?? 10,
     };
   }
 }

@@ -26,6 +26,8 @@ import {
   Gauge,
   Flame,
   SunMedium,
+  BellRing,
+  AlertTriangle,
 } from "lucide-react";
 import type {
   FinancialSavingsMetrics,
@@ -33,6 +35,7 @@ import type {
   SolarForecastMetrics,
   BmsAnalyticsMetrics,
   SolarExpectationLevel,
+  TariffPeriod,
 } from "./api/statistics";
 
 interface SyncLogItem {
@@ -52,6 +55,8 @@ interface DashboardData {
   turnOffThreshold: number;
   lastBatteryPercentage: number | null;
   lastSolarWatts: number | null;
+  lastOutputWatts?: number | null;
+  inverterMaxWatts?: number;
   lastAction: string | null;
   lastSyncTime: string | null;
   logs: SyncLogItem[];
@@ -281,6 +286,41 @@ export default function DashboardPage() {
     };
   };
 
+  const getTariffPeriodBadge = (period?: TariffPeriod, rate?: number, isDynamicActive?: boolean) => {
+    if (!isDynamicActive) {
+      return {
+        label: "Tarifa Convencional",
+        classes: "bg-slate-800 text-slate-300 border-slate-700",
+        dot: "bg-slate-400",
+        desc: "Tarifa fixa única",
+      };
+    }
+    switch (period) {
+      case "PEAK":
+        return {
+          label: "🔴 HORÁRIO DE PONTA",
+          classes: "bg-rose-950/80 text-rose-300 border-rose-600/70 shadow-rose-950/50 shadow-md animate-pulse",
+          dot: "bg-rose-500",
+          desc: `Tarifa mais cara (${savingsData?.currencySymbol || "R$"} ${(rate ?? 1.85).toFixed(2)}/kWh) — Priorizando Bateria`,
+        };
+      case "INTERMEDIATE":
+        return {
+          label: "🟡 INTERMEDIÁRIO",
+          classes: "bg-amber-950/80 text-amber-300 border-amber-600/70 shadow-amber-950/40 shadow-sm",
+          dot: "bg-amber-400",
+          desc: `Faixa de transição (${savingsData?.currencySymbol || "R$"} ${(rate ?? 1.15).toFixed(2)}/kWh)`,
+        };
+      case "OFF_PEAK":
+      default:
+        return {
+          label: "🟢 FORA DE PONTA",
+          classes: "bg-emerald-950/80 text-emerald-300 border-emerald-600/70 shadow-emerald-950/40 shadow-sm",
+          dot: "bg-emerald-400",
+          desc: `Tarifa mais econômica (${savingsData?.currencySymbol || "R$"} ${(rate ?? 0.65).toFixed(2)}/kWh)`,
+        };
+    }
+  };
+
   return (
     <Layout>
       <div className="space-y-8">
@@ -340,6 +380,28 @@ export default function DashboardPage() {
             <p className="text-slate-400 text-sm mt-1">
               Gerenciamento automatizado do inversor EcoFlow integrado à Chave de Transferência Automática.
             </p>
+
+            {/* Badge Dinâmico de Tarifa em Tempo Real (Tarifa Branca ANEEL) */}
+            <div className="flex flex-wrap items-center gap-2 mt-2.5">
+              {(() => {
+                const tariff = getTariffPeriodBadge(
+                  savingsData?.currentTariffPeriod,
+                  savingsData?.currentTariffRate,
+                  savingsData?.isDynamicTariffActive
+                );
+                return (
+                  <span className={`inline-flex items-center gap-1.5 text-xs font-mono font-bold px-3 py-1 rounded-full border shadow-sm ${tariff.classes}`}>
+                    <span className={`w-2 h-2 rounded-full ${tariff.dot}`} />
+                    {tariff.label}
+                    {savingsData?.isDynamicTariffActive && (
+                      <span className="font-normal text-[11px] opacity-90 hidden sm:inline">
+                        — {tariff.desc}
+                      </span>
+                    )}
+                  </span>
+                );
+              })()}
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
@@ -652,10 +714,10 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* Seção Executiva de Inteligência Avançada (Previsão Solar & BMS EcoFlow) */}
+        {/* Seção Executiva de Inteligência Avançada (Previsão Solar, Inversor & BMS EcoFlow) */}
         <section
-          aria-label="Inteligência Solar & Diagnóstico BMS"
-          className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6"
+          aria-label="Inteligência Solar, Inversor & Diagnóstico BMS"
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6"
         >
           {/* Card 1: Previsão Solar Preditiva (Open-Meteo) */}
           <div className="animate-card stagger-4 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-5 flex flex-col justify-between">
@@ -754,7 +816,161 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Card 2: Saúde da Bateria & BMS EcoFlow */}
+          {/* Card 2: Monitoramento do Inversor & Sobrecarga AC */}
+          <div className="animate-card stagger-5 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-5 flex flex-col justify-between">
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2.5 rounded-xl shrink-0 border ${
+                    (data?.inverterMaxWatts ?? 2400) > 0 && ((data?.lastOutputWatts ?? 0) / (data?.inverterMaxWatts ?? 2400)) >= 0.9
+                      ? "bg-rose-500/10 text-rose-400 border-rose-500/30"
+                      : "bg-sky-500/10 text-sky-400 border-sky-500/20"
+                  }`}>
+                    <Zap className="w-5 h-5 animate-float" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <h2 className="text-base sm:text-lg font-bold text-slate-100 flex items-center gap-2">
+                      Carga do Inversor
+                    </h2>
+                    <p className="text-xs text-slate-400">
+                      Potência ativa de saída AC vs limite nominal
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  {(() => {
+                    const outputWatts = data?.lastOutputWatts ?? 0;
+                    const maxWatts = data?.inverterMaxWatts ?? 2400;
+                    const loadPct = maxWatts > 0 ? (outputWatts / maxWatts) * 100 : 0;
+                    if (loadPct >= 90) {
+                      return (
+                        <span className="inline-flex items-center gap-1.5 text-xs font-mono font-bold px-3 py-1 rounded-full border shadow-sm bg-rose-500/20 text-rose-300 border-rose-500/40 animate-pulse">
+                          <AlertTriangle className="w-3.5 h-3.5 text-rose-400" aria-hidden="true" />
+                          Sobrecarga (≥ 90%)
+                        </span>
+                      );
+                    }
+                    if (loadPct >= 70) {
+                      return (
+                        <span className="inline-flex items-center gap-1.5 text-xs font-mono font-bold px-3 py-1 rounded-full border shadow-sm bg-amber-500/10 text-amber-300 border-amber-500/30">
+                          <span className="w-2 h-2 rounded-full bg-amber-400" aria-hidden="true" />
+                          Carga Alta
+                        </span>
+                      );
+                    }
+                    return (
+                      <span className="inline-flex items-center gap-1.5 text-xs font-mono font-bold px-3 py-1 rounded-full border shadow-sm bg-emerald-500/10 text-emerald-300 border-emerald-500/30">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400" aria-hidden="true" />
+                        Operação Segura
+                      </span>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {/* Destaque da Carga Atual e Barra de Uso */}
+              <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-3">
+                {(() => {
+                  const outputWatts = data?.lastOutputWatts ?? 0;
+                  const maxWatts = data?.inverterMaxWatts ?? 2400;
+                  const loadPct = maxWatts > 0 ? (outputWatts / maxWatts) * 100 : 0;
+                  const isOverload = loadPct >= 90;
+                  return (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs uppercase font-semibold tracking-wider text-slate-400 flex items-center gap-1.5">
+                          <Activity className="w-3.5 h-3.5 text-sky-400" aria-hidden="true" />
+                          Demanda Residencial
+                        </span>
+                        <span className="text-xs font-mono text-slate-400">
+                          Capacidade: <strong className="text-slate-200">{maxWatts} W</strong>
+                        </span>
+                      </div>
+
+                      <div className="flex items-baseline gap-2">
+                        <span className={`text-3xl sm:text-4xl font-extrabold font-mono tracking-tight ${
+                          isOverload
+                            ? "text-rose-400 animate-pulse"
+                            : loadPct >= 70
+                            ? "text-amber-300"
+                            : "text-sky-300"
+                        }`}>
+                          {outputWatts.toLocaleString("pt-BR")} W
+                        </span>
+                        <span className="text-xs text-slate-400 font-mono">
+                          ({loadPct.toFixed(1)}% do limite)
+                        </span>
+                      </div>
+
+                      {/* Barra de Progresso com Alerta de Sobrecarga */}
+                      <div className="space-y-1">
+                        <div
+                          className="w-full bg-slate-900 rounded-full h-3 p-0.5 border border-slate-800 overflow-hidden"
+                          role="progressbar"
+                          aria-valuenow={outputWatts}
+                          aria-valuemin={0}
+                          aria-valuemax={maxWatts}
+                          aria-label="Carga de saída do inversor EcoFlow"
+                        >
+                          <div
+                            className={`h-full rounded-full transition-all duration-700 ease-out ${
+                              loadPct < 70
+                                ? "bg-gradient-to-r from-emerald-500 to-sky-400"
+                                : loadPct < 90
+                                ? "bg-gradient-to-r from-emerald-500 via-amber-400 to-amber-500"
+                                : "bg-gradient-to-r from-amber-500 via-rose-500 to-red-600 animate-pulse"
+                            }`}
+                            style={{
+                              width: `${Math.max(3, Math.min(100, loadPct))}%`,
+                            }}
+                          />
+                        </div>
+                        <div className="flex justify-between text-[10px] font-mono text-slate-500">
+                          <span>0 W</span>
+                          <span className="text-amber-500/80">70% ({Math.round(maxWatts * 0.7)}W)</span>
+                          <span className="text-rose-500/80">90% ({Math.round(maxWatts * 0.9)}W)</span>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+
+              {/* Grid com Sub-Métricas do Inversor */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3 text-xs">
+                <div className="p-3 rounded-xl bg-slate-950 border border-slate-800/80">
+                  <span className="text-slate-400 block text-[11px]">Potência Nominal</span>
+                  <span className="text-base sm:text-lg font-bold font-mono text-slate-200 mt-0.5 block">
+                    {data?.inverterMaxWatts ?? 2400} W
+                  </span>
+                </div>
+
+                <div className="p-3 rounded-xl bg-slate-950 border border-slate-800/80">
+                  <span className="text-slate-400 block text-[11px]">Folga Disponível</span>
+                  <span className="text-base sm:text-lg font-bold font-mono text-emerald-400 mt-0.5 block">
+                    {Math.max(0, (data?.inverterMaxWatts ?? 2400) - (data?.lastOutputWatts ?? 0)).toLocaleString("pt-BR")} W
+                  </span>
+                </div>
+
+                <div className="p-3 rounded-xl bg-slate-950 border border-slate-800/80 col-span-2 sm:col-span-1">
+                  <span className="text-slate-400 block text-[11px]">Status da Saída AC</span>
+                  <span className={`text-xs font-bold font-mono mt-1.5 block ${
+                    (data?.lastOutputWatts ?? 0) > 0 ? "text-emerald-400" : "text-slate-400"
+                  }`}>
+                    {(data?.lastOutputWatts ?? 0) > 0 ? "Fornecendo AC" : "Standby / Rede"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-500 font-mono">
+              <span>Proteção Anti-Sobrecarga: Ativa</span>
+              <span>Alerta: ≥ 90%</span>
+            </div>
+          </div>
+
+          {/* Card 3: Saúde da Bateria & BMS EcoFlow */}
           <div className="animate-card stagger-5 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-5 flex flex-col justify-between">
             <div className="space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">

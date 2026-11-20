@@ -32,6 +32,7 @@ import type {
   SolarForecastMetrics,
   BmsAnalyticsMetrics,
   SolarExpectationLevel,
+  TariffPeriod,
 } from "./api/statistics";
 
 export interface AtsHealthData {
@@ -269,6 +270,45 @@ export default function StatisticsPage() {
       badge: "bg-rose-950/80 text-rose-300 border-rose-700/60",
       label: "Alerta Térmico Crítico",
     };
+  };
+
+  const getTariffPeriodBadge = (
+    period?: TariffPeriod,
+    rate?: number,
+    isDynamicActive?: boolean
+  ) => {
+    if (!isDynamicActive) {
+      return {
+        label: "Tarifa Convencional",
+        classes: "bg-slate-800 text-slate-300 border-slate-700",
+        dot: "bg-slate-400",
+        desc: "Tarifa fixa única",
+      };
+    }
+    switch (period) {
+      case "PEAK":
+        return {
+          label: `Ponta (R$ ${rate?.toFixed(2) ?? "--"})`,
+          classes: "bg-rose-500/20 text-rose-300 border-rose-500/40 animate-pulse",
+          dot: "bg-rose-500",
+          desc: "Horário mais caro — prioridade máxima solar/bateria",
+        };
+      case "INTERMEDIATE":
+        return {
+          label: `Intermediário (R$ ${rate?.toFixed(2) ?? "--"})`,
+          classes: "bg-amber-500/20 text-amber-300 border-amber-500/40",
+          dot: "bg-amber-400",
+          desc: "Tarifa moderada pré/pós ponta",
+        };
+      case "OFF_PEAK":
+      default:
+        return {
+          label: `Fora de Ponta (R$ ${rate?.toFixed(2) ?? "--"})`,
+          classes: "bg-emerald-500/20 text-emerald-300 border-emerald-500/40",
+          dot: "bg-emerald-400",
+          desc: "Tarifa reduzida",
+        };
+    }
   };
 
   return (
@@ -566,9 +606,22 @@ export default function StatisticsPage() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                {(() => {
+                  const tariff = getTariffPeriodBadge(
+                    data.financialSavings.currentTariffPeriod,
+                    data.financialSavings.currentTariffRate,
+                    data.financialSavings.isDynamicTariffActive
+                  );
+                  return (
+                    <span className={`inline-flex items-center gap-1.5 text-xs font-mono font-bold px-3 py-1 rounded-full border shadow-sm ${tariff.classes}`}>
+                      <span className={`w-2 h-2 rounded-full ${tariff.dot}`} />
+                      {tariff.label}
+                    </span>
+                  );
+                })()}
                 <span className="inline-flex items-center gap-1.5 text-xs font-mono font-bold px-3 py-1 rounded-full bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 shadow-sm">
                   <Zap className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
-                  Tarifa: {data.financialSavings.currencySymbol} {data.financialSavings.energyCostPerKwh.toFixed(2)} / kWh
+                  Tarifa: {data.financialSavings.currencySymbol} {(data.financialSavings.currentTariffRate ?? data.financialSavings.energyCostPerKwh).toFixed(2)} / kWh
                 </span>
                 {data.autonomyEstimate && (
                   <span className="inline-flex items-center gap-1 text-[11px] font-mono px-2.5 py-1 rounded-full bg-slate-950 text-sky-300 border border-slate-800">
@@ -663,6 +716,86 @@ export default function StatisticsPage() {
                   <span className="font-mono text-sky-300 font-semibold">Retorno Direto (ROI)</span>
                 </p>
               </div>
+            </div>
+
+            {/* Rateio e Distribuição por Faixa Tarifária (Tarifa Branca ANEEL) */}
+            <div className="p-4 rounded-xl bg-slate-950/90 border border-slate-800/90 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-amber-400" aria-hidden="true" />
+                  <span className="text-xs uppercase font-semibold tracking-wider text-slate-300">
+                    Rateio de Economia por Faixa Tarifária (Hoje)
+                  </span>
+                </div>
+                <span className="text-[11px] font-mono text-slate-400">
+                  {data.financialSavings.isDynamicTariffActive
+                    ? "Tarifa Branca Ativa (Pontas Otimizadas)"
+                    : "Tarifa Convencional Ativa"}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                {/* Economia na Ponta */}
+                <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 flex flex-col justify-between">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400 text-[11px]">Economia no Horário de Ponta</span>
+                    <span className="w-2 h-2 rounded-full bg-rose-500" />
+                  </div>
+                  <div className="my-1">
+                    <span className="text-lg sm:text-xl font-bold font-mono text-rose-300">
+                      {data.financialSavings.currencySymbol}{" "}
+                      {(data.financialSavings.peakSavingsToday ?? 0).toFixed(2)}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-500">
+                    Descarga agressiva da bateria
+                  </span>
+                </div>
+
+                {/* Economia Fora de Ponta */}
+                <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 flex flex-col justify-between">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400 text-[11px]">Economia Fora de Ponta</span>
+                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                  </div>
+                  <div className="my-1">
+                    <span className="text-lg sm:text-xl font-bold font-mono text-emerald-300">
+                      {data.financialSavings.currencySymbol}{" "}
+                      {(data.financialSavings.offPeakSavingsToday ?? 0).toFixed(2)}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-500">
+                    Geração solar direta e autoconsumo
+                  </span>
+                </div>
+
+                {/* Período Vigente */}
+                <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 flex flex-col justify-between">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400 text-[11px]">Status Tarifário Atual</span>
+                    <Zap className="w-3.5 h-3.5 text-amber-400" />
+                  </div>
+                  <div className="my-1">
+                    <span className="text-sm font-bold font-mono text-amber-300">
+                      {data.financialSavings.isDynamicTariffActive
+                        ? data.financialSavings.currentTariffPeriod === "PEAK"
+                          ? "🔴 Horário de Ponta"
+                          : data.financialSavings.currentTariffPeriod === "INTERMEDIATE"
+                          ? "🟡 Intermediário"
+                          : "🟢 Fora de Ponta"
+                        : "⚪ Convencional"}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    {data.financialSavings.currencySymbol}{" "}
+                    {(data.financialSavings.currentTariffRate ?? data.financialSavings.energyCostPerKwh).toFixed(2)} / kWh
+                  </span>
+                </div>
+              </div>
+
+              <p className="text-[11px] text-slate-400 leading-relaxed pt-1 border-t border-slate-800/40">
+                A Tarifa Branca ANEEL tarifará o consumo na ponta em valor substancialmente maior. O sistema Wattflow prioriza o descarregamento das baterias nesse horário crítico para blindar a residência contra os custos mais elevados da rede elétrica.
+              </p>
             </div>
           </section>
         )}
