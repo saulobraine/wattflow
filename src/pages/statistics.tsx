@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Layout } from "../components/Layout";
 import { useVisibilityPolling } from "../hooks/useVisibilityPolling";
 import { useLiveTelemetry } from "../hooks/useLiveTelemetry";
+import { ReportExportModal } from "../components/ReportExportModal";
 import {
   Sun,
   Zap,
@@ -107,6 +108,7 @@ export default function StatisticsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [hoveredPoint, setHoveredPoint] = useState<SolarChartPoint | null>(null);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
   // Estados do Histórico Multitemporal & Análise Avançada
   const [selectedRange, setSelectedRange] = useState<StatisticsRange>("today-vs-yesterday");
@@ -381,14 +383,26 @@ export default function StatisticsPage() {
             </p>
           </div>
 
-          <button
-            onClick={handleRefresh}
-            disabled={isRefreshing || isLoading}
-            className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all duration-150 flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed shrink-0"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
-            {isRefreshing ? "Atualizando..." : "Atualizar Estatísticas"}
-          </button>
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsReportModalOpen(true)}
+              className="w-full sm:w-auto px-4 py-2.5 sm:py-2 min-h-[44px] rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-750 text-emerald-400 border border-emerald-500/40 active:scale-95 transition-all duration-150 flex items-center justify-center gap-2 shadow-md cursor-pointer shrink-0"
+              aria-label="Abrir módulo de exportação e relatórios analíticos"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-400" aria-hidden="true" />
+              <span>Exportar Relatório</span>
+            </button>
+
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing || isLoading}
+              className="w-full sm:w-auto px-4 py-2.5 sm:py-2 min-h-[44px] rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all duration-150 flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed shrink-0"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
+              {isRefreshing ? "Atualizando..." : "Atualizar"}
+            </button>
+          </div>
         </div>
 
         {/* 1. Potência Instantânea em Tempo Real (3 Cards) */}
@@ -1420,28 +1434,26 @@ export default function StatisticsPage() {
               </p>
             </div>
 
-            {/* Ações: Exportar CSV e Imprimir/PDF (Ocultos na impressão) */}
+            {/* Ações: Exportar Relatório e Imprimir/PDF (Ocultos na impressão) */}
             <div className="flex flex-wrap items-center gap-2.5 no-print">
-              <a
-                href={`/api/statistics/export?range=${
-                  selectedRange === "today-vs-yesterday" ? "24h" : selectedRange
-                }&format=csv`}
-                download
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 active:scale-95 transition-all shadow-sm cursor-pointer"
-                aria-label="Exportar histórico em formato CSV"
+              <button
+                type="button"
+                onClick={() => setIsReportModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[44px] rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white active:scale-95 transition-all shadow-md shadow-emerald-950 cursor-pointer"
+                aria-label="Abrir módulo de relatórios analíticos e exportação"
               >
-                <Download className="w-4 h-4 text-emerald-400" aria-hidden="true" />
-                <span>Exportar CSV</span>
-              </a>
+                <FileSpreadsheet className="w-4 h-4 text-white" aria-hidden="true" />
+                <span>Exportar Relatório</span>
+              </button>
 
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 active:scale-95 transition-all shadow-sm cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[44px] rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 active:scale-95 transition-all shadow-sm cursor-pointer"
                 aria-label="Imprimir relatório executivo ou salvar como PDF"
               >
                 <Printer className="w-4 h-4 text-sky-400" aria-hidden="true" />
-                <span>Relatório PDF / Imprimir</span>
+                <span>Imprimir Página</span>
               </button>
             </div>
           </div>
@@ -2212,6 +2224,12 @@ export default function StatisticsPage() {
           )}
         </section>
       </div>
+
+      {/* Modal de Relatórios Analíticos & Exportação (CSV / PDF) */}
+      <ReportExportModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+      />
     </Layout>
   );
 }
