@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { TransitionLink } from "../components/TransitionLink";
 import { Layout } from "../components/Layout";
 import { useVisibilityPolling } from "../hooks/useVisibilityPolling";
+import { useLiveTelemetry } from "../hooks/useLiveTelemetry";
 import {
   BatteryCharging,
   Power,
@@ -80,6 +81,7 @@ interface DashboardData {
 }
 
 export default function DashboardPage() {
+  const { telemetry: liveTelemetry } = useLiveTelemetry();
   const [data, setData] = useState<DashboardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -244,16 +246,29 @@ export default function DashboardPage() {
     }
   };
 
-  const battery = data?.lastBatteryPercentage ?? 0;
+  const battery = liveTelemetry?.batteryPercentage ?? data?.lastBatteryPercentage ?? 0;
+  const solarWatts = liveTelemetry?.solarInputWatts ?? data?.lastSolarWatts ?? 0;
+  const outputWatts = liveTelemetry?.outputWatts ?? data?.lastOutputWatts ?? 0;
+  const hasBatteryReading =
+    liveTelemetry?.batteryPercentage !== undefined ||
+    (data?.lastBatteryPercentage !== null && data?.lastBatteryPercentage !== undefined);
+  const hasSolarReading =
+    liveTelemetry?.solarInputWatts !== undefined ||
+    (data?.lastSolarWatts !== null && data?.lastSolarWatts !== undefined);
+
   const isSolarBatteryMode =
-    data?.lastAction === "ENABLE_ECOFLOW_AC" ||
-    data?.lastAction === "BATTERY_HIGH_DISCHARGE" ||
-    data?.lastAction === "TURN_OFF";
+    liveTelemetry?.isAcOutputEnabled !== undefined
+      ? liveTelemetry.isAcOutputEnabled
+      : data?.lastAction === "ENABLE_ECOFLOW_AC" ||
+        data?.lastAction === "BATTERY_HIGH_DISCHARGE" ||
+        data?.lastAction === "TURN_OFF";
 
   const isGridMode =
-    data?.lastAction === "DISABLE_ECOFLOW_AC" ||
-    data?.lastAction === "BATTERY_LOW_RECHARGE" ||
-    data?.lastAction === "TURN_ON";
+    liveTelemetry?.isAcOutputEnabled !== undefined
+      ? !liveTelemetry.isAcOutputEnabled
+      : data?.lastAction === "DISABLE_ECOFLOW_AC" ||
+        data?.lastAction === "BATTERY_LOW_RECHARGE" ||
+        data?.lastAction === "TURN_ON";
 
   const renderActionBadge = (action: string, isCompact = false) => {
     if (action === "ENABLE_ECOFLOW_AC" || action === "BATTERY_HIGH_DISCHARGE" || action === "TURN_OFF") {
@@ -558,9 +573,7 @@ export default function DashboardPage() {
             </div>
 
             <div className="text-xl sm:text-2xl font-bold font-mono text-slate-100 truncate my-1">
-              {data?.lastBatteryPercentage !== null && data?.lastBatteryPercentage !== undefined
-                ? `${battery}%`
-                : "--"}
+              {hasBatteryReading ? `${battery}%` : "--"}
             </div>
 
             <div className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20 w-fit max-w-full truncate">
@@ -581,20 +594,18 @@ export default function DashboardPage() {
             </div>
 
             <div className="text-xl sm:text-2xl font-bold font-mono text-amber-400 truncate my-1">
-              {data?.lastSolarWatts !== null && data?.lastSolarWatts !== undefined
-                ? `${data.lastSolarWatts} W`
-                : "-- W"}
+              {hasSolarReading ? `${solarWatts} W` : "-- W"}
             </div>
 
             <div className={`inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-medium px-2 py-0.5 rounded-md border w-fit max-w-full truncate ${
-              (data?.lastSolarWatts ?? 0) > 0
+              solarWatts > 0
                 ? "text-amber-400 bg-amber-500/10 border-amber-500/20"
                 : "text-slate-400 bg-slate-800/80 border-slate-700/60"
             }`}>
               <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                (data?.lastSolarWatts ?? 0) > 0 ? "bg-amber-400 animate-pulse" : "bg-slate-500"
+                solarWatts > 0 ? "bg-amber-400 animate-pulse" : "bg-slate-500"
               }`} aria-hidden="true" />
-              <span className="truncate">{(data?.lastSolarWatts ?? 0) > 0 ? "Geração Ativa" : "Standby"}</span>
+              <span className="truncate">{solarWatts > 0 ? "Geração Ativa" : "Standby"}</span>
             </div>
           </div>
 
@@ -891,7 +902,7 @@ export default function DashboardPage() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
                 <div className="flex items-center gap-3">
                   <div className={`p-2.5 rounded-xl shrink-0 border ${
-                    (data?.inverterMaxWatts ?? 2400) > 0 && ((data?.lastOutputWatts ?? 0) / (data?.inverterMaxWatts ?? 2400)) >= 0.9
+                    (data?.inverterMaxWatts ?? 2400) > 0 && (outputWatts / (data?.inverterMaxWatts ?? 2400)) >= 0.9
                       ? "bg-rose-500/10 text-rose-400 border-rose-500/30"
                       : "bg-sky-500/10 text-sky-400 border-sky-500/20"
                   }`}>
@@ -909,7 +920,6 @@ export default function DashboardPage() {
 
                 <div className="flex items-center gap-2 self-start sm:self-auto">
                   {(() => {
-                    const outputWatts = data?.lastOutputWatts ?? 0;
                     const maxWatts = data?.inverterMaxWatts ?? 2400;
                     const loadPct = maxWatts > 0 ? (outputWatts / maxWatts) * 100 : 0;
                     if (loadPct >= 90) {
@@ -941,7 +951,6 @@ export default function DashboardPage() {
               {/* Destaque da Carga Atual e Barra de Uso */}
               <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-3">
                 {(() => {
-                  const outputWatts = data?.lastOutputWatts ?? 0;
                   const maxWatts = data?.inverterMaxWatts ?? 2400;
                   const loadPct = maxWatts > 0 ? (outputWatts / maxWatts) * 100 : 0;
                   const isOverload = loadPct >= 90;
@@ -1018,16 +1027,16 @@ export default function DashboardPage() {
                 <div className="p-3 rounded-xl bg-slate-950 border border-slate-800/80">
                   <span className="text-slate-400 block text-[11px]">Folga Disponível</span>
                   <span className="text-base sm:text-lg font-bold font-mono text-emerald-400 mt-0.5 block">
-                    {Math.max(0, (data?.inverterMaxWatts ?? 2400) - (data?.lastOutputWatts ?? 0)).toLocaleString("pt-BR")} W
+                    {Math.max(0, (data?.inverterMaxWatts ?? 2400) - outputWatts).toLocaleString("pt-BR")} W
                   </span>
                 </div>
 
                 <div className="p-3 rounded-xl bg-slate-950 border border-slate-800/80 col-span-2 sm:col-span-1">
                   <span className="text-slate-400 block text-[11px]">Status da Saída AC</span>
                   <span className={`text-xs font-bold font-mono mt-1.5 block ${
-                    (data?.lastOutputWatts ?? 0) > 0 ? "text-emerald-400" : "text-slate-400"
+                    outputWatts > 0 ? "text-emerald-400" : "text-slate-400"
                   }`}>
-                    {(data?.lastOutputWatts ?? 0) > 0 ? "Fornecendo AC" : "Standby / Rede"}
+                    {outputWatts > 0 ? "Fornecendo AC" : "Standby / Rede"}
                   </span>
                 </div>
               </div>
@@ -1059,7 +1068,8 @@ export default function DashboardPage() {
 
                 <div className="flex items-center gap-2 self-start sm:self-auto">
                   {(() => {
-                    const thermalTheme = getBmsThermalTheme(bmsAnalytics?.temperatureCelsius);
+                    const cellTemp = liveTelemetry?.batteryTempCelsius ?? liveTelemetry?.batteryTemperature ?? bmsAnalytics?.temperatureCelsius;
+                    const thermalTheme = getBmsThermalTheme(cellTemp);
                     return (
                       <span className={`inline-flex items-center gap-1.5 text-xs font-mono font-bold px-3 py-1 rounded-full border shadow-sm ${thermalTheme.badge}`}>
                         <span className={`w-2 h-2 rounded-full ${thermalTheme.bg}`} />
@@ -1088,13 +1098,18 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="flex items-baseline gap-2">
-                  <span className={`text-3xl sm:text-4xl font-extrabold font-mono tracking-tight ${
-                    getBmsThermalTheme(bmsAnalytics?.temperatureCelsius).text
-                  }`}>
-                    {bmsAnalytics?.temperatureCelsius !== null && bmsAnalytics?.temperatureCelsius !== undefined
-                      ? `${bmsAnalytics.temperatureCelsius.toFixed(1)}°C`
-                      : "-- °C"}
-                  </span>
+                  {(() => {
+                    const cellTemp = liveTelemetry?.batteryTempCelsius ?? liveTelemetry?.batteryTemperature ?? bmsAnalytics?.temperatureCelsius;
+                    return (
+                      <span className={`text-3xl sm:text-4xl font-extrabold font-mono tracking-tight ${
+                        getBmsThermalTheme(cellTemp).text
+                      }`}>
+                        {cellTemp !== null && cellTemp !== undefined
+                          ? `${cellTemp.toFixed(1)}°C`
+                          : "-- °C"}
+                      </span>
+                    );
+                  })()}
                   <span className="text-xs text-slate-400 font-mono">
                     (Alerta: {bmsAnalytics?.thermalWarningThreshold ?? 45}°C | Corte: {bmsAnalytics?.thermalShutdownThreshold ?? 50}°C)
                   </span>
@@ -1340,7 +1355,7 @@ export default function DashboardPage() {
               {/* Comparativo de Autonomia: Consumo Real vs Simulação */}
               {(() => {
                 const batteryWh = batteryCapacityWh || 2048;
-                const batteryPct = data?.lastBatteryPercentage ?? 80;
+                const batteryPct = liveTelemetry?.batteryPercentage ?? data?.lastBatteryPercentage ?? 80;
                 const remainingWh = batteryWh * (batteryPct / 100);
 
                 const activeSimulatedWatts = appliances
@@ -1352,8 +1367,9 @@ export default function DashboardPage() {
                     ? Math.round((remainingWh / Math.max(10, activeSimulatedWatts)) * 60)
                     : 0;
 
-                const realOutputWatts = data?.lastOutputWatts ?? 0;
-                const netDrainWatts = Math.max(10, realOutputWatts - (data?.lastSolarWatts ?? 0));
+                const realOutputWatts = liveTelemetry?.outputWatts ?? data?.lastOutputWatts ?? 0;
+                const realSolarWatts = liveTelemetry?.solarInputWatts ?? data?.lastSolarWatts ?? 0;
+                const netDrainWatts = Math.max(10, realOutputWatts - realSolarWatts);
                 const realBaselineMinutes = Math.round((remainingWh / netDrainWatts) * 60);
 
                 const deltaMinutes = activeSimulatedWatts > 0 ? simulatedMinutes - realBaselineMinutes : 0;

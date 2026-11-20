@@ -5,6 +5,7 @@ import { Zap, Sliders, Settings, Activity, LogOut, User, BarChart3, Monitor } fr
 import { useAuth } from "../context/AuthContext";
 import { TransitionLink } from "./TransitionLink";
 import { Tooltip, TooltipTrigger, TooltipContent } from "./ui/tooltip";
+import { ConnectionStatusIndicator } from "./ConnectionStatusIndicator";
 import { PwaInstallPrompt } from "./PwaInstallPrompt";
 
 // Bottom nav mobile com 5 abas fixas, safe-area e alvos de toque >= 44x44px (md:hidden)
@@ -226,6 +227,9 @@ export function Layout({ children, title }: LayoutProps) {
                   );
                 })}
               </nav>
+
+              {/* Indicador de Status SSE / Conexão em Tempo Real */}
+              <ConnectionStatusIndicator />
 
               {/* Botão de Acesso Direto ao Modo Kiosk (Wall Panel) */}
               <Tooltip enabled={true}>
