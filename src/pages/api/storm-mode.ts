@@ -83,6 +83,12 @@ export default async function handleStormMode(
   const { isStormModeActive } = parsedBody.data;
 
   try {
+    const existing = await prisma.userConfiguration.findUnique({
+      where: { userId: extractedUserId },
+    });
+
+    const isAlreadyInDesiredState = existing?.isStormModeActive === isStormModeActive;
+
     const updated = await prisma.userConfiguration.upsert({
       where: { userId: extractedUserId },
       update: { isStormModeActive },
@@ -90,7 +96,14 @@ export default async function handleStormMode(
     });
 
     let acSwitchedToGrid = false;
-    if (isStormModeActive && updated.ecoflowAccessKey && updated.ecoflowSerialNumber) {
+    // Proteção estrita contra race condition e garantia de idempotência atômica:
+    // Apenas comuta a saída física e consome ciclo ATS se o estado anterior NÃO era Storm Mode ativo
+    if (
+      !isAlreadyInDesiredState &&
+      isStormModeActive &&
+      updated.ecoflowAccessKey &&
+      updated.ecoflowSerialNumber
+    ) {
       try {
         const decryptedSecrets = await decryptAndMigrateConfigurationSecrets(prisma, updated);
         if (decryptedSecrets.ecoflowAccessSecret) {
