@@ -262,13 +262,14 @@ body {
 @media print {
   @page {
     size: A4 portrait;
-    margin: 1.2cm;
+    margin: 12mm 15mm;
   }
 
   body {
     background-color: #ffffff !important;
     color: #0f172a !important;
     font-size: 10pt;
+    line-height: 1.5;
   }
 
   header,
@@ -278,7 +279,11 @@ body {
   .site-header,
   [role="banner"],
   [role="navigation"],
-  [data-pwa-prompt] {
+  [role="dialog"],
+  [data-pwa-prompt],
+  button:not(.print-visible),
+  input,
+  select {
     display: none !important;
   }
 
@@ -289,16 +294,17 @@ body {
   }
 
   .interactive-card,
-  section {
+  section,
+  .print-card {
     background-color: #ffffff !important;
     border: 1px solid #cbd5e1 !important;
     box-shadow: none !important;
     color: #0f172a !important;
-    page-break-inside: avoid;
-    break-inside: avoid;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
-  /* Textos e tabelas legíveis para impressão */
+  /* Textos e tabelas legíveis com alto contraste para impressão */
   .text-slate-100,
   .text-slate-200,
   .text-slate-300 {
@@ -325,8 +331,15 @@ body {
     color: #0369a1 !important;
   }
 
+  .text-rose-300,
+  .text-rose-400 {
+    color: #b91c1c !important;
+  }
+
   /* Garante nitidez do SVG na impressão */
   svg {
     max-width: 100% !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 }
