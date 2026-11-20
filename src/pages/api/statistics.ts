@@ -90,6 +90,17 @@ export interface BmsAnalyticsMetrics {
   }>;
 }
 
+export interface ApplianceSimulationMetrics {
+  totalSimulatedWatts: number;
+  simulatedRuntimeMinutes: number;
+  formattedSimulatedRuntime: string;
+  baselineRuntimeMinutes: number | null;
+  formattedBaselineRuntime: string;
+  runtimeDeltaMinutes: number | null;
+  activeAppliancesCount: number;
+  totalAppliancesCount: number;
+}
+
 interface StatisticsResponseData {
   success: boolean;
   message?: string;
@@ -125,6 +136,7 @@ interface StatisticsResponseData {
     autonomyEstimate: AutonomyEstimateMetrics;
     solarForecast: SolarForecastMetrics;
     bmsAnalytics: BmsAnalyticsMetrics;
+    applianceSimulation: ApplianceSimulationMetrics;
   };
 }
 
@@ -486,6 +498,49 @@ function buildBmsAnalyticsMetrics(
   };
 }
 
+function buildApplianceSimulationMetrics(
+  applianceProfiles: Array<{ averageWatts: number; isActiveInSimulation: boolean }> | undefined,
+  batteryCapacityWh: number,
+  batteryPercentage: number,
+  baselineRuntimeMinutes: number | null
+): ApplianceSimulationMetrics {
+  const appliances = applianceProfiles ?? [];
+  const activeAppliances = appliances.filter((a) => a.isActiveInSimulation);
+  const totalSimulatedWatts = activeAppliances.reduce((sum, a) => sum + a.averageWatts, 0);
+
+  const safeCapacity = batteryCapacityWh > 0 ? batteryCapacityWh : 2048;
+  const clampedPercentage = Math.max(0, Math.min(100, batteryPercentage));
+  const remainingWh = Math.round(safeCapacity * (clampedPercentage / 100));
+
+  const simulatedRuntimeMinutes =
+    totalSimulatedWatts > 0
+      ? Math.round((remainingWh / Math.max(10, totalSimulatedWatts)) * 60)
+      : 0;
+
+  const formatMins = (mins: number) => {
+    if (mins <= 0) return "0m";
+    const h = Math.floor(mins / 60);
+    const m = Math.round(mins % 60);
+    return h === 0 ? `${m}m` : `${h}h ${m.toString().padStart(2, "0")}m`;
+  };
+
+  const runtimeDeltaMinutes =
+    baselineRuntimeMinutes !== null && simulatedRuntimeMinutes > 0
+      ? simulatedRuntimeMinutes - baselineRuntimeMinutes
+      : null;
+
+  return {
+    totalSimulatedWatts,
+    simulatedRuntimeMinutes,
+    formattedSimulatedRuntime: formatMins(simulatedRuntimeMinutes),
+    baselineRuntimeMinutes,
+    formattedBaselineRuntime: formatMins(baselineRuntimeMinutes ?? 0),
+    runtimeDeltaMinutes,
+    activeAppliancesCount: activeAppliances.length,
+    totalAppliancesCount: appliances.length,
+  };
+}
+
 export default async function handleStatistics(
   request: NextApiRequest,
   response: NextApiResponse<StatisticsResponseData>
@@ -543,6 +598,7 @@ export default async function handleStatistics(
     const configuration = await prisma.userConfiguration.findUnique({
       where: { userId: extractedUserId },
       include: {
+        applianceProfiles: true,
         syncExecutionLogs: {
           where: {
             executedAt: { gte: twentyFourHoursAgo },
@@ -612,6 +668,12 @@ export default async function handleStatistics(
       const liveSnapshot = EcoFlowMqttStreamService.getInstance().getLatestTelemetry(extractedUserId);
       const defaultSolarForecast = await buildSolarForecastMetrics(configuration);
       const defaultBms = buildBmsAnalyticsMetrics(configuration, liveSnapshot, []);
+      const defaultApplianceSimulation = buildApplianceSimulationMetrics(
+        configuration?.applianceProfiles,
+        configuration?.batteryCapacityWh ?? 2048,
+        0,
+        defaultAutonomy.runtimeMinutes
+      );
 
       response.status(200).json({
         success: true,
@@ -636,6 +698,7 @@ export default async function handleStatistics(
           autonomyEstimate: defaultAutonomy,
           solarForecast: defaultSolarForecast,
           bmsAnalytics: defaultBms,
+          applianceSimulation: defaultApplianceSimulation,
         },
       });
       return;
@@ -845,6 +908,12 @@ export default async function handleStatistics(
     const liveSnapshot = EcoFlowMqttStreamService.getInstance().getLatestTelemetry(extractedUserId);
     const solarForecast = await buildSolarForecastMetrics(configuration);
     const bmsAnalytics = buildBmsAnalyticsMetrics(configuration, liveSnapshot, rawLogs24h);
+    const applianceSimulation = buildApplianceSimulationMetrics(
+      configuration?.applianceProfiles,
+      configuration?.batteryCapacityWh ?? 2048,
+      latestBattery,
+      autonomyEstimate.runtimeMinutes
+    );
 
     response.status(200).json({
       success: true,
@@ -869,6 +938,7 @@ export default async function handleStatistics(
         autonomyEstimate,
         solarForecast,
         bmsAnalytics,
+        applianceSimulation,
       },
     });
   } catch (error) {

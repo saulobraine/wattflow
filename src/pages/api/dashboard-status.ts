@@ -18,6 +18,13 @@ interface DashboardStatusResponse {
     lastSolarWatts: number | null;
     lastOutputWatts?: number | null;
     inverterMaxWatts?: number;
+    isSmartChargingActive?: boolean;
+    minAcChargingWatts?: number;
+    maxAcChargingWatts?: number;
+    currentAcChargingWatts?: number;
+    chargeOnlyOffPeak?: boolean;
+    cloudyPrechargeActive?: boolean;
+    lastSmartChargeAdjustAt?: string | null;
     lastAction: string | null;
     lastSyncTime: string | null;
     logs: Array<{
@@ -73,6 +80,13 @@ export default async function handleDashboardStatus(
         lastSolarWatts: null,
         lastOutputWatts: null,
         inverterMaxWatts: 2400,
+        isSmartChargingActive: false,
+        minAcChargingWatts: 200,
+        maxAcChargingWatts: 1200,
+        currentAcChargingWatts: 400,
+        chargeOnlyOffPeak: true,
+        cloudyPrechargeActive: true,
+        lastSmartChargeAdjustAt: null,
         lastAction: null,
         lastSyncTime: null,
         logs: [],
@@ -172,6 +186,13 @@ export default async function handleDashboardStatus(
         lastSolarWatts: resolvedSolarWatts,
         lastOutputWatts: resolvedOutputWatts,
         inverterMaxWatts: configuration.inverterMaxWatts ?? 2400,
+        isSmartChargingActive: configuration.isSmartChargingActive ?? false,
+        minAcChargingWatts: configuration.minAcChargingWatts ?? 200,
+        maxAcChargingWatts: configuration.maxAcChargingWatts ?? 1200,
+        currentAcChargingWatts: configuration.currentAcChargingWatts ?? 400,
+        chargeOnlyOffPeak: configuration.chargeOnlyOffPeak ?? true,
+        cloudyPrechargeActive: configuration.cloudyPrechargeActive ?? true,
+        lastSmartChargeAdjustAt: configuration.lastSmartChargeAdjustAt?.toISOString() ?? null,
         lastAction: resolvedAction,
         lastSyncTime: resolvedSyncTime,
         logs: configuration.syncExecutionLogs.map((log) => ({
