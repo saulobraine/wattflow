@@ -11,9 +11,15 @@ import {
   CloudRain,
   ShieldCheck,
   AlertTriangle,
+  Clock,
+  DollarSign,
+  Calendar,
+  Ban,
+  Scale,
 } from "lucide-react";
 
 export default function AutomationsPage() {
+  // Limites Padrão da ATS (Histerese)
   const [turnOnThreshold, setTurnOnThreshold] = useState(90);
   const [turnOffThreshold, setTurnOffThreshold] = useState(30);
   const [isAutomationActive, setIsAutomationActive] = useState(true);
@@ -30,6 +36,19 @@ export default function AutomationsPage() {
   const [lastStormAlertEndedAt, setLastStormAlertEndedAt] = useState<string | null>(null);
   const [ecoflowAccessKey, setEcoflowAccessKey] = useState<string>("");
   const [ecoflowSerialNumber, setEcoflowSerialNumber] = useState<string>("");
+
+  // Estados de Tarifação Horária Inteligente (Tarifa Branca / Time-of-Use)
+  const [isTimeOfUseActive, setIsTimeOfUseActive] = useState(false);
+  const [timeOfUseWeekdaysOnly, setTimeOfUseWeekdaysOnly] = useState(true);
+  const [peakStartTime, setPeakStartTime] = useState("17:30");
+  const [peakEndTime, setPeakEndTime] = useState("20:30");
+  const [intermediateStartTime, setIntermediateStartTime] = useState("16:30");
+  const [intermediateEndTime, setIntermediateEndTime] = useState("21:30");
+  const [peakDischargeReserveLimit, setPeakDischargeReserveLimit] = useState(20);
+  const [blockAcChargingDuringPeak, setBlockAcChargingDuringPeak] = useState(true);
+  const [peakTariffPerKwh, setPeakTariffPerKwh] = useState(1.85);
+  const [intermediateTariffPerKwh, setIntermediateTariffPerKwh] = useState(1.15);
+  const [offPeakTariffPerKwh, setOffPeakTariffPerKwh] = useState(0.65);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -52,17 +71,31 @@ export default function AutomationsPage() {
 
         const settingsJson = await settingsRes.json();
         if (settingsJson.success && settingsJson.data) {
-          setEcoflowAccessKey(settingsJson.data.ecoflowAccessKey || "");
-          setEcoflowSerialNumber(settingsJson.data.ecoflowSerialNumber || "");
-          setIsAutoStormActive(settingsJson.data.isAutoStormActive ?? false);
-          setAutoStormReserveThreshold(settingsJson.data.autoStormReserveThreshold ?? 85);
-          setAutoStormRainThresholdMm(settingsJson.data.autoStormRainThresholdMm ?? 20.0);
-          setAutoStormPrechargeAc(settingsJson.data.autoStormPrechargeAc ?? true);
-          setIsStormAlertActive(settingsJson.data.isStormAlertActive ?? false);
-          setLastStormAlertCode(settingsJson.data.lastStormAlertCode ?? null);
-          setLastStormAlertDescription(settingsJson.data.lastStormAlertDescription ?? null);
-          setLastStormAlertTriggeredAt(settingsJson.data.lastStormAlertTriggeredAt ?? null);
-          setLastStormAlertEndedAt(settingsJson.data.lastStormAlertEndedAt ?? null);
+          const s = settingsJson.data;
+          setEcoflowAccessKey(s.ecoflowAccessKey || "");
+          setEcoflowSerialNumber(s.ecoflowSerialNumber || "");
+          setIsAutoStormActive(s.isAutoStormActive ?? false);
+          setAutoStormReserveThreshold(s.autoStormReserveThreshold ?? 85);
+          setAutoStormRainThresholdMm(s.autoStormRainThresholdMm ?? 20.0);
+          setAutoStormPrechargeAc(s.autoStormPrechargeAc ?? true);
+          setIsStormAlertActive(s.isStormAlertActive ?? false);
+          setLastStormAlertCode(s.lastStormAlertCode ?? null);
+          setLastStormAlertDescription(s.lastStormAlertDescription ?? null);
+          setLastStormAlertTriggeredAt(s.lastStormAlertTriggeredAt ?? null);
+          setLastStormAlertEndedAt(s.lastStormAlertEndedAt ?? null);
+
+          // Time-of-Use / Tarifa Branca
+          setIsTimeOfUseActive(s.isTimeOfUseActive ?? s.isDynamicTariffActive ?? false);
+          setTimeOfUseWeekdaysOnly(s.timeOfUseWeekdaysOnly ?? true);
+          setPeakStartTime(s.peakStartTime || "17:30");
+          setPeakEndTime(s.peakEndTime || "20:30");
+          setIntermediateStartTime(s.intermediateStartTime || "16:30");
+          setIntermediateEndTime(s.intermediateEndTime || "21:30");
+          setPeakDischargeReserveLimit(s.peakDischargeReserveLimit ?? s.peakReserveThreshold ?? 20);
+          setBlockAcChargingDuringPeak(s.blockAcChargingDuringPeak ?? true);
+          setPeakTariffPerKwh(s.peakTariffPerKwh ?? 1.85);
+          setIntermediateTariffPerKwh(s.intermediateTariffPerKwh ?? 1.15);
+          setOffPeakTariffPerKwh(s.offPeakTariffPerKwh ?? 0.65);
         }
       } catch (err) {
         console.error("Erro ao carregar automações:", err);
@@ -94,6 +127,7 @@ export default function AutomationsPage() {
     setIsSaving(true);
     setFeedback(null);
 
+    // Validação ATS
     if (turnOffThreshold >= turnOnThreshold) {
       setFeedback({
         type: "error",
@@ -103,6 +137,7 @@ export default function AutomationsPage() {
       return;
     }
 
+    // Validação Auto-Storm
     if (autoStormReserveThreshold < 50 || autoStormReserveThreshold > 100) {
       setFeedback({
         type: "error",
@@ -116,6 +151,25 @@ export default function AutomationsPage() {
       setFeedback({
         type: "error",
         message: "O limiar de chuva do Auto-Storm deve estar entre 5mm e 150mm.",
+      });
+      setIsSaving(false);
+      return;
+    }
+
+    // Validação Tarifa Branca / Time-of-Use
+    if (peakDischargeReserveLimit < 10 || peakDischargeReserveLimit > 50) {
+      setFeedback({
+        type: "error",
+        message: "A reserva de segurança na ponta deve estar entre 10% e 50%.",
+      });
+      setIsSaving(false);
+      return;
+    }
+
+    if (peakTariffPerKwh <= 0 || intermediateTariffPerKwh <= 0 || offPeakTariffPerKwh <= 0) {
+      setFeedback({
+        type: "error",
+        message: "Os valores das tarifas em R$/kWh devem ser maiores que zero.",
       });
       setIsSaving(false);
       return;
@@ -142,6 +196,20 @@ export default function AutomationsPage() {
             autoStormReserveThreshold,
             autoStormRainThresholdMm,
             autoStormPrechargeAc,
+            // Time-of-Use
+            isTimeOfUseActive,
+            isDynamicTariffActive: isTimeOfUseActive,
+            timeOfUseWeekdaysOnly,
+            peakStartTime,
+            peakEndTime,
+            intermediateStartTime: intermediateStartTime || null,
+            intermediateEndTime: intermediateEndTime || null,
+            peakDischargeReserveLimit,
+            peakReserveThreshold: peakDischargeReserveLimit,
+            blockAcChargingDuringPeak,
+            peakTariffPerKwh,
+            intermediateTariffPerKwh,
+            offPeakTariffPerKwh,
           }),
         }),
       ]);
@@ -152,7 +220,7 @@ export default function AutomationsPage() {
       if (autoJson.success && settingsJson.success) {
         setFeedback({
           type: "success",
-          message: "Regras de automação e Modo Auto-Storm atualizados com sucesso!",
+          message: "Regras de automação, Auto-Storm e Tarifação Horária salvas com sucesso!",
         });
       } else {
         const errMsg =
@@ -481,6 +549,274 @@ export default function AutomationsPage() {
                 onChange={(e) => setAutoStormPrechargeAc(e.target.checked)}
                 className="w-5 h-5 accent-amber-500 rounded cursor-pointer transition-transform active:scale-90 shrink-0 mt-1 sm:mt-0 min-h-[44px] min-w-[44px]"
               />
+            </div>
+          </div>
+
+          {/* Card 3: Tarifação Horária & Arbitragem na Ponta (Tarifa Branca ANEEL) */}
+          <div className="animate-card stagger-4 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  <Clock className="w-5 h-5 animate-float" aria-hidden="true" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-bold text-slate-100">
+                      Tarifação Horária &amp; Arbitragem na Ponta (Tarifa Branca)
+                    </h2>
+                    <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                      Norma ANEEL
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Comutação forçada para bateria durante o pico mais caro e bloqueio estrito de recarga AC para maximizar a economia.
+                  </p>
+                </div>
+              </div>
+
+              <label htmlFor="time-of-use-active-checkbox" className="flex items-center gap-2 cursor-pointer group self-start sm:self-auto min-h-[44px]">
+                <span className="text-xs font-semibold text-slate-300 group-hover:text-emerald-300 transition-colors">
+                  Tarifa Branca Ativa
+                </span>
+                <input
+                  id="time-of-use-active-checkbox"
+                  type="checkbox"
+                  checked={isTimeOfUseActive}
+                  onChange={(e) => setIsTimeOfUseActive(e.target.checked)}
+                  className="w-5 h-5 accent-emerald-500 rounded cursor-pointer transition-transform active:scale-90"
+                />
+              </label>
+            </div>
+
+            {/* Switch ANEEL: Dias Úteis */}
+            <div className="p-3.5 sm:p-4 rounded-xl bg-slate-950 border border-slate-800 flex items-start sm:items-center justify-between gap-3">
+              <div className="space-y-1">
+                <label htmlFor="tou-weekdays-checkbox" className="text-sm font-semibold text-slate-200 flex items-center gap-2 cursor-pointer">
+                  <Calendar className="w-4 h-4 text-emerald-400" />
+                  Aplicar Horário de Ponta Apenas em Dias Úteis (Segunda a Sexta)
+                </label>
+                <p className="text-xs text-slate-400">
+                  Conforme a regulamentação oficial da ANEEL, fins de semana (Sábado e Domingo) operam em regime 100% Fora de Ponta com a menor tarifa.
+                </p>
+              </div>
+              <input
+                id="tou-weekdays-checkbox"
+                type="checkbox"
+                checked={timeOfUseWeekdaysOnly}
+                onChange={(e) => setTimeOfUseWeekdaysOnly(e.target.checked)}
+                className="w-5 h-5 accent-emerald-500 rounded cursor-pointer transition-transform active:scale-90 shrink-0 mt-1 sm:mt-0 min-h-[44px] min-w-[44px]"
+              />
+            </div>
+
+            {/* Horários de Ponta (Início e Fim) */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-xs font-mono text-slate-300 uppercase tracking-wider">
+                <Zap className="w-3.5 h-3.5 text-rose-400" />
+                <span>Janela Crítica: Horário de Ponta (Tarifa Máxima)</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label htmlFor="peak-start-time" className="text-xs font-semibold text-slate-300 block">
+                    Início do Horário de Ponta
+                  </label>
+                  <input
+                    id="peak-start-time"
+                    type="time"
+                    value={peakStartTime}
+                    onChange={(e) => setPeakStartTime(e.target.value)}
+                    className="w-full px-3.5 py-2.5 min-h-[44px] rounded-xl bg-slate-950 border border-slate-800 text-slate-100 font-mono text-sm focus:border-rose-500 focus:outline-none transition-colors"
+                  />
+                  <span className="text-[11px] text-slate-500 block">Padrão ANEEL: 17:30</span>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label htmlFor="peak-end-time" className="text-xs font-semibold text-slate-300 block">
+                    Término do Horário de Ponta
+                  </label>
+                  <input
+                    id="peak-end-time"
+                    type="time"
+                    value={peakEndTime}
+                    onChange={(e) => setPeakEndTime(e.target.value)}
+                    className="w-full px-3.5 py-2.5 min-h-[44px] rounded-xl bg-slate-950 border border-slate-800 text-slate-100 font-mono text-sm focus:border-rose-500 focus:outline-none transition-colors"
+                  />
+                  <span className="text-[11px] text-slate-500 block">Padrão ANEEL: 20:30 (3 horas consecutivas)</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Horários Intermediários (Opcionais) */}
+            <div className="space-y-3 pt-2 border-t border-slate-800/80">
+              <div className="flex items-center gap-2 text-xs font-mono text-slate-400 uppercase tracking-wider">
+                <Clock className="w-3.5 h-3.5 text-amber-400" />
+                <span>Janelas de Transição: Horário Intermediário</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label htmlFor="intermediate-start-time" className="text-xs font-semibold text-slate-300 block">
+                    Início Faixa Pré-Ponta
+                  </label>
+                  <input
+                    id="intermediate-start-time"
+                    type="time"
+                    value={intermediateStartTime}
+                    onChange={(e) => setIntermediateStartTime(e.target.value)}
+                    className="w-full px-3.5 py-2.5 min-h-[44px] rounded-xl bg-slate-950 border border-slate-800 text-slate-100 font-mono text-sm focus:border-amber-500 focus:outline-none transition-colors"
+                  />
+                  <span className="text-[11px] text-slate-500 block">Tipicamente 1h antes da ponta (16:30)</span>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label htmlFor="intermediate-end-time" className="text-xs font-semibold text-slate-300 block">
+                    Término Faixa Pós-Ponta
+                  </label>
+                  <input
+                    id="intermediate-end-time"
+                    type="time"
+                    value={intermediateEndTime}
+                    onChange={(e) => setIntermediateEndTime(e.target.value)}
+                    className="w-full px-3.5 py-2.5 min-h-[44px] rounded-xl bg-slate-950 border border-slate-800 text-slate-100 font-mono text-sm focus:border-amber-500 focus:outline-none transition-colors"
+                  />
+                  <span className="text-[11px] text-slate-500 block">Tipicamente 1h após a ponta (21:30)</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Slider de Reserva de Segurança na Ponta */}
+            <div className="space-y-2 pt-2 border-t border-slate-800/80">
+              <div className="flex flex-wrap sm:flex-nowrap justify-between items-start sm:items-center gap-2">
+                <label htmlFor="peak-reserve-slider" className="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" aria-hidden="true" />
+                  Reserva de Segurança de Descarga na Ponta
+                </label>
+                <span className="font-mono text-emerald-400 font-bold text-lg bg-emerald-500/10 px-3 py-1 rounded-lg border border-emerald-500/20 transition-all">
+                  {peakDischargeReserveLimit}%
+                </span>
+              </div>
+              <p id="peak-reserve-desc" className="text-xs text-slate-400">
+                Durante o horário de ponta, o inversor EcoFlow assume a casa descarregando agressivamente para blindar contra o kWh caro, até atingir este limite seguro ({peakDischargeReserveLimit}%). Abaixo disso, o ATS comuta de volta para a concessionária preservando a bateria.
+              </p>
+              <input
+                id="peak-reserve-slider"
+                type="range"
+                min="10"
+                max="50"
+                value={peakDischargeReserveLimit}
+                aria-label="Reserva de Segurança na Ponta"
+                aria-valuenow={peakDischargeReserveLimit}
+                aria-valuemin={10}
+                aria-valuemax={50}
+                aria-describedby="peak-reserve-desc"
+                onChange={(e) => setPeakDischargeReserveLimit(Number(e.target.value))}
+                className="w-full accent-emerald-500 cursor-pointer h-2 py-4 min-h-[44px] bg-slate-800 rounded-lg transition-all"
+              />
+            </div>
+
+            {/* Switch de Bloqueio de Recarga AC na Ponta */}
+            <div className="p-3.5 sm:p-4 rounded-xl bg-slate-950 border border-slate-800 flex items-start sm:items-center justify-between gap-3">
+              <div className="space-y-1">
+                <label htmlFor="block-ac-charging-checkbox" className="text-sm font-semibold text-slate-200 flex items-center gap-2 cursor-pointer">
+                  <Ban className="w-4 h-4 text-rose-400" />
+                  Bloqueio Estrito de Recarga pela Tomada no Pico
+                </label>
+                <p className="text-xs text-slate-400">
+                  Impede categoricamente que a estação EcoFlow carregue usando a energia cara da rede concessionária durante o horário de ponta, mesmo que o carregamento inteligente esteja ativo.
+                </p>
+              </div>
+              <input
+                id="block-ac-charging-checkbox"
+                type="checkbox"
+                checked={blockAcChargingDuringPeak}
+                onChange={(e) => setBlockAcChargingDuringPeak(e.target.checked)}
+                className="w-5 h-5 accent-rose-500 rounded cursor-pointer transition-transform active:scale-90 shrink-0 mt-1 sm:mt-0 min-h-[44px] min-w-[44px]"
+              />
+            </div>
+
+            {/* Tarifas em R$/kWh */}
+            <div className="space-y-3 pt-2 border-t border-slate-800/80">
+              <div className="flex items-center gap-2 text-xs font-mono text-slate-300 uppercase tracking-wider">
+                <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Valores das Tarifas por Faixa (R$/kWh da sua Concessionária)</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
+                  <label htmlFor="peak-tariff-input" className="text-xs font-semibold text-rose-300 block">
+                    🔴 Tarifa de Ponta
+                  </label>
+                  <div className="relative flex items-center">
+                    <span className="absolute left-3 text-xs text-slate-400 font-mono">R$</span>
+                    <input
+                      id="peak-tariff-input"
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      max="50"
+                      value={peakTariffPerKwh}
+                      onChange={(e) => setPeakTariffPerKwh(Number(e.target.value))}
+                      className="w-full pl-9 pr-3 py-2 min-h-[44px] rounded-lg bg-slate-900 border border-slate-700 text-slate-100 font-mono text-sm focus:border-rose-500 focus:outline-none"
+                    />
+                  </div>
+                  <span className="text-[10px] text-slate-500 block">Média Brasil: R$ 1,85</span>
+                </div>
+
+                <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
+                  <label htmlFor="intermediate-tariff-input" className="text-xs font-semibold text-amber-300 block">
+                    🟡 Intermediário
+                  </label>
+                  <div className="relative flex items-center">
+                    <span className="absolute left-3 text-xs text-slate-400 font-mono">R$</span>
+                    <input
+                      id="intermediate-tariff-input"
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      max="50"
+                      value={intermediateTariffPerKwh}
+                      onChange={(e) => setIntermediateTariffPerKwh(Number(e.target.value))}
+                      className="w-full pl-9 pr-3 py-2 min-h-[44px] rounded-lg bg-slate-900 border border-slate-700 text-slate-100 font-mono text-sm focus:border-amber-500 focus:outline-none"
+                    />
+                  </div>
+                  <span className="text-[10px] text-slate-500 block">Média Brasil: R$ 1,15</span>
+                </div>
+
+                <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
+                  <label htmlFor="offpeak-tariff-input" className="text-xs font-semibold text-emerald-300 block">
+                    🟢 Fora de Ponta
+                  </label>
+                  <div className="relative flex items-center">
+                    <span className="absolute left-3 text-xs text-slate-400 font-mono">R$</span>
+                    <input
+                      id="offpeak-tariff-input"
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      max="50"
+                      value={offPeakTariffPerKwh}
+                      onChange={(e) => setOffPeakTariffPerKwh(Number(e.target.value))}
+                      className="w-full pl-9 pr-3 py-2 min-h-[44px] rounded-lg bg-slate-900 border border-slate-700 text-slate-100 font-mono text-sm focus:border-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                  <span className="text-[10px] text-slate-500 block">Média Brasil: R$ 0,65</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Infográfico de Economia da Tarifa Branca */}
+            <div className="p-4 rounded-xl bg-slate-950/90 border border-slate-800/80 space-y-2 text-xs">
+              <span className="font-semibold text-slate-300 flex items-center gap-1.5">
+                <Scale className="w-4 h-4 text-emerald-400" />
+                Multiplicador de Arbitragem Energética:
+              </span>
+              <p className="text-slate-400 leading-relaxed">
+                Cada 1 kWh consumido da bateria durante o horário de ponta economiza{" "}
+                <strong className="text-emerald-400 font-mono">
+                  R$ {(peakTariffPerKwh - offPeakTariffPerKwh).toFixed(2)}
+                </strong>{" "}
+                em comparação direta com a rede pública. Em uma residência consumindo 1,5 kW médios nas 3 horas de pico, a economia mensal estimada ultrapassa{" "}
+                <strong className="text-emerald-300 font-mono">
+                  R$ {((peakTariffPerKwh - offPeakTariffPerKwh) * 1.5 * 3 * 22).toFixed(2)}
+                </strong>.
+              </p>
             </div>
           </div>
 

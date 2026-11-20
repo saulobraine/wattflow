@@ -5,6 +5,7 @@ import { useVisibilityPolling } from "../hooks/useVisibilityPolling";
 import { useLiveTelemetry } from "../hooks/useLiveTelemetry";
 import { WeatherWidget } from "../components/WeatherWidget";
 import { StormAlertBanner } from "../components/StormAlertBanner";
+import { TariffStatusBadge } from "../components/TariffStatusBadge";
 import {
   BatteryCharging,
   Power,
@@ -399,41 +400,6 @@ export default function DashboardPage() {
     };
   };
 
-  const getTariffPeriodBadge = (period?: TariffPeriod, rate?: number, isDynamicActive?: boolean) => {
-    if (!isDynamicActive) {
-      return {
-        label: "Tarifa Convencional",
-        classes: "bg-slate-800 text-slate-300 border-slate-700",
-        dot: "bg-slate-400",
-        desc: "Tarifa fixa única",
-      };
-    }
-    switch (period) {
-      case "PEAK":
-        return {
-          label: "🔴 HORÁRIO DE PONTA",
-          classes: "bg-rose-950/80 text-rose-300 border-rose-600/70 shadow-rose-950/50 shadow-md animate-pulse",
-          dot: "bg-rose-500",
-          desc: `Tarifa mais cara (${savingsData?.currencySymbol || "R$"} ${(rate ?? 1.85).toFixed(2)}/kWh) — Priorizando Bateria`,
-        };
-      case "INTERMEDIATE":
-        return {
-          label: "🟡 INTERMEDIÁRIO",
-          classes: "bg-amber-950/80 text-amber-300 border-amber-600/70 shadow-amber-950/40 shadow-sm",
-          dot: "bg-amber-400",
-          desc: `Faixa de transição (${savingsData?.currencySymbol || "R$"} ${(rate ?? 1.15).toFixed(2)}/kWh)`,
-        };
-      case "OFF_PEAK":
-      default:
-        return {
-          label: "🟢 FORA DE PONTA",
-          classes: "bg-emerald-950/80 text-emerald-300 border-emerald-600/70 shadow-emerald-950/40 shadow-sm",
-          dot: "bg-emerald-400",
-          desc: `Tarifa mais econômica (${savingsData?.currencySymbol || "R$"} ${(rate ?? 0.65).toFixed(2)}/kWh)`,
-        };
-    }
-  };
-
   return (
     <Layout>
       <div className="space-y-8">
@@ -504,25 +470,8 @@ export default function DashboardPage() {
             </p>
 
             {/* Badge Dinâmico de Tarifa em Tempo Real (Tarifa Branca ANEEL) */}
-            <div className="flex flex-wrap items-center gap-2 mt-2.5">
-              {(() => {
-                const tariff = getTariffPeriodBadge(
-                  savingsData?.currentTariffPeriod,
-                  savingsData?.currentTariffRate,
-                  savingsData?.isDynamicTariffActive
-                );
-                return (
-                  <span className={`inline-flex items-center gap-1.5 text-xs font-mono font-bold px-3 py-1 rounded-full border shadow-sm ${tariff.classes}`}>
-                    <span className={`w-2 h-2 rounded-full ${tariff.dot}`} />
-                    {tariff.label}
-                    {savingsData?.isDynamicTariffActive && (
-                      <span className="font-normal text-[11px] opacity-90 hidden sm:inline">
-                        — {tariff.desc}
-                      </span>
-                    )}
-                  </span>
-                );
-              })()}
+            <div className="mt-2.5">
+              <TariffStatusBadge />
             </div>
           </div>
 
