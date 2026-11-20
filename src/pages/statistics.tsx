@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Layout } from "../components/Layout";
+import { useVisibilityPolling } from "../hooks/useVisibilityPolling";
 import {
   Sun,
   Zap,
@@ -114,9 +115,12 @@ export default function StatisticsPage() {
 
   useEffect(() => {
     fetchStatistics();
-    const interval = setInterval(fetchStatistics, 2000);
-    return () => clearInterval(interval);
   }, []);
+
+  useVisibilityPolling({
+    pollingIntervalMs: 2000,
+    onPoll: fetchStatistics,
+  });
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -1413,7 +1417,7 @@ export default function StatisticsPage() {
                       <span className="text-slate-300">{hoveredPoint.time}</span>
                     </span>
                   ) : (
-                    <span className="text-slate-500 italic">Passe o mouse sobre os pontos para inspecionar</span>
+                    <span className="text-slate-500 italic">Toque ou passe o mouse sobre os pontos para inspecionar</span>
                   )}
                 </div>
                 <div className="text-slate-400">
@@ -1599,6 +1603,7 @@ export default function StatisticsPage() {
                     <div className="absolute inset-0 pt-6 pb-6 px-1 flex items-stretch justify-between z-20">
                       {points.map((point, index) => {
                         const isNetPositive = point.netWatts >= 0;
+                        const isSelected = hoveredPoint === point;
 
                         return (
                           <div
@@ -1606,12 +1611,15 @@ export default function StatisticsPage() {
                             onMouseEnter={() => setHoveredPoint(point)}
                             onMouseLeave={() => setHoveredPoint(null)}
                             onTouchStart={() => setHoveredPoint(point)}
+                            onPointerDown={() => setHoveredPoint(point)}
                             onClick={() => setHoveredPoint(point)}
                             className="flex-1 h-full relative cursor-pointer group flex items-start justify-center"
                           >
                             {/* Tooltip flutuante indicando a média do intervalo de 5 minutos */}
                             <div
-                              className={`opacity-0 group-hover:opacity-100 transition-all duration-150 pointer-events-none absolute -top-12 z-30 bg-slate-950/95 border border-slate-700 text-slate-100 px-3 py-1.5 rounded-lg text-[11px] whitespace-nowrap shadow-2xl backdrop-blur-md flex items-center gap-2 ${
+                              className={`transition-all duration-150 pointer-events-none absolute -top-12 z-30 bg-slate-950/95 border border-slate-700 text-slate-100 px-2.5 py-1.5 rounded-lg text-[10px] sm:text-[11px] whitespace-normal sm:whitespace-nowrap max-w-[240px] sm:max-w-none shadow-2xl backdrop-blur-md flex items-center gap-1.5 sm:gap-2 ${
+                                isSelected ? "opacity-100 scale-100" : "opacity-0 group-hover:opacity-100 scale-95"
+                              } ${
                                 index < 2
                                   ? "left-0"
                                   : index > pointCount - 3
@@ -1667,7 +1675,7 @@ export default function StatisticsPage() {
         {/* 5. Tabela com as Amostras Detalhadas da Janela */}
         <section
           aria-label="Tabela de Amostras de Telemetria"
-          className="animate-card stagger-7 interactive-card p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4"
+          className="animate-card stagger-7 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4"
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -1685,8 +1693,8 @@ export default function StatisticsPage() {
             </div>
           ) : (
             <>
-              {/* Mobile View: Cards Verticais / Timeline (< sm) */}
-              <div className="sm:hidden space-y-2.5">
+              {/* Mobile View: Cards Verticais / Timeline (< md) */}
+              <div className="md:hidden space-y-3">
                 {data.recentLogs.map((log) => {
                   const hasSolar = log.solarInputWatts > 0;
                   const hasOutput = (log.outputWatts ?? 0) > 0;
@@ -1696,7 +1704,7 @@ export default function StatisticsPage() {
                   return (
                     <div
                       key={log.id}
-                      className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/80 shadow-sm space-y-2 animate-fade-in"
+                      className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800/80 shadow-sm space-y-2 animate-fade-in"
                     >
                       {/* Topo do card: Horário legível à esquerda + Decisão à direita */}
                       <div className="flex items-center justify-between gap-2">
@@ -1789,8 +1797,8 @@ export default function StatisticsPage() {
                 })}
               </div>
 
-              {/* Desktop & Tablet View: Tabela Tradicional Densa (>= sm) */}
-              <div className="hidden sm:block overflow-x-auto">
+              {/* Desktop & Tablet View: Tabela Tradicional Densa (>= md) */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left text-sm text-slate-300" aria-label="Histórico detalhado de amostras de telemetria">
                   <thead className="text-xs uppercase bg-slate-800/60 text-slate-400 border-b border-slate-800">
                     <tr>

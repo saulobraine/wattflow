@@ -129,7 +129,7 @@ export default function RegisterPage({ isRegistrationEnabled }: RegisterPageProp
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     placeholder="Seu Nome"
-                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-base sm:text-sm focus:border-emerald-500 focus:outline-none transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="w-full pl-9 pr-3 py-2.5 min-h-[44px] rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-base sm:text-sm focus:border-emerald-500 focus:outline-none transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -149,7 +149,7 @@ export default function RegisterPage({ isRegistrationEnabled }: RegisterPageProp
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="seu@email.com"
-                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-base sm:text-sm focus:border-emerald-500 focus:outline-none transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="w-full pl-9 pr-3 py-2.5 min-h-[44px] rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-base sm:text-sm focus:border-emerald-500 focus:outline-none transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -171,7 +171,7 @@ export default function RegisterPage({ isRegistrationEnabled }: RegisterPageProp
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Entre 12 e 128 caracteres"
-                    className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-base sm:text-sm focus:border-emerald-500 focus:outline-none transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="w-full pl-9 pr-3 py-2.5 min-h-[44px] rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-base sm:text-sm focus:border-emerald-500 focus:outline-none transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -181,7 +181,7 @@ export default function RegisterPage({ isRegistrationEnabled }: RegisterPageProp
                   type="submit"
                   disabled={isLoading}
                   aria-label="Registrar conta e entrar"
-                  className="w-full py-3 px-4 rounded-xl font-semibold text-sm bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all duration-150 shadow-lg shadow-emerald-950 flex items-center justify-center gap-2 disabled:opacity-50 mt-2 cursor-pointer disabled:cursor-not-allowed group"
+                  className="w-full py-3 px-4 min-h-[44px] rounded-xl font-semibold text-sm bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all duration-150 shadow-lg shadow-emerald-950 flex items-center justify-center gap-2 disabled:opacity-50 mt-2 cursor-pointer disabled:cursor-not-allowed group"
                 >
                   <span>{isLoading ? "Criando Conta..." : "Registrar e Entrar"}</span>
                   <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" aria-hidden="true" />
@@ -189,7 +189,7 @@ export default function RegisterPage({ isRegistrationEnabled }: RegisterPageProp
               ) : (
                 <TransitionLink
                   href="/login"
-                  className="w-full py-3 px-4 rounded-xl font-semibold text-sm bg-slate-700 hover:bg-slate-600 active:scale-95 text-slate-100 transition-all duration-150 shadow-lg flex items-center justify-center gap-2 mt-2 cursor-pointer group"
+                  className="w-full py-3 px-4 min-h-[44px] rounded-xl font-semibold text-sm bg-slate-700 hover:bg-slate-600 active:scale-95 text-slate-100 transition-all duration-150 shadow-lg flex items-center justify-center gap-2 mt-2 cursor-pointer group"
                 >
                   <span>Ir para Login</span>
                   <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" aria-hidden="true" />

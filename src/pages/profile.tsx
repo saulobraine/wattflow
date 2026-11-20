@@ -495,7 +495,7 @@ export default function ProfilePage() {
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     placeholder="Seu nome"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-emerald-500 transition-colors"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 min-h-[44px] text-base sm:text-sm text-slate-200 focus:outline-none focus:border-emerald-500 transition-colors"
                   />
                 </div>
 
@@ -516,7 +516,7 @@ export default function ProfilePage() {
                       }
                     }}
                     placeholder="seu@email.com"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-emerald-500 transition-colors font-mono"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 min-h-[44px] text-base sm:text-sm text-slate-200 focus:outline-none focus:border-emerald-500 transition-colors font-mono"
                   />
                 </div>
 
@@ -534,7 +534,7 @@ export default function ProfilePage() {
                       value={profileCurrentPassword}
                       onChange={(e) => setProfileCurrentPassword(e.target.value)}
                       placeholder="Digite sua senha atual"
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-amber-400 transition-colors"
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 min-h-[44px] text-base sm:text-sm text-slate-200 focus:outline-none focus:border-amber-400 transition-colors"
                     />
                   </div>
                 )}
@@ -543,7 +543,7 @@ export default function ProfilePage() {
                   <button
                     type="submit"
                     disabled={isUpdatingProfile || (isEmailChanged && !profileCurrentPassword)}
-                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl font-semibold text-xs bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full sm:w-auto px-5 py-2.5 min-h-[44px] rounded-xl font-semibold text-xs bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isUpdatingProfile ? (
                       <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
@@ -595,12 +595,12 @@ export default function ProfilePage() {
                       value={currentPassword}
                       onChange={(e) => setCurrentPassword(e.target.value)}
                       placeholder="Digite sua senha atual"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 pr-10 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-amber-400 transition-colors"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 min-h-[44px] pr-10 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-amber-400 transition-colors"
                     />
                     <button
                       type="button"
                       onClick={() => setShowCurrentPassword((prev) => !prev)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-1"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-2 min-w-[40px] min-h-[40px] flex items-center justify-center cursor-pointer"
                     >
                       {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -621,12 +621,12 @@ export default function ProfilePage() {
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder="Entre 12 e 128 caracteres"
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 pr-10 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-amber-400 transition-colors"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 min-h-[44px] pr-10 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-amber-400 transition-colors"
                     />
                     <button
                       type="button"
                       onClick={() => setShowNewPassword((prev) => !prev)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-1"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-2 min-w-[40px] min-h-[40px] flex items-center justify-center cursor-pointer"
                     >
                       {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -644,7 +644,7 @@ export default function ProfilePage() {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="Repita a nova senha"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-amber-400 transition-colors"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 min-h-[44px] text-base sm:text-sm text-slate-200 focus:outline-none focus:border-amber-400 transition-colors"
                   />
                 </div>
 
@@ -652,7 +652,7 @@ export default function ProfilePage() {
                   <button
                     type="submit"
                     disabled={isChangingPassword || !currentPassword || !newPassword}
-                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl font-semibold text-xs bg-amber-600 hover:bg-amber-500 active:scale-95 text-white transition-all flex items-center justify-center gap-2 shadow-lg shadow-amber-950/40 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full sm:w-auto px-5 py-2.5 min-h-[44px] rounded-xl font-semibold text-xs bg-amber-600 hover:bg-amber-500 active:scale-95 text-white transition-all flex items-center justify-center gap-2 shadow-lg shadow-amber-950/40 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isChangingPassword ? (
                       <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
@@ -805,7 +805,7 @@ export default function ProfilePage() {
                                 value={totpToken}
                                 onChange={(e) => setTotpToken(e.target.value.replace(/\D/g, ""))}
                                 placeholder="000000"
-                                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-center font-mono text-lg tracking-widest text-slate-100 focus:outline-none focus:border-indigo-400 transition-colors"
+                                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 min-h-[44px] text-center font-mono text-lg tracking-widest text-slate-100 focus:outline-none focus:border-indigo-400 transition-colors"
                               />
                               <div className="space-y-1">
                                 <label htmlFor="totp-current-password-input" className="text-xs font-semibold text-slate-300 block">
@@ -819,13 +819,13 @@ export default function ProfilePage() {
                                   value={enableTwoFactorPassword}
                                   onChange={(e) => setEnableTwoFactorPassword(e.target.value)}
                                   placeholder="Sua senha atual"
-                                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-slate-100 focus:outline-none focus:border-indigo-400 transition-colors"
+                                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 min-h-[44px] text-base sm:text-sm text-slate-100 focus:outline-none focus:border-indigo-400 transition-colors"
                                 />
                               </div>
                               <button
                                 type="submit"
                                 disabled={isVerifying2FA || totpToken.length !== 6 || !enableTwoFactorPassword}
-                                className="w-full px-5 py-2.5 rounded-xl font-semibold text-xs bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                                className="w-full px-5 py-2.5 min-h-[44px] rounded-xl font-semibold text-xs bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                               >
                                 {isVerifying2FA ? (
                                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -1018,7 +1018,7 @@ export default function ProfilePage() {
                 placeholder="Sua senha atual"
                 value={disablePassword}
                 onChange={(e) => setDisablePassword(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-base sm:text-sm text-slate-100 focus:outline-none focus:border-rose-400 transition-colors"
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 min-h-[44px] text-base sm:text-sm text-slate-100 focus:outline-none focus:border-rose-400 transition-colors"
               />
 
               <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3 pt-2">
@@ -1028,14 +1028,14 @@ export default function ProfilePage() {
                     setShowDisableModal(false);
                     setDisablePassword("");
                   }}
-                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors cursor-pointer text-center"
+                  className="w-full sm:w-auto px-4 py-2.5 min-h-[44px] rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors cursor-pointer text-center flex items-center justify-center"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={isDisabling2FA || !disablePassword}
-                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-semibold bg-rose-600 hover:bg-rose-500 active:scale-95 text-white transition-all shadow-md cursor-pointer disabled:opacity-40 text-center"
+                  className="w-full sm:w-auto px-5 py-2.5 min-h-[44px] rounded-xl text-xs font-semibold bg-rose-600 hover:bg-rose-500 active:scale-95 text-white transition-all shadow-md cursor-pointer disabled:opacity-40 text-center flex items-center justify-center"
                 >
                   {isDisabling2FA ? "Desativando..." : "Confirmar e Desativar"}
                 </button>

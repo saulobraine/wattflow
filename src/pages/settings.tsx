@@ -855,7 +855,7 @@ export default function SettingsPage() {
                   disabled={isTestingTelegram || (!telegramBotToken && !hasTelegramBotToken) || !telegramChatId}
                   onClick={handleTestTelegram}
                   aria-label="Testar envio de notificação no Telegram"
-                  className="w-full sm:w-auto py-2.5 px-4 rounded-xl font-semibold text-xs bg-sky-950 hover:bg-sky-900/90 active:scale-95 text-sky-200 border border-sky-700/60 transition-all duration-150 flex items-center justify-center gap-2 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                  className="w-full sm:w-auto py-2.5 px-4 min-h-[44px] rounded-xl font-semibold text-xs bg-sky-950 hover:bg-sky-900/90 active:scale-95 text-sky-200 border border-sky-700/60 transition-all duration-150 flex items-center justify-center gap-2 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
                 >
                   {isTestingTelegram ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin text-sky-400" aria-hidden="true" />
@@ -954,7 +954,7 @@ export default function SettingsPage() {
                   disabled={isTestingWhatsApp || !whatsappPhoneNumber || (!whatsappApiKey && !hasWhatsappApiKey)}
                   onClick={handleTestWhatsApp}
                   aria-label="Testar envio de notificação no WhatsApp"
-                  className="w-full sm:w-auto py-2.5 px-4 rounded-xl font-semibold text-xs bg-emerald-950 hover:bg-emerald-900/90 active:scale-95 text-emerald-200 border border-emerald-700/60 transition-all duration-150 flex items-center justify-center gap-2 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                  className="w-full sm:w-auto py-2.5 px-4 min-h-[44px] rounded-xl font-semibold text-xs bg-emerald-950 hover:bg-emerald-900/90 active:scale-95 text-emerald-200 border border-emerald-700/60 transition-all duration-150 flex items-center justify-center gap-2 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
                 >
                   {isTestingWhatsApp ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" aria-hidden="true" />
@@ -1346,7 +1346,7 @@ export default function SettingsPage() {
                   type="button"
                   disabled={isDetectingLocation}
                   onClick={handleDetectLocation}
-                  className="px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-850 active:scale-95 text-amber-300 border border-amber-500/30 text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                  className="px-3.5 py-2.5 min-h-[44px] rounded-xl bg-slate-900 hover:bg-slate-850 active:scale-95 text-amber-300 border border-amber-500/30 text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
                 >
                   {isDetectingLocation ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" aria-hidden="true" />
@@ -2292,7 +2292,7 @@ export default function SettingsPage() {
             <button
               type="submit"
               disabled={isSaving || isLoading}
-              className="w-full sm:w-auto py-3 px-8 rounded-xl font-semibold text-sm bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all duration-150 shadow-lg shadow-emerald-950 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
+              className="w-full sm:w-auto py-3 px-8 min-h-[44px] rounded-xl font-semibold text-sm bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all duration-150 shadow-lg shadow-emerald-950 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
             >
               {isSaving ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="w-4 h-4" aria-hidden="true" />}
               {isSaving ? "Salvando..." : "Salvar Configurações"}
@@ -2331,7 +2331,7 @@ export default function SettingsPage() {
               disabled={isTestingEcoFlow || !ecoflowAccessKey || (!ecoflowAccessSecret && !hasEcoflowAccessSecret) || !ecoflowSerialNumber}
               onClick={() => requestConfirmation("ECOFLOW_TELEMETRY")}
               aria-label="Solicitar teste de leitura de telemetria da EcoFlow"
-              className="py-3 px-4 rounded-xl font-semibold text-xs bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-700 transition-all duration-150 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+              className="py-3 px-4 min-h-[44px] rounded-xl font-semibold text-xs bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-700 transition-all duration-150 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
             >
               <Activity className="w-4 h-4 text-cyan-400" aria-hidden="true" />
               Testar Telemetria (SOC)
@@ -2342,7 +2342,7 @@ export default function SettingsPage() {
               disabled={isTestingEcoFlow || !ecoflowAccessKey || (!ecoflowAccessSecret && !hasEcoflowAccessSecret) || !ecoflowSerialNumber}
               onClick={() => requestConfirmation("ECOFLOW_ON")}
               aria-label="Solicitar teste para ligar saída AC e comutar ATS para bateria"
-              className="py-3 px-4 rounded-xl font-semibold text-xs bg-emerald-950/60 hover:bg-emerald-900/80 active:scale-95 text-emerald-200 border border-emerald-800/60 transition-all duration-150 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+              className="py-3 px-4 min-h-[44px] rounded-xl font-semibold text-xs bg-emerald-950/60 hover:bg-emerald-900/80 active:scale-95 text-emerald-200 border border-emerald-800/60 transition-all duration-150 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
             >
               <Zap className="w-4 h-4 text-emerald-400" aria-hidden="true" />
               Ligar Saída AC (ATS &rarr; Solar)
@@ -2353,7 +2353,7 @@ export default function SettingsPage() {
               disabled={isTestingEcoFlow || !ecoflowAccessKey || (!ecoflowAccessSecret && !hasEcoflowAccessSecret) || !ecoflowSerialNumber}
               onClick={() => requestConfirmation("ECOFLOW_OFF")}
               aria-label="Solicitar teste para desligar saída AC e comutar ATS para rede"
-              className="py-3 px-4 rounded-xl font-semibold text-xs bg-rose-950/60 hover:bg-rose-900/80 active:scale-95 text-rose-200 border border-rose-800/60 transition-all duration-150 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+              className="py-3 px-4 min-h-[44px] rounded-xl font-semibold text-xs bg-rose-950/60 hover:bg-rose-900/80 active:scale-95 text-rose-200 border border-rose-800/60 transition-all duration-150 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
             >
               <Power className="w-4 h-4 text-rose-400" aria-hidden="true" />
               Desligar Saída AC (ATS &rarr; Rede)
@@ -2465,7 +2465,7 @@ export default function SettingsPage() {
                     closeModal();
                   }
                 }}
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-base sm:text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-400 font-mono tracking-wider text-center uppercase transition-colors"
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 min-h-[44px] text-base sm:text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-400 font-mono tracking-wider text-center uppercase transition-colors"
               />
             </div>
 
@@ -2473,7 +2473,7 @@ export default function SettingsPage() {
               <button
                 type="button"
                 onClick={closeModal}
-                className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800 active:scale-95 transition-all cursor-pointer text-center"
+                className="w-full sm:w-auto px-4 py-2.5 min-h-[44px] rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800 active:scale-95 transition-all cursor-pointer text-center flex items-center justify-center"
               >
                 Cancelar
               </button>
@@ -2482,7 +2482,7 @@ export default function SettingsPage() {
                 disabled={confirmationInput.trim().toUpperCase() !== confirmationModal.expectedWord}
                 onClick={executeConfirmedAction}
                 aria-label={`Confirmar e executar ${confirmationModal.actionTitle}`}
-                className={`w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-semibold active:scale-95 transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer ${confirmationModal.confirmButtonColor}`}
+                className={`w-full sm:w-auto px-5 py-2.5 min-h-[44px] rounded-xl text-xs font-semibold active:scale-95 transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer ${confirmationModal.confirmButtonColor}`}
               >
                 <Zap className="w-4 h-4" aria-hidden="true" />
                 Confirmar e Executar
