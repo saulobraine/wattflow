@@ -129,6 +129,12 @@ model UserConfiguration {
   lastStormAlertDescription  String?
   lastStormAlertTriggeredAt  DateTime?
   lastStormAlertEndedAt      DateTime?
+  // Parâmetros Financeiros de Retorno sobre Investimento (CAPEX / Payback)
+  totalCapexBrl                 Float              @default(0.0)
+  installationDate              DateTime?          @default(now())
+  annualEnergyInflationRate     Float              @default(6.5)
+  targetPaybackYears            Float              @default(3.0)
+  capexNotes                    String?
   applianceProfiles          ApplianceLoadProfile[]
   telegramBotToken     String             @default("")
   telegramChatId       String             @default("")
