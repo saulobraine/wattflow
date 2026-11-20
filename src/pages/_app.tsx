@@ -1,8 +1,19 @@
 import React, { useEffect } from "react";
 import type { AppProps } from "next/app";
 import Head from "next/head";
+import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider } from "../context/AuthContext";
 import "../styles/globals.css";
+
+const geistSans = Geist({
+  subsets: ["latin"],
+  variable: "--font-geist-sans",
+});
+
+const geistMono = Geist_Mono({
+  subsets: ["latin"],
+  variable: "--font-geist-mono",
+});
 
 export default function App({ Component, pageProps }: AppProps) {
   useEffect(() => {
@@ -34,7 +45,9 @@ export default function App({ Component, pageProps }: AppProps) {
           content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover"
         />
       </Head>
-      <Component {...pageProps} />
+      <div className={`${geistSans.variable} ${geistMono.variable} font-sans min-h-screen bg-slate-950 text-slate-100`}>
+        <Component {...pageProps} />
+      </div>
     </AuthProvider>
   );
 }
