@@ -27,7 +27,17 @@ import {
   Flame,
   CloudRain,
   Layers,
+  Download,
+  Printer,
+  FileSpreadsheet,
 } from "lucide-react";
+import type {
+  StatisticsRange,
+  StatisticsHistoryResponse,
+  StatisticsHistoryPoint,
+  TodayVsYesterdayPoint,
+  StatisticsHistoryComparison,
+} from "../domain/services/AggregationEngine";
 import type {
   FinancialSavingsMetrics,
   AutonomyEstimateMetrics,
@@ -95,6 +105,36 @@ export default function StatisticsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [hoveredPoint, setHoveredPoint] = useState<SolarChartPoint | null>(null);
+
+  // Estados do Histórico Multitemporal & Análise Avançada
+  const [selectedRange, setSelectedRange] = useState<StatisticsRange>("today-vs-yesterday");
+  const [historyData, setHistoryData] = useState<StatisticsHistoryResponse | null>(null);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [hoveredHistPoint, setHoveredHistPoint] = useState<StatisticsHistoryPoint | null>(null);
+  const [hoveredCompPoint, setHoveredCompPoint] = useState<{
+    today?: TodayVsYesterdayPoint;
+    yesterday?: TodayVsYesterdayPoint;
+    time: string;
+  } | null>(null);
+
+  const fetchHistory = async (range: StatisticsRange) => {
+    setIsHistoryLoading(true);
+    try {
+      const res = await fetch(`/api/statistics/history?range=${range}`);
+      const json = await res.json();
+      if (res.ok && json.range) {
+        setHistoryData(json);
+      }
+    } catch (err) {
+      console.error("Erro ao carregar histórico multitemporal:", err);
+    } finally {
+      setIsHistoryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchHistory(selectedRange);
+  }, [selectedRange]);
 
   const fetchStatistics = async () => {
     try {
@@ -1355,320 +1395,594 @@ export default function StatisticsPage() {
           </section>
         )}
 
-        {/* 5. Gráfico SVG de Linhas dos Últimos 30 Minutos (Média de 5 em 5 min) */}
+        {/* 5. Histórico Multitemporal & Análise Avançada */}
         <section
-          aria-label="Gráfico dos Últimos 30 Minutos com Média de 5 em 5 min"
-          className="animate-card stagger-6 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4"
+          aria-label="Histórico Multitemporal e Curva Sobreposta"
+          className="animate-card stagger-6 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-5"
         >
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <Activity className="w-5 h-5 text-amber-400" aria-hidden="true" />
-              <h3 className="font-bold text-slate-100">
-                Histórico dos Últimos 30 Minutos (Média de 5 em 5 min)
-              </h3>
+          {/* Topo do Card: Título, Filtros por Abas e Ações de Exportação */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="w-5 h-5 text-emerald-400" aria-hidden="true" />
+                <h3 className="font-bold text-lg text-slate-100">
+                  Histórico Multitemporal & Análise Avançada
+                </h3>
+              </div>
+              <p className="text-xs text-slate-400">
+                Filtre por períodos, compare a geração de hoje contra ontem e exporte relatórios consolidados
+              </p>
             </div>
-            
-            {/* Legenda visual com as 3 séries em linhas horizontais */}
-            <div className="flex flex-wrap items-center gap-4 text-xs font-mono">
-              <div className="flex items-center gap-1.5">
-                <span className="w-4 h-0.5 bg-amber-400 rounded-full shadow-sm shadow-amber-500/50" />
-                <span className="text-slate-300">Geração Solar (Média W)</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-4 h-0.5 bg-sky-400 rounded-full shadow-sm shadow-sky-500/50" />
-                <span className="text-slate-300">Consumo (Média W)</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-4 h-0.5 bg-emerald-400 rounded-full shadow-sm shadow-emerald-500/50" />
-                <span className="text-slate-300">Balanço Líquido (Média W)</span>
-              </div>
-              <span className="text-slate-500 font-mono">
-                Escala: <strong className="text-slate-200">{scaleMaxWatts} W</strong>
-              </span>
+
+            {/* Ações: Exportar CSV e Imprimir/PDF (Ocultos na impressão) */}
+            <div className="flex flex-wrap items-center gap-2.5 no-print">
+              <a
+                href={`/api/statistics/export?range=${
+                  selectedRange === "today-vs-yesterday" ? "24h" : selectedRange
+                }&format=csv`}
+                download
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 active:scale-95 transition-all shadow-sm cursor-pointer"
+                aria-label="Exportar histórico em formato CSV"
+              >
+                <Download className="w-4 h-4 text-emerald-400" aria-hidden="true" />
+                <span>Exportar CSV</span>
+              </a>
+
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 active:scale-95 transition-all shadow-sm cursor-pointer"
+                aria-label="Imprimir relatório executivo ou salvar como PDF"
+              >
+                <Printer className="w-4 h-4 text-sky-400" aria-hidden="true" />
+                <span>Relatório PDF / Imprimir</span>
+              </button>
             </div>
           </div>
 
-          {!data?.chartPoints || data.chartPoints.length === 0 ? (
-            <div className="py-16 text-center text-slate-500 text-sm">
-              Nenhuma leitura registrada nos últimos 30 minutos. Aguardando novos ciclos de coleta.
+          {/* Barra de Filtros por Abas em Pills */}
+          <div className="flex flex-wrap items-center justify-between gap-3 no-print">
+            <div className="inline-flex p-1 rounded-xl bg-slate-950 border border-slate-800/90 gap-1 overflow-x-auto max-w-full">
+              {(
+                [
+                  { id: "today-vs-yesterday", label: "Hoje vs Ontem" },
+                  { id: "24h", label: "24 Horas" },
+                  { id: "7d", label: "7 Dias" },
+                  { id: "30d", label: "30 Dias" },
+                  { id: "year", label: "Anual" },
+                ] as const
+              ).map((tab) => {
+                const isActive = selectedRange === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedRange(tab.id);
+                      setHoveredHistPoint(null);
+                      setHoveredCompPoint(null);
+                    }}
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                      isActive
+                        ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm"
+                        : "text-slate-400 hover:text-slate-200 hover:bg-slate-900 border border-transparent"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
             </div>
-          ) : (
-            <div className="space-y-3">
-              {/* Barra de Inspeção Ativa de Telemetria */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono bg-slate-950/70 border border-slate-800/90 px-3.5 py-2.5 rounded-xl text-slate-300">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-slate-400">Intervalo Selecionado (Média 5 min):</span>
-                  {hoveredPoint ? (
-                    <span className="flex flex-wrap items-center gap-2">
-                      <span className="text-amber-400 font-bold">Geração Média: {hoveredPoint.watts}W</span>
-                      <span className="text-slate-600">•</span>
-                      <span className="text-sky-300 font-bold">Consumo Médio: {hoveredPoint.outputWatts}W</span>
-                      <span className="text-slate-600">•</span>
-                      <span
-                        className={`font-bold ${
-                          hoveredPoint.netWatts >= 0 ? "text-emerald-400" : "text-amber-400"
-                        }`}
-                      >
-                        Balanço Médio: {hoveredPoint.netWatts > 0 ? `+${hoveredPoint.netWatts}` : hoveredPoint.netWatts}W
-                      </span>
-                      <span className="text-slate-600">•</span>
-                      <span className="text-emerald-400 font-semibold">{hoveredPoint.battery}% Bat</span>
-                      <span className="text-slate-600">•</span>
-                      <span className="text-slate-300">{hoveredPoint.time}</span>
-                    </span>
-                  ) : (
-                    <span className="text-slate-500 italic">Toque ou passe o mouse sobre os pontos para inspecionar</span>
-                  )}
+
+            {isHistoryLoading && (
+              <span className="text-xs font-mono text-emerald-400 flex items-center gap-1.5 animate-pulse">
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                Atualizando série...
+              </span>
+            )}
+          </div>
+
+          {/* Grid de Resumo Executivo da Janela Selecionada */}
+          {historyData?.summary && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+              <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/80">
+                <span className="text-[11px] font-mono text-slate-400 uppercase block">Geração Solar</span>
+                <div className="text-lg font-bold font-mono text-amber-400 mt-0.5">
+                  {historyData.summary.totalSolarGeneratedKwh.toFixed(2)} kWh
                 </div>
-                <div className="text-slate-400">
-                  Intervalos com dados: <strong className="text-slate-200 font-bold">{data.chartPoints.length} de 6</strong>
-                </div>
+                <span className="text-[10px] text-slate-500 font-mono">
+                  Pico: {historyData.summary.peakSolarWatts} W
+                </span>
               </div>
 
-              {/* Área do Gráfico de Linhas Contínuas (SVG Vetorial 100% da Largura) */}
-              {(() => {
-                const points = data.chartPoints;
-                const pointCount = points.length;
-                const svgW = 1000;
-                const svgH = 220;
-                const padX = 35;
-                const padTop = 20;
-                const padBottom = 25;
-                const chartW = svgW - padX * 2;
-                const chartH = svgH - padTop - padBottom;
-                const yZero = svgH - padBottom;
+              <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/80">
+                <span className="text-[11px] font-mono text-slate-400 uppercase block">Consumo Residencial</span>
+                <div className="text-lg font-bold font-mono text-sky-300 mt-0.5">
+                  {historyData.summary.totalConsumedKwh.toFixed(2)} kWh
+                </div>
+                <span className="text-[10px] text-slate-500 font-mono">
+                  Pico: {historyData.summary.peakOutputWatts} W
+                </span>
+              </div>
 
-                const getX = (i: number) => padX + (pointCount > 1 ? (i / (pointCount - 1)) * chartW : chartW / 2);
-                const getY = (watts: number) => {
-                  const clamped = Math.max(0, Math.min(watts, scaleMaxWatts));
-                  return yZero - (clamped / scaleMaxWatts) * chartH;
-                };
+              <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/80">
+                <span className="text-[11px] font-mono text-slate-400 uppercase block">Economia Estimada</span>
+                <div className="text-lg font-bold font-mono text-emerald-400 mt-0.5">
+                  R$ {historyData.summary.estimatedSavingsBrl.toFixed(2)}
+                </div>
+                <span className="text-[10px] text-slate-500 font-mono">
+                  Saldo: {historyData.summary.netEnergyKwh >= 0 ? "+" : ""}{historyData.summary.netEnergyKwh.toFixed(2)} kWh
+                </span>
+              </div>
 
-                const solarPath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${getX(i).toFixed(1)} ${getY(p.watts).toFixed(1)}`).join(" ");
-                const solarArea = points.length > 0
-                  ? `${solarPath} L ${getX(pointCount - 1).toFixed(1)} ${yZero} L ${getX(0).toFixed(1)} ${yZero} Z`
-                  : "";
+              <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/80">
+                <span className="text-[11px] font-mono text-slate-400 uppercase block">Cobertura Solar</span>
+                <div className="text-lg font-bold font-mono text-emerald-300 mt-0.5">
+                  {historyData.summary.gridAvoidancePercentage.toFixed(1)}%
+                </div>
+                <span className="text-[10px] text-slate-500 font-mono">
+                  Bateria Média: {historyData.summary.averageBatteryPercentage.toFixed(0)}%
+                </span>
+              </div>
+            </div>
+          )}
 
-                const outputPath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${getX(i).toFixed(1)} ${getY(p.outputWatts).toFixed(1)}`).join(" ");
-                const outputArea = points.length > 0
-                  ? `${outputPath} L ${getX(pointCount - 1).toFixed(1)} ${yZero} L ${getX(0).toFixed(1)} ${yZero} Z`
-                  : "";
-
-                const netPath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${getX(i).toFixed(1)} ${getY(Math.max(0, p.netWatts)).toFixed(1)}`).join(" ");
-                const netArea = points.length > 0
-                  ? `${netPath} L ${getX(pointCount - 1).toFixed(1)} ${yZero} L ${getX(0).toFixed(1)} ${yZero} Z`
-                  : "";
-
-                return (
-                  <div className="relative h-64 w-full pt-6 pb-2 px-1">
-                    {/* Linhas de Grade de Escala (Eixo Y com marcadores) */}
-                    <div className="absolute inset-x-1 inset-y-0 pt-6 pb-6 pointer-events-none flex flex-col justify-between z-0">
-                      {/* Topo: Escala Máxima */}
-                      <div className="w-full flex items-center justify-between border-b border-dashed border-slate-800/70">
-                        <span className="text-[10px] font-mono text-slate-500 select-none -translate-y-2">
-                          {scaleMaxWatts} W
-                        </span>
-                      </div>
-                      {/* Meio: 50% da Escala */}
-                      <div className="w-full flex items-center justify-between border-b border-dashed border-slate-800/40">
-                        <span className="text-[10px] font-mono text-slate-500 select-none -translate-y-2">
-                          {scaleMidWatts} W
-                        </span>
-                      </div>
-                      {/* Base: 0W */}
-                      <div className="w-full flex items-center justify-between border-b border-slate-800/90">
-                        <span className="text-[10px] font-mono text-slate-500 select-none -translate-y-2">
-                          0 W
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Canvas Vetorial em SVG ocupando 100% da largura do card */}
-                    <svg
-                      viewBox={`0 0 ${svgW} ${svgH}`}
-                      preserveAspectRatio="none"
-                      className="w-full h-full relative z-10 overflow-visible"
+          {/* Renderização do Gráfico conforme o Modo Selecionado */}
+          {selectedRange === "today-vs-yesterday" ? (
+            /* ==============================================================
+               MODO A: CURVA SOBREPOSTA HOJE VS ONTEM
+               ============================================================== */
+            !historyData?.comparison ? (
+              <div className="py-16 text-center text-slate-500 text-sm">
+                Carregando dados comparativos de Hoje vs Ontem...
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {/* Header da Comparação com Badge de Divergência Solar */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-950/80 border border-slate-800/90 p-3.5 rounded-xl">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-mono text-slate-400">Eficiência Fotovoltaica Comparativa:</span>
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold border ${
+                        historyData.comparison.divergencePercentage >= 0
+                          ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
+                          : "bg-amber-500/15 text-amber-300 border-amber-500/30"
+                      }`}
                     >
-                      <defs>
-                        <linearGradient id="solarLineGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.30" />
-                          <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.0" />
-                        </linearGradient>
-                        <linearGradient id="outputLineGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.22" />
-                          <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.0" />
-                        </linearGradient>
-                        <linearGradient id="netLineGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#10b981" stopOpacity="0.18" />
-                          <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
-                        </linearGradient>
-                      </defs>
-
-                      {/* Áreas sombreadas sob as curvas */}
-                      <path d={solarArea} fill="url(#solarLineGrad)" />
-                      <path d={outputArea} fill="url(#outputLineGrad)" />
-                      <path d={netArea} fill="url(#netLineGrad)" />
-
-                      {/* Linha vertical tracejada do ponto selecionado via hover */}
-                      {hoveredPoint && (
-                        <line
-                          x1={getX(points.indexOf(hoveredPoint))}
-                          y1={padTop}
-                          x2={getX(points.indexOf(hoveredPoint))}
-                          y2={yZero}
-                          stroke="#64748b"
-                          strokeWidth="1.5"
-                          strokeDasharray="4 4"
-                          vectorEffect="non-scaling-stroke"
-                        />
+                      {historyData.comparison.divergencePercentage >= 0 ? (
+                        <TrendingUp className="w-3.5 h-3.5" />
+                      ) : (
+                        <TrendingDown className="w-3.5 h-3.5" />
                       )}
+                      {historyData.comparison.divergencePercentage >= 0 ? "+" : ""}
+                      {historyData.comparison.divergencePercentage.toFixed(1)}% vs ontem
+                    </span>
+                  </div>
 
-                      {/* Linha 1: Geração Solar (Âmbar) */}
-                      <path
-                        d={solarPath}
-                        fill="none"
-                        stroke="#f59e0b"
-                        strokeWidth="2.5"
-                        vectorEffect="non-scaling-stroke"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-
-                      {/* Linha 2: Consumo / Saída (Azul Claro) */}
-                      <path
-                        d={outputPath}
-                        fill="none"
-                        stroke="#38bdf8"
-                        strokeWidth="2.5"
-                        vectorEffect="non-scaling-stroke"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-
-                      {/* Linha 3: Balanço Líquido (Verde Esmeralda) */}
-                      <path
-                        d={netPath}
-                        fill="none"
-                        stroke="#10b981"
-                        strokeWidth="2"
-                        strokeDasharray="5 3"
-                        vectorEffect="non-scaling-stroke"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-
-                      {/* Marcadores circulares em cada ponto médio */}
-                      {points.map((point, i) => {
-                        const isHovered = hoveredPoint === point;
-                        const x = getX(i);
-                        const ySol = getY(point.watts);
-                        const yOut = getY(point.outputWatts);
-                        const yNet = getY(Math.max(0, point.netWatts));
-
-                        return (
-                          <g key={i}>
-                            <circle
-                              cx={x}
-                              cy={ySol}
-                              r={isHovered ? 6 : 4}
-                              fill="#f59e0b"
-                              stroke="#0f172a"
-                              strokeWidth="2"
-                              vectorEffect="non-scaling-stroke"
-                            />
-                            <circle
-                              cx={x}
-                              cy={yOut}
-                              r={isHovered ? 6 : 4}
-                              fill="#38bdf8"
-                              stroke="#0f172a"
-                              strokeWidth="2"
-                              vectorEffect="non-scaling-stroke"
-                            />
-                            <circle
-                              cx={x}
-                              cy={yNet}
-                              r={isHovered ? 5 : 3}
-                              fill="#10b981"
-                              stroke="#0f172a"
-                              strokeWidth="2"
-                              vectorEffect="non-scaling-stroke"
-                            />
-                          </g>
-                        );
-                      })}
-                    </svg>
-
-                    {/* Fatias transparentes para captura de hover/touch e exibição de tooltip */}
-                    <div className="absolute inset-0 pt-6 pb-6 px-1 flex items-stretch justify-between z-20">
-                      {points.map((point, index) => {
-                        const isNetPositive = point.netWatts >= 0;
-                        const isSelected = hoveredPoint === point;
-
-                        return (
-                          <div
-                            key={index}
-                            onMouseEnter={() => setHoveredPoint(point)}
-                            onMouseLeave={() => setHoveredPoint(null)}
-                            onTouchStart={() => setHoveredPoint(point)}
-                            onPointerDown={() => setHoveredPoint(point)}
-                            onClick={() => setHoveredPoint(point)}
-                            className="flex-1 h-full relative cursor-pointer group flex items-start justify-center"
-                          >
-                            {/* Tooltip flutuante indicando a média do intervalo de 5 minutos */}
-                            <div
-                              className={`transition-all duration-150 pointer-events-none absolute -top-12 z-30 bg-slate-950/95 border border-slate-700 text-slate-100 px-2.5 py-1.5 rounded-lg text-[10px] sm:text-[11px] whitespace-normal sm:whitespace-nowrap max-w-[240px] sm:max-w-none shadow-2xl backdrop-blur-md flex items-center gap-1.5 sm:gap-2 ${
-                                isSelected ? "opacity-100 scale-100" : "opacity-0 group-hover:opacity-100 scale-95"
-                              } ${
-                                index < 2
-                                  ? "left-0"
-                                  : index > pointCount - 3
-                                  ? "right-0"
-                                  : "left-1/2 -translate-x-1/2"
-                              }`}
-                            >
-                              <span className="text-slate-400 font-mono">Média 5 min ({point.time}):</span>
-                              <span className="font-bold text-amber-400 font-mono">{point.watts}W Sol</span>
-                              <span className="text-slate-600">•</span>
-                              <span className="font-bold text-sky-300 font-mono">{point.outputWatts}W Uso</span>
-                              <span className="text-slate-600">•</span>
-                              <span
-                                className={`font-bold font-mono ${
-                                  isNetPositive ? "text-emerald-400" : "text-amber-400"
-                                }`}
-                              >
-                                {point.netWatts > 0 ? `+${point.netWatts}` : point.netWatts}W Bal
-                              </span>
-                              <span className="text-slate-600">•</span>
-                              <span className="text-emerald-400 font-mono">{point.battery}%</span>
-                            </div>
-                          </div>
-                        );
-                      })}
+                  {/* Legenda das Séries */}
+                  <div className="flex flex-wrap items-center gap-4 text-xs font-mono">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-4 h-1 bg-emerald-500 rounded-full shadow-sm shadow-emerald-500/50" />
+                      <span className="text-slate-200 font-bold">
+                        Hoje ({historyData.comparison.todayTotalKwh.toFixed(2)} kWh)
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-4 h-1 border-t-2 border-dashed border-slate-400" />
+                      <span className="text-slate-400">
+                        Ontem ({historyData.comparison.yesterdayTotalKwh.toFixed(2)} kWh)
+                      </span>
                     </div>
                   </div>
-                );
-              })()}
+                </div>
 
-              {/* Rótulos dos eixos X marcando o início (-30 min) e o fim (agora) */}
-              <div className="flex justify-between items-center text-[11px] text-slate-400 font-mono px-3 pt-2 border-t border-slate-800/80">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-slate-500">Início</span>
-                  <span className="text-slate-200 font-semibold">(-30 min)</span>
-                  <span className="text-slate-600">•</span>
-                  <span className="text-slate-400">{data.chartPoints[0]?.time || "--"}</span>
-                </div>
-                <div className="text-slate-500 font-sans text-xs hidden sm:block">
-                  Média calculada em blocos de 5 minutos
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-slate-400">{data.chartPoints[data.chartPoints.length - 1]?.time || "--"}</span>
-                  <span className="text-slate-600">•</span>
-                  <span className="text-slate-500">Fim</span>
-                  <span className="text-slate-200 font-semibold">(Agora)</span>
+                {/* Área SVG da Curva Sobreposta */}
+                {(() => {
+                  const comp = historyData.comparison;
+                  const todayPts = comp.todayPoints;
+                  const yesterdayPts = comp.yesterdayPoints;
+                  const maxPtsCount = Math.max(todayPts.length, yesterdayPts.length, 1);
+
+                  const maxWatts = Math.max(
+                    comp.todayPeakWatts,
+                    comp.yesterdayPeakWatts,
+                    ...(todayPts.map((p) => p.solarWatts) || [0]),
+                    ...(yesterdayPts.map((p) => p.solarWatts) || [0]),
+                    100
+                  );
+                  const scaleMax = calculateScaleMax(maxWatts);
+                  const scaleMid = Math.round(scaleMax / 2);
+
+                  const svgW = 1000;
+                  const svgH = 220;
+                  const padX = 35;
+                  const padTop = 20;
+                  const padBottom = 25;
+                  const chartW = svgW - padX * 2;
+                  const chartH = svgH - padTop - padBottom;
+                  const yZero = svgH - padBottom;
+
+                  const getX = (i: number, total: number) =>
+                    padX + (total > 1 ? (i / (total - 1)) * chartW : chartW / 2);
+                  const getY = (watts: number) => {
+                    const clamped = Math.max(0, Math.min(watts, scaleMax));
+                    return yZero - (clamped / scaleMax) * chartH;
+                  };
+
+                  const todayPath = todayPts
+                    .map((p, i) => `${i === 0 ? "M" : "L"} ${getX(i, todayPts.length).toFixed(1)} ${getY(p.solarWatts).toFixed(1)}`)
+                    .join(" ");
+                  const todayArea =
+                    todayPts.length > 0
+                      ? `${todayPath} L ${getX(todayPts.length - 1, todayPts.length).toFixed(1)} ${yZero} L ${getX(0, todayPts.length).toFixed(1)} ${yZero} Z`
+                      : "";
+
+                  const yesterdayPath = yesterdayPts
+                    .map((p, i) => `${i === 0 ? "M" : "L"} ${getX(i, yesterdayPts.length).toFixed(1)} ${getY(p.solarWatts).toFixed(1)}`)
+                    .join(" ");
+
+                  return (
+                    <div className="relative h-64 w-full pt-6 pb-2 px-1">
+                      {/* Linhas de Grade de Escala */}
+                      <div className="absolute inset-x-1 inset-y-0 pt-6 pb-6 pointer-events-none flex flex-col justify-between z-0">
+                        <div className="w-full flex items-center justify-between border-b border-dashed border-slate-800/70">
+                          <span className="text-[10px] font-mono text-slate-500 select-none -translate-y-2">
+                            {scaleMax} W
+                          </span>
+                        </div>
+                        <div className="w-full flex items-center justify-between border-b border-dashed border-slate-800/40">
+                          <span className="text-[10px] font-mono text-slate-500 select-none -translate-y-2">
+                            {scaleMid} W
+                          </span>
+                        </div>
+                        <div className="w-full flex items-center justify-between border-b border-slate-800/90">
+                          <span className="text-[10px] font-mono text-slate-500 select-none -translate-y-2">
+                            0 W
+                          </span>
+                        </div>
+                      </div>
+
+                      <svg
+                        viewBox={`0 0 ${svgW} ${svgH}`}
+                        preserveAspectRatio="none"
+                        className="w-full h-full relative z-10 overflow-visible"
+                      >
+                        <defs>
+                          <linearGradient id="todaySolarGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#10b981" stopOpacity="0.25" />
+                            <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
+                          </linearGradient>
+                        </defs>
+
+                        {/* Área sob a curva de hoje */}
+                        <path d={todayArea} fill="url(#todaySolarGrad)" />
+
+                        {/* Curva de Ontem: Cinza tracejada */}
+                        <path
+                          d={yesterdayPath}
+                          fill="none"
+                          stroke="#94a3b8"
+                          strokeWidth="2"
+                          strokeDasharray="5 4"
+                          vectorEffect="non-scaling-stroke"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+
+                        {/* Curva de Hoje: Verde esmeralda contínua */}
+                        <path
+                          d={todayPath}
+                          fill="none"
+                          stroke="#10b981"
+                          strokeWidth="2.5"
+                          vectorEffect="non-scaling-stroke"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+
+                        {/* Marcadores circulares em Hoje */}
+                        {todayPts.map((p, i) => (
+                          <circle
+                            key={i}
+                            cx={getX(i, todayPts.length)}
+                            cy={getY(p.solarWatts)}
+                            r={3}
+                            fill="#10b981"
+                            stroke="#0f172a"
+                            strokeWidth="1.5"
+                            vectorEffect="non-scaling-stroke"
+                          />
+                        ))}
+                      </svg>
+
+                      {/* Fatias transparentes de captura de hover/touch para Tooltip Comparativo */}
+                      <div className="absolute inset-0 pt-6 pb-6 px-1 flex items-stretch justify-between z-20">
+                        {Array.from({ length: maxPtsCount }).map((_, idx) => {
+                          const ptToday = todayPts[idx];
+                          const ptYesterday = yesterdayPts[idx];
+                          const time = ptToday?.time || ptYesterday?.time || `${idx}:00`;
+                          const diff = (ptToday?.solarWatts ?? 0) - (ptYesterday?.solarWatts ?? 0);
+                          const isSelected =
+                            hoveredCompPoint?.today === ptToday && hoveredCompPoint?.yesterday === ptYesterday;
+
+                          return (
+                            <div
+                              key={idx}
+                              onMouseEnter={() =>
+                                setHoveredCompPoint({ today: ptToday, yesterday: ptYesterday, time })
+                              }
+                              onMouseLeave={() => setHoveredCompPoint(null)}
+                              onTouchStart={() =>
+                                setHoveredCompPoint({ today: ptToday, yesterday: ptYesterday, time })
+                              }
+                              onPointerDown={() =>
+                                setHoveredCompPoint({ today: ptToday, yesterday: ptYesterday, time })
+                              }
+                              className="flex-1 h-full relative cursor-pointer group flex items-start justify-center"
+                            >
+                              <div
+                                className={`transition-all duration-150 pointer-events-none absolute -top-12 z-30 bg-slate-950/95 border border-slate-700 text-slate-100 px-3 py-1.5 rounded-lg text-[10px] sm:text-[11px] whitespace-normal sm:whitespace-nowrap max-w-[280px] sm:max-w-none shadow-2xl backdrop-blur-md flex items-center gap-2 ${
+                                  isSelected ? "opacity-100 scale-100" : "opacity-0 group-hover:opacity-100 scale-95"
+                                } ${
+                                  idx < 4
+                                    ? "left-0"
+                                    : idx > maxPtsCount - 5
+                                    ? "right-0"
+                                    : "left-1/2 -translate-x-1/2"
+                                }`}
+                              >
+                                <span className="text-slate-400 font-mono">{time}:</span>
+                                <span className="font-bold text-emerald-400 font-mono">
+                                  Hoje: {ptToday?.solarWatts ?? 0}W
+                                </span>
+                                <span className="text-slate-600">•</span>
+                                <span className="font-bold text-slate-300 font-mono">
+                                  Ontem: {ptYesterday?.solarWatts ?? 0}W
+                                </span>
+                                <span className="text-slate-600">•</span>
+                                <span
+                                  className={`font-mono font-bold ${
+                                    diff >= 0 ? "text-emerald-300" : "text-amber-400"
+                                  }`}
+                                >
+                                  {diff >= 0 ? `+${diff}W` : `${diff}W`}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Eixo X com marcações de 00:00, Meio-dia e 23:45 */}
+                <div className="flex justify-between items-center text-[11px] text-slate-400 font-mono px-3 pt-2 border-t border-slate-800/80">
+                  <span>00:00 (Madrugada)</span>
+                  <span className="text-slate-500 hidden sm:inline">12:00 (Zênite Solar)</span>
+                  <span>23:59 (Noite)</span>
                 </div>
               </div>
-            </div>
+            )
+          ) : (
+            /* ==============================================================
+               MODO B: MULTI-SÉRIES TEMPORAIS (24H, 7D, 30D, YEAR)
+               ============================================================== */
+            !historyData?.points || historyData.points.length === 0 ? (
+              <div className="py-16 text-center text-slate-500 text-sm">
+                Nenhuma leitura consolidada disponível para este período.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {/* Legenda visual com as 3 séries */}
+                <div className="flex flex-wrap items-center justify-between gap-3 text-xs font-mono bg-slate-950/70 border border-slate-800/90 px-3.5 py-2.5 rounded-xl">
+                  <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-4 h-0.5 bg-amber-400 rounded-full" />
+                      <span className="text-slate-300">Geração Solar (W)</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-4 h-0.5 bg-sky-400 rounded-full" />
+                      <span className="text-slate-300">Consumo Residencial (W)</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-4 h-0.5 bg-emerald-400 rounded-full" />
+                      <span className="text-slate-300">Balanço Líquido (W)</span>
+                    </div>
+                  </div>
+                  <span className="text-slate-400">
+                    Pontos consolidadores: <strong>{historyData.points.length}</strong>
+                  </span>
+                </div>
+
+                {/* SVG do Histórico Agregado */}
+                {(() => {
+                  const pts = historyData.points;
+                  const ptsCount = pts.length;
+                  const maxVal = Math.max(
+                    ...pts.map((p) => Math.max(p.solarWatts, p.outputWatts, Math.abs(p.netWatts))),
+                    100
+                  );
+                  const scaleMax = calculateScaleMax(maxVal);
+                  const scaleMid = Math.round(scaleMax / 2);
+
+                  const svgW = 1000;
+                  const svgH = 220;
+                  const padX = 35;
+                  const padTop = 20;
+                  const padBottom = 25;
+                  const chartW = svgW - padX * 2;
+                  const chartH = svgH - padTop - padBottom;
+                  const yZero = svgH - padBottom;
+
+                  const getX = (i: number) =>
+                    padX + (ptsCount > 1 ? (i / (ptsCount - 1)) * chartW : chartW / 2);
+                  const getY = (watts: number) => {
+                    const clamped = Math.max(0, Math.min(watts, scaleMax));
+                    return yZero - (clamped / scaleMax) * chartH;
+                  };
+
+                  const solarPath = pts
+                    .map((p, i) => `${i === 0 ? "M" : "L"} ${getX(i).toFixed(1)} ${getY(p.solarWatts).toFixed(1)}`)
+                    .join(" ");
+                  const solarArea =
+                    pts.length > 0
+                      ? `${solarPath} L ${getX(ptsCount - 1).toFixed(1)} ${yZero} L ${getX(0).toFixed(1)} ${yZero} Z`
+                      : "";
+
+                  const outputPath = pts
+                    .map((p, i) => `${i === 0 ? "M" : "L"} ${getX(i).toFixed(1)} ${getY(p.outputWatts).toFixed(1)}`)
+                    .join(" ");
+                  const outputArea =
+                    pts.length > 0
+                      ? `${outputPath} L ${getX(ptsCount - 1).toFixed(1)} ${yZero} L ${getX(0).toFixed(1)} ${yZero} Z`
+                      : "";
+
+                  const netPath = pts
+                    .map((p, i) => `${i === 0 ? "M" : "L"} ${getX(i).toFixed(1)} ${getY(Math.max(0, p.netWatts)).toFixed(1)}`)
+                    .join(" ");
+
+                  return (
+                    <div className="relative h-64 w-full pt-6 pb-2 px-1">
+                      {/* Linhas de Grade de Escala */}
+                      <div className="absolute inset-x-1 inset-y-0 pt-6 pb-6 pointer-events-none flex flex-col justify-between z-0">
+                        <div className="w-full flex items-center justify-between border-b border-dashed border-slate-800/70">
+                          <span className="text-[10px] font-mono text-slate-500 select-none -translate-y-2">
+                            {scaleMax} W
+                          </span>
+                        </div>
+                        <div className="w-full flex items-center justify-between border-b border-dashed border-slate-800/40">
+                          <span className="text-[10px] font-mono text-slate-500 select-none -translate-y-2">
+                            {scaleMid} W
+                          </span>
+                        </div>
+                        <div className="w-full flex items-center justify-between border-b border-slate-800/90">
+                          <span className="text-[10px] font-mono text-slate-500 select-none -translate-y-2">
+                            0 W
+                          </span>
+                        </div>
+                      </div>
+
+                      <svg
+                        viewBox={`0 0 ${svgW} ${svgH}`}
+                        preserveAspectRatio="none"
+                        className="w-full h-full relative z-10 overflow-visible"
+                      >
+                        <defs>
+                          <linearGradient id="histSolarGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.25" />
+                            <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.0" />
+                          </linearGradient>
+                          <linearGradient id="histOutGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.18" />
+                            <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.0" />
+                          </linearGradient>
+                        </defs>
+
+                        {/* Áreas */}
+                        <path d={solarArea} fill="url(#histSolarGrad)" />
+                        <path d={outputArea} fill="url(#histOutGrad)" />
+
+                        {/* Linhas */}
+                        <path
+                          d={solarPath}
+                          fill="none"
+                          stroke="#f59e0b"
+                          strokeWidth="2.5"
+                          vectorEffect="non-scaling-stroke"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d={outputPath}
+                          fill="none"
+                          stroke="#38bdf8"
+                          strokeWidth="2.5"
+                          vectorEffect="non-scaling-stroke"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d={netPath}
+                          fill="none"
+                          stroke="#10b981"
+                          strokeWidth="2"
+                          strokeDasharray="5 3"
+                          vectorEffect="non-scaling-stroke"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+
+                        {/* Pontos circulares */}
+                        {pts.map((p, i) => (
+                          <circle
+                            key={i}
+                            cx={getX(i)}
+                            cy={getY(p.solarWatts)}
+                            r={3.5}
+                            fill="#f59e0b"
+                            stroke="#0f172a"
+                            strokeWidth="1.5"
+                            vectorEffect="non-scaling-stroke"
+                          />
+                        ))}
+                      </svg>
+
+                      {/* Fatias de hover/touch */}
+                      <div className="absolute inset-0 pt-6 pb-6 px-1 flex items-stretch justify-between z-20">
+                        {pts.map((point, i) => {
+                          const isSelected = hoveredHistPoint === point;
+                          return (
+                            <div
+                              key={i}
+                              onMouseEnter={() => setHoveredHistPoint(point)}
+                              onMouseLeave={() => setHoveredHistPoint(null)}
+                              onTouchStart={() => setHoveredHistPoint(point)}
+                              onPointerDown={() => setHoveredHistPoint(point)}
+                              className="flex-1 h-full relative cursor-pointer group flex items-start justify-center"
+                            >
+                              <div
+                                className={`transition-all duration-150 pointer-events-none absolute -top-12 z-30 bg-slate-950/95 border border-slate-700 text-slate-100 px-3 py-1.5 rounded-lg text-[10px] sm:text-[11px] whitespace-normal sm:whitespace-nowrap max-w-[280px] sm:max-w-none shadow-2xl backdrop-blur-md flex items-center gap-2 ${
+                                  isSelected ? "opacity-100 scale-100" : "opacity-0 group-hover:opacity-100 scale-95"
+                                } ${
+                                  i < 3
+                                    ? "left-0"
+                                    : i > ptsCount - 4
+                                    ? "right-0"
+                                    : "left-1/2 -translate-x-1/2"
+                                }`}
+                              >
+                                <span className="text-slate-400 font-mono">{point.label}:</span>
+                                <span className="font-bold text-amber-400 font-mono">{point.solarWatts}W Sol</span>
+                                <span className="text-slate-600">•</span>
+                                <span className="font-bold text-sky-300 font-mono">{point.outputWatts}W Uso</span>
+                                <span className="text-slate-600">•</span>
+                                <span
+                                  className={`font-mono font-bold ${
+                                    point.netWatts >= 0 ? "text-emerald-300" : "text-amber-400"
+                                  }`}
+                                >
+                                  {point.netWatts > 0 ? `+${point.netWatts}` : point.netWatts}W Bal
+                                </span>
+                                <span className="text-slate-600">•</span>
+                                <span className="text-emerald-400 font-mono">{point.batteryPercentage}%</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Eixos */}
+                <div className="flex justify-between items-center text-[11px] text-slate-400 font-mono px-3 pt-2 border-t border-slate-800/80">
+                  <span>{historyData.points[0]?.label || "Início"}</span>
+                  <span className="text-slate-500 hidden sm:inline">Período consolidado</span>
+                  <span>{historyData.points[historyData.points.length - 1]?.label || "Fim"}</span>
+                </div>
+              </div>
+            )
           )}
         </section>
 

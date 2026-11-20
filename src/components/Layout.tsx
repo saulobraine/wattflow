@@ -1,7 +1,7 @@
 import React, { ReactNode, useState, useEffect } from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
-import { Zap, Sliders, Settings, Activity, LogOut, User, BarChart3 } from "lucide-react";
+import { Zap, Sliders, Settings, Activity, LogOut, User, BarChart3, Monitor } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { TransitionLink } from "./TransitionLink";
 import { Tooltip, TooltipTrigger, TooltipContent } from "./ui/tooltip";
@@ -18,7 +18,7 @@ const BottomNav = ({
   <nav
     role="navigation"
     aria-label="Navegação Mobile Inferior"
-    className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-lg border-t border-slate-800/90 shadow-2xl pb-[env(safe-area-inset-bottom,0px)]"
+    className="md:hidden print:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-lg border-t border-slate-800/90 shadow-2xl pb-[env(safe-area-inset-bottom,0px)]"
   >
     <div className="flex items-stretch justify-around h-16 max-w-md mx-auto px-1">
       {navItems.map((item) => {
@@ -136,7 +136,7 @@ export function Layout({ children, title }: LayoutProps) {
       <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 overflow-x-hidden">
         <header
           role="banner"
-          className={`site-header border-b border-slate-800/90 backdrop-blur-md sticky top-0 z-40 transition-all duration-300 ease-in-out ${
+          className={`site-header print:hidden border-b border-slate-800/90 backdrop-blur-md sticky top-0 z-40 transition-all duration-300 ease-in-out ${
             isScrolled
               ? "bg-slate-950/85 shadow-lg shadow-black/40 border-slate-800"
               : "bg-slate-900/70"
@@ -227,6 +227,30 @@ export function Layout({ children, title }: LayoutProps) {
                 })}
               </nav>
 
+              {/* Botão de Acesso Direto ao Modo Kiosk (Wall Panel) */}
+              <Tooltip enabled={true}>
+                <TooltipTrigger asChild>
+                  <TransitionLink
+                    href="/kiosk"
+                    aria-label="Abrir Modo Kiosk (Painel de Parede)"
+                    className={`flex items-center rounded-lg font-medium transition-all duration-300 active:scale-95 text-slate-300 hover:text-emerald-300 bg-slate-900/60 hover:bg-emerald-500/10 border border-slate-800 hover:border-emerald-500/30 shadow-sm ${
+                      isScrolled
+                        ? "px-2 py-1.5 text-xs gap-1.5"
+                        : "px-2.5 sm:px-3 py-2 text-sm gap-2"
+                    }`}
+                  >
+                    <Monitor
+                      className={`text-emerald-400 transition-transform ${
+                        isScrolled ? "w-3.5 h-3.5" : "w-4 h-4"
+                      }`}
+                      aria-hidden="true"
+                    />
+                    <span className="hidden sm:inline font-semibold">Kiosk</span>
+                  </TransitionLink>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Modo Kiosk (Painel de Parede)</TooltipContent>
+              </Tooltip>
+
               {user && (
                 <div className="flex items-center gap-2 sm:gap-3 sm:border-l sm:border-slate-800/80 sm:pl-3">
                   <Tooltip enabled={true}>
@@ -297,12 +321,14 @@ export function Layout({ children, title }: LayoutProps) {
 
         <footer
           role="contentinfo"
-          className="mt-6 border-t border-slate-800/80 py-5 text-center text-xs text-slate-500 pb-24 md:pb-5"
+          className="print:hidden mt-6 border-t border-slate-800/80 py-5 text-center text-xs text-slate-500 pb-24 md:pb-5"
         >
           <p><strong className="font-semibold text-slate-400">wattflow</strong> - desenvolvido com ♥ por Braine</p>
         </footer>
 
-        <PwaInstallPrompt />
+        <div className="print:hidden">
+          <PwaInstallPrompt />
+        </div>
         <BottomNav navItems={bottomNavItems} pathname={router.pathname} />
       </div>
     </>
