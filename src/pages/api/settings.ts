@@ -110,6 +110,12 @@ export interface SettingsResponseData {
   isThermalCutoffActive: boolean;
   lastThermalEventAt: string | null;
   lastThermalActionMessage: string | null;
+  // Parâmetros Financeiros de Retorno sobre Investimento (CAPEX / Payback)
+  totalCapexBrl: number;
+  installationDate: string | null;
+  annualEnergyInflationRate: number;
+  targetPaybackYears: number;
+  capexNotes: string | null;
 }
 
 interface SettingsResponseBody {
@@ -277,6 +283,12 @@ export default async function handleSettings(
           isThermalCutoffActive: existing.isThermalCutoffActive ?? false,
           lastThermalEventAt: existing.lastThermalEventAt ? existing.lastThermalEventAt.toISOString() : null,
           lastThermalActionMessage: existing.lastThermalActionMessage ?? null,
+          // Parâmetros de CAPEX / Payback
+          totalCapexBrl: existing.totalCapexBrl ?? 0.0,
+          installationDate: existing.installationDate ? existing.installationDate.toISOString() : null,
+          annualEnergyInflationRate: existing.annualEnergyInflationRate ?? 6.5,
+          targetPaybackYears: existing.targetPaybackYears ?? 3.0,
+          capexNotes: existing.capexNotes ?? null,
         },
       });
       return;
@@ -370,6 +382,12 @@ export default async function handleSettings(
       thermalCutoffTempThreshold,
       thermalRecoveryTempThreshold,
       thermalThrottleSpeedWatts,
+      // Parâmetros de CAPEX / Payback
+      totalCapexBrl,
+      installationDate,
+      annualEnergyInflationRate,
+      targetPaybackYears,
+      capexNotes,
     } = parsedBody.data;
 
     if (
@@ -685,6 +703,24 @@ export default async function handleSettings(
         typeof thermalThrottleSpeedWatts === "number"
           ? thermalThrottleSpeedWatts
           : existingConfig?.thermalThrottleSpeedWatts ?? 200;
+      const resolvedTotalCapex =
+        typeof totalCapexBrl === "number" ? totalCapexBrl : existingConfig?.totalCapexBrl ?? 0.0;
+      const resolvedInstallationDate =
+        installationDate !== undefined
+          ? installationDate
+            ? new Date(installationDate)
+            : null
+          : existingConfig?.installationDate ?? new Date();
+      const resolvedInflationRate =
+        typeof annualEnergyInflationRate === "number"
+          ? annualEnergyInflationRate
+          : existingConfig?.annualEnergyInflationRate ?? 6.5;
+      const resolvedTargetPaybackYears =
+        typeof targetPaybackYears === "number"
+          ? targetPaybackYears
+          : existingConfig?.targetPaybackYears ?? 3.0;
+      const resolvedCapexNotes =
+        typeof capexNotes === "string" ? capexNotes.trim() : existingConfig?.capexNotes ?? null;
 
       await prisma.userConfiguration.upsert({
         where: { userId: extractedUserId },
@@ -755,6 +791,11 @@ export default async function handleSettings(
           thermalCutoffTempThreshold: resolvedThermalCutoffTemp,
           thermalRecoveryTempThreshold: resolvedThermalRecoveryTemp,
           thermalThrottleSpeedWatts: resolvedThermalThrottleSpeed,
+          totalCapexBrl: resolvedTotalCapex,
+          installationDate: resolvedInstallationDate,
+          annualEnergyInflationRate: resolvedInflationRate,
+          targetPaybackYears: resolvedTargetPaybackYears,
+          capexNotes: resolvedCapexNotes,
         },
         create: {
           userId: extractedUserId,
@@ -824,6 +865,11 @@ export default async function handleSettings(
           thermalCutoffTempThreshold: resolvedThermalCutoffTemp,
           thermalRecoveryTempThreshold: resolvedThermalRecoveryTemp,
           thermalThrottleSpeedWatts: resolvedThermalThrottleSpeed,
+          totalCapexBrl: resolvedTotalCapex,
+          installationDate: resolvedInstallationDate,
+          annualEnergyInflationRate: resolvedInflationRate,
+          targetPaybackYears: resolvedTargetPaybackYears,
+          capexNotes: resolvedCapexNotes,
         },
       });
 

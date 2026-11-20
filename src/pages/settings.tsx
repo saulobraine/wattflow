@@ -37,6 +37,8 @@ import {
   Sliders,
   Refrigerator,
   AirVent,
+  TrendingUp,
+  Wallet,
 } from "lucide-react";
 import type { ApplianceItem } from "./api/appliances";
 
@@ -63,6 +65,13 @@ export default function SettingsPage() {
   const [batteryCapacityWh, setBatteryCapacityWh] = useState<number>(2048);
   const [isDailyReportActive, setIsDailyReportActive] = useState<boolean>(true);
   const [dailyReportTime, setDailyReportTime] = useState<string>("21:00");
+
+  // Estados de Retorno sobre Investimento (Payback Solar & CAPEX)
+  const [totalCapexBrl, setTotalCapexBrl] = useState<number>(0.0);
+  const [installationDate, setInstallationDate] = useState<string>("");
+  const [annualEnergyInflationRate, setAnnualEnergyInflationRate] = useState<number>(6.5);
+  const [targetPaybackYears, setTargetPaybackYears] = useState<number>(3.0);
+  const [capexNotes, setCapexNotes] = useState<string>("");
 
   // Estados da Etapa 2: Previsão Solar, Histerese Adaptativa & Segurança Térmica BMS
   const [isAdaptiveHysteresisActive, setIsAdaptiveHysteresisActive] = useState<boolean>(false);
@@ -356,6 +365,23 @@ export default function SettingsPage() {
         setChargeOnlyOffPeak(json.data.chargeOnlyOffPeak ?? true);
         setCloudyPrechargeActive(json.data.cloudyPrechargeActive ?? true);
         setLastSmartChargeAdjustAt(json.data.lastSmartChargeAdjustAt || null);
+
+        // Parâmetros de CAPEX & Payback Solar
+        setTotalCapexBrl(
+          typeof json.data.totalCapexBrl === "number" ? json.data.totalCapexBrl : 0.0
+        );
+        setInstallationDate(
+          json.data.installationDate ? json.data.installationDate.split("T")[0] : ""
+        );
+        setAnnualEnergyInflationRate(
+          typeof json.data.annualEnergyInflationRate === "number"
+            ? json.data.annualEnergyInflationRate
+            : 6.5
+        );
+        setTargetPaybackYears(
+          typeof json.data.targetPaybackYears === "number" ? json.data.targetPaybackYears : 3.0
+        );
+        setCapexNotes(json.data.capexNotes || "");
       }
     } catch (err) {
       console.error("Erro ao carregar configurações:", err);
@@ -501,6 +527,12 @@ export default function SettingsPage() {
           maxAcChargingWatts: Number(maxAcChargingWatts),
           chargeOnlyOffPeak,
           cloudyPrechargeActive,
+          // Parâmetros de CAPEX & Payback Solar
+          totalCapexBrl: Number(totalCapexBrl),
+          installationDate: installationDate || undefined,
+          annualEnergyInflationRate: Number(annualEnergyInflationRate),
+          targetPaybackYears: Number(targetPaybackYears),
+          capexNotes: capexNotes || undefined,
         }),
       });
 
@@ -1156,6 +1188,149 @@ export default function SettingsPage() {
                   Símbolo exibido nos cards executivos de economia financeira e relatórios.
                 </span>
               </div>
+            </div>
+          </div>
+
+          {/* Investimento Inicial & Metas de Payback (CAPEX) */}
+          <div className="animate-card stagger-5 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
+                  <Wallet className="w-5 h-5" aria-hidden="true" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+                    Investimento Inicial &amp; Metas de Payback (CAPEX)
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Defina o custo dos equipamentos solares e metas para cálculo de amortização, break-even e ROI em 10 anos
+                  </p>
+                </div>
+              </div>
+              <span className="inline-flex items-center gap-1.5 text-xs font-mono px-2.5 py-1 rounded-full bg-slate-950 text-emerald-400 border border-emerald-900/50 self-start sm:self-auto">
+                <TrendingUp className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
+                Amortização Solar
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Valor do Investimento Total */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="total-capex-input" className="text-xs font-semibold text-slate-300">
+                    Investimento Total no Sistema ({currencySymbol})
+                  </label>
+                  <span className="text-[11px] font-mono text-slate-500">Ex: 9500.00</span>
+                </div>
+                <div className="relative flex items-center">
+                  <span className="absolute left-3 text-xs text-slate-400 font-mono">{currencySymbol}</span>
+                  <input
+                    id="total-capex-input"
+                    type="number"
+                    min={0}
+                    max={1000000}
+                    step={50}
+                    placeholder="9500.00"
+                    value={totalCapexBrl || ""}
+                    onChange={(e) => setTotalCapexBrl(Math.max(0, parseFloat(e.target.value) || 0))}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-emerald-500 font-mono transition-colors"
+                  />
+                </div>
+                <span className="text-[11px] text-slate-400 block leading-tight">
+                  Custo total somando estação EcoFlow, painéis solares, chave ATS e instalação elétrica.
+                </span>
+              </div>
+
+              {/* Data de Início da Operação */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="installation-date-input" className="text-xs font-semibold text-slate-300">
+                    Data de Início da Operação
+                  </label>
+                  <span className="text-[11px] font-mono text-slate-500">Início da amortização</span>
+                </div>
+                <input
+                  id="installation-date-input"
+                  type="date"
+                  value={installationDate}
+                  onChange={(e) => setInstallationDate(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-emerald-500 font-mono transition-colors min-h-[44px]"
+                />
+                <span className="text-[11px] text-slate-400 block leading-tight">
+                  Data em que o sistema solar começou a gerar energia e economizar na fatura.
+                </span>
+              </div>
+
+              {/* Inflação Anual da Energia */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="inflation-rate-input" className="text-xs font-semibold text-slate-300">
+                    Inflação Tarifária Anual (% a.a.)
+                  </label>
+                  <span className="text-[11px] font-mono text-slate-500">Padrão ANEEL: 6.5%</span>
+                </div>
+                <div className="relative flex items-center">
+                  <input
+                    id="inflation-rate-input"
+                    type="number"
+                    min={0}
+                    max={50}
+                    step={0.5}
+                    value={annualEnergyInflationRate}
+                    onChange={(e) => setAnnualEnergyInflationRate(Math.max(0, parseFloat(e.target.value) || 0))}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pr-10 pl-4 py-2.5 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-emerald-500 font-mono transition-colors"
+                  />
+                  <span className="absolute right-3 text-xs text-slate-400 font-mono">%</span>
+                </div>
+                <span className="text-[11px] text-slate-400 block leading-tight">
+                  Reajuste médio anual das distribuidoras de energia para cálculo do payback descontado.
+                </span>
+              </div>
+
+              {/* Meta de Payback Desejada */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="target-payback-input" className="text-xs font-semibold text-slate-300">
+                    Meta de Payback (Anos)
+                  </label>
+                  <span className="text-[11px] font-mono text-slate-500">Recomendado: 2 a 4 anos</span>
+                </div>
+                <div className="relative flex items-center">
+                  <input
+                    id="target-payback-input"
+                    type="number"
+                    min={0.5}
+                    max={15}
+                    step={0.5}
+                    value={targetPaybackYears}
+                    onChange={(e) => setTargetPaybackYears(Math.max(0.5, parseFloat(e.target.value) || 0.5))}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pr-14 pl-4 py-2.5 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-emerald-500 font-mono transition-colors"
+                  />
+                  <span className="absolute right-3 text-xs text-slate-400 font-mono">anos</span>
+                </div>
+                <span className="text-[11px] text-slate-400 block leading-tight">
+                  Meta temporal esperada para que a economia de energia pague 100% do investimento.
+                </span>
+              </div>
+            </div>
+
+            {/* Anotações dos Equipamentos (CAPEX) */}
+            <div className="space-y-1.5">
+              <label htmlFor="capex-notes-input" className="text-xs font-semibold text-slate-300 block">
+                Composição do Sistema &amp; Equipamentos (Opcional)
+              </label>
+              <textarea
+                id="capex-notes-input"
+                rows={2}
+                maxLength={500}
+                placeholder="Ex: EcoFlow DELTA 2 Max (2048Wh) + 2x Painéis Bifaciais 400W + Chave ATS Tomzn 63A + Disjuntores DC"
+                value={capexNotes}
+                onChange={(e) => setCapexNotes(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-emerald-500 transition-colors resize-none"
+              />
+              <span className="text-[11px] text-slate-500 block">
+                Registro descritivo dos itens adquiridos para inventário e referência de garantia.
+              </span>
             </div>
           </div>
 

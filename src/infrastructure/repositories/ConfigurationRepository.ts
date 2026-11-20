@@ -94,6 +94,12 @@ export interface RetrievedConfigurationRecord {
   lastStormAlertDescription?: string | null;
   lastStormAlertTriggeredAt?: Date | null;
   lastStormAlertEndedAt?: Date | null;
+  // Parâmetros Financeiros de Retorno sobre Investimento (CAPEX / Payback)
+  totalCapexBrl?: number;
+  installationDate?: Date | null;
+  annualEnergyInflationRate?: number;
+  targetPaybackYears?: number;
+  capexNotes?: string | null;
 }
 
 /**
@@ -395,6 +401,11 @@ export class ConfigurationRepository {
       lastStormAlertDescription: rawRecord.lastStormAlertDescription ?? null,
       lastStormAlertTriggeredAt: rawRecord.lastStormAlertTriggeredAt ?? null,
       lastStormAlertEndedAt: rawRecord.lastStormAlertEndedAt ?? null,
+      totalCapexBrl: rawRecord.totalCapexBrl ?? 0.0,
+      installationDate: rawRecord.installationDate ?? null,
+      annualEnergyInflationRate: rawRecord.annualEnergyInflationRate ?? 6.5,
+      targetPaybackYears: rawRecord.targetPaybackYears ?? 3.0,
+      capexNotes: rawRecord.capexNotes ?? null,
     };
   }
 

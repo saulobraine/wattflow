@@ -3,6 +3,7 @@ import { Layout } from "../components/Layout";
 import { useVisibilityPolling } from "../hooks/useVisibilityPolling";
 import { useLiveTelemetry } from "../hooks/useLiveTelemetry";
 import { ReportExportModal } from "../components/ReportExportModal";
+import { PaybackAmortizationChart } from "../components/PaybackAmortizationChart";
 import {
   Sun,
   Zap,
@@ -1414,6 +1415,9 @@ export default function StatisticsPage() {
             </div>
           </section>
         )}
+
+        {/* Curva de Amortização & Payback Solar (Amortização do CAPEX e ROI) */}
+        <PaybackAmortizationChart />
 
         {/* 5. Histórico Multitemporal & Análise Avançada */}
         <section
