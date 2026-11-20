@@ -38,6 +38,15 @@ export interface RetrievedConfigurationRecord {
   lastSolarForecastCheckAt: Date | null;
   thermalWarningThreshold: number;
   thermalShutdownThreshold: number;
+  isThermalProtectionActive?: boolean;
+  thermalThrottleTempThreshold?: number;
+  thermalCutoffTempThreshold?: number;
+  thermalRecoveryTempThreshold?: number;
+  thermalThrottleSpeedWatts?: number;
+  isThermalThrottleActive?: boolean;
+  isThermalCutoffActive?: boolean;
+  lastThermalEventAt?: Date | null;
+  lastThermalActionMessage?: string | null;
   lastBatteryTempCelsius: number | null;
   lastBatterySoh: number | null;
   lastBatteryCycles: number | null;
@@ -331,8 +340,17 @@ export class ConfigurationRepository {
       maxAdaptiveThreshold: rawRecord.maxAdaptiveThreshold ?? 50,
       lastSolarIrradianceMj: rawRecord.lastSolarIrradianceMj ?? null,
       lastSolarForecastCheckAt: rawRecord.lastSolarForecastCheckAt ?? null,
-      thermalWarningThreshold: rawRecord.thermalWarningThreshold ?? 45.0,
-      thermalShutdownThreshold: rawRecord.thermalShutdownThreshold ?? 50.0,
+      thermalWarningThreshold: rawRecord.thermalThrottleTempThreshold ?? rawRecord.thermalWarningThreshold ?? 42.0,
+      thermalShutdownThreshold: rawRecord.thermalCutoffTempThreshold ?? rawRecord.thermalShutdownThreshold ?? 48.0,
+      isThermalProtectionActive: rawRecord.isThermalProtectionActive ?? true,
+      thermalThrottleTempThreshold: rawRecord.thermalThrottleTempThreshold ?? Math.round(rawRecord.thermalWarningThreshold ?? 42),
+      thermalCutoffTempThreshold: rawRecord.thermalCutoffTempThreshold ?? Math.round(rawRecord.thermalShutdownThreshold ?? 48),
+      thermalRecoveryTempThreshold: rawRecord.thermalRecoveryTempThreshold ?? 44,
+      thermalThrottleSpeedWatts: rawRecord.thermalThrottleSpeedWatts ?? 200,
+      isThermalThrottleActive: rawRecord.isThermalThrottleActive ?? false,
+      isThermalCutoffActive: rawRecord.isThermalCutoffActive ?? false,
+      lastThermalEventAt: rawRecord.lastThermalEventAt ?? null,
+      lastThermalActionMessage: rawRecord.lastThermalActionMessage ?? null,
       lastBatteryTempCelsius: rawRecord.lastBatteryTempCelsius ?? null,
       lastBatterySoh: rawRecord.lastBatterySoh ?? null,
       lastBatteryCycles: rawRecord.lastBatteryCycles ?? null,
@@ -390,6 +408,24 @@ export class ConfigurationRepository {
       lastStormAlertEndedAt?: Date | null;
     }
   ): Promise<void> {
+    await this.databaseClient.userConfiguration.update({
+      where: { id: configurationId },
+      data,
+    });
+  }
+
+  public async updateThermalState(
+    configurationId: string,
+    data: {
+      isThermalThrottleActive?: boolean;
+      isThermalCutoffActive?: boolean;
+      lastThermalEventAt?: Date | null;
+      lastThermalActionMessage?: string | null;
+    }
+  ): Promise<void> {
+    if (!this.databaseClient?.userConfiguration?.update) {
+      return;
+    }
     await this.databaseClient.userConfiguration.update({
       where: { id: configurationId },
       data,

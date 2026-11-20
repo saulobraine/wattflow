@@ -16,6 +16,9 @@ import {
   Calendar,
   Ban,
   Scale,
+  Thermometer,
+  Flame,
+  BatteryCharging,
 } from "lucide-react";
 
 export default function AutomationsPage() {
@@ -49,6 +52,16 @@ export default function AutomationsPage() {
   const [peakTariffPerKwh, setPeakTariffPerKwh] = useState(1.85);
   const [intermediateTariffPerKwh, setIntermediateTariffPerKwh] = useState(1.15);
   const [offPeakTariffPerKwh, setOffPeakTariffPerKwh] = useState(0.65);
+
+  // Estados de Proteção Térmica & Preservação do BMS (LiFePO4)
+  const [isThermalProtectionActive, setIsThermalProtectionActive] = useState<boolean>(true);
+  const [thermalThrottleTempThreshold, setThermalThrottleTempThreshold] = useState<number>(42);
+  const [thermalCutoffTempThreshold, setThermalCutoffTempThreshold] = useState<number>(48);
+  const [thermalThrottleSpeedWatts, setThermalThrottleSpeedWatts] = useState<number>(200);
+  const [isThermalThrottleActive, setIsThermalThrottleActive] = useState<boolean>(false);
+  const [isThermalCutoffActive, setIsThermalCutoffActive] = useState<boolean>(false);
+  const [lastThermalActionMessage, setLastThermalActionMessage] = useState<string | null>(null);
+  const [lastThermalEventAt, setLastThermalEventAt] = useState<string | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -96,6 +109,16 @@ export default function AutomationsPage() {
           setPeakTariffPerKwh(s.peakTariffPerKwh ?? 1.85);
           setIntermediateTariffPerKwh(s.intermediateTariffPerKwh ?? 1.15);
           setOffPeakTariffPerKwh(s.offPeakTariffPerKwh ?? 0.65);
+
+          // Proteção Térmica do BMS
+          setIsThermalProtectionActive(s.isThermalProtectionActive ?? true);
+          setThermalThrottleTempThreshold(s.thermalThrottleTempThreshold ?? 42);
+          setThermalCutoffTempThreshold(s.thermalCutoffTempThreshold ?? 48);
+          setThermalThrottleSpeedWatts(s.thermalThrottleSpeedWatts ?? 200);
+          setIsThermalThrottleActive(s.isThermalThrottleActive ?? false);
+          setIsThermalCutoffActive(s.isThermalCutoffActive ?? false);
+          setLastThermalActionMessage(s.lastThermalActionMessage ?? null);
+          setLastThermalEventAt(s.lastThermalEventAt ?? null);
         }
       } catch (err) {
         console.error("Erro ao carregar automações:", err);
@@ -175,6 +198,43 @@ export default function AutomationsPage() {
       return;
     }
 
+    // Validação Proteção Térmica do BMS
+    if (thermalThrottleTempThreshold >= thermalCutoffTempThreshold) {
+      setFeedback({
+        type: "error",
+        message: "O limiar de início do Throttling deve ser menor que o limiar de Corte de Emergência.",
+      });
+      setIsSaving(false);
+      return;
+    }
+
+    if (thermalThrottleTempThreshold < 30 || thermalThrottleTempThreshold > 50) {
+      setFeedback({
+        type: "error",
+        message: "O limiar de throttling térmico deve estar entre 30°C e 50°C.",
+      });
+      setIsSaving(false);
+      return;
+    }
+
+    if (thermalCutoffTempThreshold < 40 || thermalCutoffTempThreshold > 60) {
+      setFeedback({
+        type: "error",
+        message: "O limiar de corte de emergência deve estar entre 40°C e 60°C.",
+      });
+      setIsSaving(false);
+      return;
+    }
+
+    if (thermalThrottleSpeedWatts < 100 || thermalThrottleSpeedWatts > 1000) {
+      setFeedback({
+        type: "error",
+        message: "A potência de recarga em throttling deve estar entre 100W e 1.000W.",
+      });
+      setIsSaving(false);
+      return;
+    }
+
     try {
       const [autoRes, settingsRes] = await Promise.all([
         fetch("/api/automations", {
@@ -210,6 +270,12 @@ export default function AutomationsPage() {
             peakTariffPerKwh,
             intermediateTariffPerKwh,
             offPeakTariffPerKwh,
+            // Proteção Térmica do BMS
+            isThermalProtectionActive,
+            thermalThrottleTempThreshold,
+            thermalCutoffTempThreshold,
+            thermalRecoveryTempThreshold: Math.max(30, thermalCutoffTempThreshold - 4),
+            thermalThrottleSpeedWatts,
           }),
         }),
       ]);
@@ -220,7 +286,7 @@ export default function AutomationsPage() {
       if (autoJson.success && settingsJson.success) {
         setFeedback({
           type: "success",
-          message: "Regras de automação, Auto-Storm e Tarifação Horária salvas com sucesso!",
+          message: "Regras de automação, Auto-Storm, Tarifa Branca e Proteção Térmica salvas com sucesso!",
         });
       } else {
         const errMsg =
@@ -817,6 +883,205 @@ export default function AutomationsPage() {
                   R$ {((peakTariffPerKwh - offPeakTariffPerKwh) * 1.5 * 3 * 22).toFixed(2)}
                 </strong>.
               </p>
+            </div>
+          </div>
+
+          {/* Card 4: Proteção Térmica & Preservação do BMS (LiFePO4) */}
+          <div className="animate-card stagger-5 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-rose-500/10 text-rose-400 shrink-0 border border-rose-500/20">
+                  <Thermometer className="w-6 h-6 animate-pulse" aria-hidden="true" />
+                </div>
+                <div>
+                  <h2 className="text-base sm:text-lg font-bold text-slate-100 flex items-center gap-2">
+                    Proteção Térmica &amp; Preservação do BMS (LiFePO4)
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Mitigação preditiva de estresse térmico, throttling de recarga e corte preventivo para extensão de vida útil
+                  </p>
+                </div>
+              </div>
+
+              {/* Switch Mestre isThermalProtectionActive */}
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
+                  isThermalProtectionActive
+                    ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/30"
+                    : "bg-slate-800 text-slate-400 border-slate-700"
+                }`}>
+                  {isThermalProtectionActive ? "Proteção Ativa" : "Desativada"}
+                </span>
+                <label htmlFor="thermal-protection-switch" className="relative inline-flex items-center cursor-pointer min-h-[44px] min-w-[44px]">
+                  <input
+                    id="thermal-protection-switch"
+                    type="checkbox"
+                    checked={isThermalProtectionActive}
+                    onChange={(e) => setIsThermalProtectionActive(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[14px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                </label>
+              </div>
+            </div>
+
+            {/* Banner de Estado Térmico Ativo */}
+            {isThermalCutoffActive && (
+              <div className="p-3.5 rounded-xl bg-rose-950/80 border border-rose-500/80 text-rose-200 flex items-start gap-3 shadow-md">
+                <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" aria-hidden="true" />
+                <div className="text-xs space-y-1">
+                  <span className="font-bold text-rose-100 block">🚨 Corte Térmico de Emergência Ativo</span>
+                  <p className="text-rose-300 leading-relaxed">
+                    {lastThermalActionMessage || "O inversor foi desarmado e a carga transferida para a rede elétrica para evitar degradação térmica das células LiFePO4."}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {isThermalThrottleActive && !isThermalCutoffActive && (
+              <div className="p-3.5 rounded-xl bg-orange-950/80 border border-orange-500/80 text-orange-200 flex items-start gap-3 shadow-md">
+                <AlertTriangle className="w-5 h-5 text-orange-400 shrink-0 mt-0.5" aria-hidden="true" />
+                <div className="text-xs space-y-1">
+                  <span className="font-bold text-orange-100 block">⚠️ Thermal Throttling de Recarga Ativo</span>
+                  <p className="text-orange-300 leading-relaxed">
+                    {lastThermalActionMessage || `A velocidade de recarga AC está temporariamente limitada a ${thermalThrottleSpeedWatts}W para resfriamento das células.`}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Slider 1: Limiar de Início do Throttling Térmico */}
+            <div className="space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                <label htmlFor="throttle-temp-slider" className="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                  <Flame className="w-4 h-4 text-orange-400" />
+                  Limiar de Início do Throttling Térmico
+                </label>
+                <span className="text-xs font-mono font-bold text-orange-400 bg-orange-500/10 border border-orange-500/30 px-2.5 py-0.5 rounded-full w-fit">
+                  {thermalThrottleTempThreshold}°C
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Ao atingir esta temperatura no BMS, o orquestrador reduz imediatamente a velocidade de recarga AC para desacelerar o acúmulo de calor interno sem interromper a operação.
+              </p>
+              <input
+                id="throttle-temp-slider"
+                type="range"
+                min="35"
+                max="45"
+                step="1"
+                value={thermalThrottleTempThreshold}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setThermalThrottleTempThreshold(val);
+                  if (val >= thermalCutoffTempThreshold) {
+                    setThermalCutoffTempThreshold(val + 3);
+                  }
+                }}
+                disabled={!isThermalProtectionActive}
+                className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-orange-500 disabled:opacity-40 min-h-[44px]"
+              />
+              <div className="flex justify-between text-[11px] text-slate-500 font-mono">
+                <span>35°C (Conservador)</span>
+                <span className="text-orange-400 font-bold">42°C (Padrão Recomendado)</span>
+                <span>45°C (Agressivo)</span>
+              </div>
+            </div>
+
+            {/* Slider 2: Limiar de Corte de Emergência */}
+            <div className="space-y-3 pt-4 border-t border-slate-800/80">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                <label htmlFor="cutoff-temp-slider" className="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-400" />
+                  Limiar de Corte Térmico de Emergência
+                </label>
+                <span className="text-xs font-mono font-bold text-rose-400 bg-rose-500/10 border border-rose-500/30 px-2.5 py-0.5 rounded-full w-fit">
+                  {thermalCutoffTempThreshold}°C
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Se a temperatura das células atingir este patamar crítico, o orquestrador aciona imediatamente o desligamento do inversor ou comuta a ATS para a rede concessionária, protegendo contra degradação severa ou risco de shutdown abrupto.
+              </p>
+              <input
+                id="cutoff-temp-slider"
+                type="range"
+                min="45"
+                max="55"
+                step="1"
+                value={thermalCutoffTempThreshold}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setThermalCutoffTempThreshold(val);
+                  if (val <= thermalThrottleTempThreshold) {
+                    setThermalThrottleTempThreshold(val - 3);
+                  }
+                }}
+                disabled={!isThermalProtectionActive}
+                className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-rose-500 disabled:opacity-40 min-h-[44px]"
+              />
+              <div className="flex justify-between text-[11px] text-slate-500 font-mono">
+                <span>45°C (Alta Proteção)</span>
+                <span className="text-rose-400 font-bold">48°C (Padrão LFP)</span>
+                <span>55°C (Limite Extremo BMS)</span>
+              </div>
+            </div>
+
+            {/* Slider 3: Potência em Throttling */}
+            <div className="space-y-3 pt-4 border-t border-slate-800/80">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                <label htmlFor="throttle-speed-slider" className="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                  <BatteryCharging className="w-4 h-4 text-amber-400" />
+                  Potência de Recarga Durante o Throttling
+                </label>
+                <span className="text-xs font-mono font-bold text-amber-300 bg-amber-500/10 border border-amber-500/30 px-2.5 py-0.5 rounded-full w-fit">
+                  {thermalThrottleSpeedWatts} W
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Velocidade controlada em Watts enviada via comando EcoFlow quando a temperatura atinge o limiar de alerta, permitindo dissipação de calor sem interromper o carregamento.
+              </p>
+              <input
+                id="throttle-speed-slider"
+                type="range"
+                min="100"
+                max="500"
+                step="50"
+                value={thermalThrottleSpeedWatts}
+                onChange={(e) => setThermalThrottleSpeedWatts(Number(e.target.value))}
+                disabled={!isThermalProtectionActive}
+                className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500 disabled:opacity-40 min-h-[44px]"
+              />
+              <div className="flex justify-between text-[11px] text-slate-500 font-mono">
+                <span>100W (Mínimo / Resfriamento Rápido)</span>
+                <span className="text-amber-400 font-bold">200W (Equilibrado)</span>
+                <span>500W (Moderado)</span>
+              </div>
+            </div>
+
+            {/* Infográfico das 4 Zonas Térmicas */}
+            <div className="p-4 rounded-xl bg-slate-950/90 border border-slate-800/80 space-y-2 text-xs">
+              <span className="font-semibold text-slate-300 flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                Matriz de Proteção LiFePO4:
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 pt-1 text-[11px]">
+                <div className="p-2 rounded-lg bg-emerald-950/40 border border-emerald-500/30 space-y-1">
+                  <span className="font-bold text-emerald-300 block">🟢 Ideal (&lt; 38°C)</span>
+                  <p className="text-slate-400 text-[10px]">Células frias, recarga e descarga em potência total.</p>
+                </div>
+                <div className="p-2 rounded-lg bg-amber-950/40 border border-amber-500/30 space-y-1">
+                  <span className="font-bold text-amber-300 block">🟡 Alerta (38°C - 42°C)</span>
+                  <p className="text-slate-400 text-[10px]">Aquecimento moderado, ventoinhas ativadas no inversor.</p>
+                </div>
+                <div className="p-2 rounded-lg bg-orange-950/40 border border-orange-500/30 space-y-1">
+                  <span className="font-bold text-orange-300 block">🟠 Throttling (42°C - 48°C)</span>
+                  <p className="text-slate-400 text-[10px]">Recarga limitada a {thermalThrottleSpeedWatts}W para conter subida térmica.</p>
+                </div>
+                <div className="p-2 rounded-lg bg-rose-950/40 border border-rose-500/30 space-y-1">
+                  <span className="font-bold text-rose-300 block">🔴 Corte (&gt;= 48°C)</span>
+                  <p className="text-slate-400 text-[10px]">ATS transferida para rede, preservando 3.000 ciclos.</p>
+                </div>
+              </div>
             </div>
           </div>
 
