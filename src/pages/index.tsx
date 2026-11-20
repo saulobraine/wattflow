@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { TransitionLink } from "../components/TransitionLink";
 import { Layout } from "../components/Layout";
+import { useVisibilityPolling } from "../hooks/useVisibilityPolling";
 import {
   BatteryCharging,
   Power,
@@ -180,9 +181,12 @@ export default function DashboardPage() {
   useEffect(() => {
     fetchStatus();
     fetchAppliances();
-    const interval = setInterval(fetchStatus, 2000);
-    return () => clearInterval(interval);
   }, []);
+
+  useVisibilityPolling({
+    pollingIntervalMs: 2000,
+    onPoll: fetchStatus,
+  });
 
   const handleToggleStormMode = async () => {
     setIsTogglingStormMode(true);
@@ -1583,8 +1587,8 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Mobile View: Feed de Cards Verticais / Timeline (< sm) */}
-          <div className="sm:hidden space-y-2.5">
+          {/* Mobile View: Feed de Cards Verticais / Timeline (< md) */}
+          <div className="md:hidden space-y-3">
             {data?.logs && data.logs.length > 0 ? (
               data.logs.map((log) => (
                 <div
@@ -1645,8 +1649,8 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Desktop & Tablet View: Tabela Tradicional Densa (>= sm) */}
-          <div className="hidden sm:block overflow-x-auto">
+          {/* Desktop & Tablet View: Tabela Tradicional Densa (>= md) */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-xs" aria-label="Tabela de logs recentes de comutação da chave ATS">
               <thead className="bg-slate-950/60 text-slate-400 uppercase font-semibold border-b border-slate-800">
                 <tr>

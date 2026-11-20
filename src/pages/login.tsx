@@ -11,6 +11,7 @@ export default function LoginPage() {
   const { refreshUser } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
   const [challengeToken, setChallengeToken] = useState<string | null>(null);
   const [totpToken, setTotpToken] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -25,7 +26,7 @@ export default function LoginPage() {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, rememberMe }),
       });
 
       const data = await response.json().catch(() => ({}));
@@ -159,7 +160,7 @@ export default function LoginPage() {
                     value={totpToken}
                     onChange={(e) => setTotpToken(e.target.value.replace(/\D/g, ""))}
                     placeholder="000000"
-                    className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-center font-mono text-xl tracking-[0.25em] sm:tracking-[0.35em] focus:border-emerald-500 focus:outline-none transition-colors"
+                    className="w-full px-4 py-3 min-h-[44px] rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-center font-mono text-xl tracking-[0.25em] sm:tracking-[0.35em] focus:border-emerald-500 focus:outline-none transition-colors"
                   />
                 </div>
 
@@ -167,7 +168,7 @@ export default function LoginPage() {
                   type="submit"
                   disabled={isLoading || totpToken.length !== 6}
                   aria-label="Verificar código 2FA e entrar"
-                  className="w-full py-3 px-4 rounded-xl font-semibold text-sm bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all duration-150 shadow-lg shadow-emerald-950 flex items-center justify-center gap-2 disabled:opacity-50 mt-2 cursor-pointer disabled:cursor-not-allowed group"
+                  className="w-full py-3 px-4 min-h-[44px] rounded-xl font-semibold text-sm bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all duration-150 shadow-lg shadow-emerald-950 flex items-center justify-center gap-2 disabled:opacity-50 mt-2 cursor-pointer disabled:cursor-not-allowed group"
                 >
                   <span>{isLoading ? "Verificando..." : "Verificar e Entrar"}</span>
                   <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" aria-hidden="true" />
@@ -177,7 +178,7 @@ export default function LoginPage() {
                   type="button"
                   onClick={handleBackToLogin}
                   disabled={isLoading}
-                  className="w-full py-2 px-3 rounded-xl text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  className="w-full py-2.5 px-3 min-h-[44px] rounded-xl text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
                   <span>Voltar ao login</span>
@@ -199,7 +200,7 @@ export default function LoginPage() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="seu@email.com"
-                      className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-base sm:text-sm focus:border-emerald-500 focus:outline-none transition-colors"
+                      className="w-full pl-9 pr-3 py-2.5 min-h-[44px] rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-base sm:text-sm focus:border-emerald-500 focus:outline-none transition-colors"
                     />
                   </div>
                 </div>
@@ -218,16 +219,31 @@ export default function LoginPage() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-base sm:text-sm focus:border-emerald-500 focus:outline-none transition-colors"
+                      className="w-full pl-9 pr-3 py-2.5 min-h-[44px] rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-base sm:text-sm focus:border-emerald-500 focus:outline-none transition-colors"
                     />
                   </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <label htmlFor="login-remember-me" className="flex items-center gap-2.5 cursor-pointer select-none group min-h-[32px]">
+                    <input
+                      id="login-remember-me"
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="w-4 h-4 rounded border-slate-700 bg-slate-950 text-emerald-500 focus:ring-emerald-500/30 focus:ring-offset-0 focus:ring-2 transition-colors cursor-pointer"
+                    />
+                    <span className="text-xs text-slate-300 group-hover:text-slate-200 transition-colors">
+                      Manter conectado por 30 dias
+                    </span>
+                  </label>
                 </div>
 
                 <button
                   type="submit"
                   disabled={isLoading}
                   aria-label="Entrar no WattFlow"
-                  className="w-full py-3 px-4 rounded-xl font-semibold text-sm bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all duration-150 shadow-lg shadow-emerald-950 flex items-center justify-center gap-2 disabled:opacity-50 mt-2 cursor-pointer disabled:cursor-not-allowed group"
+                  className="w-full py-3 px-4 min-h-[44px] rounded-xl font-semibold text-sm bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all duration-150 shadow-lg shadow-emerald-950 flex items-center justify-center gap-2 disabled:opacity-50 mt-2 cursor-pointer disabled:cursor-not-allowed group"
                 >
                   <span>{isLoading ? "Entrando..." : "Entrar no WattFlow"}</span>
                   <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" aria-hidden="true" />

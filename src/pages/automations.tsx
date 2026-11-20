@@ -139,7 +139,7 @@ export default function AutomationsPage() {
                 </div>
               </div>
 
-              <label htmlFor="automation-active-checkbox" className="flex items-center gap-2 cursor-pointer group self-start sm:self-auto">
+              <label htmlFor="automation-active-checkbox" className="flex items-center gap-2 cursor-pointer group self-start sm:self-auto min-h-[44px]">
                 <span className="text-xs font-semibold text-slate-300 group-hover:text-emerald-300 transition-colors">
                   Automação Ativa
                 </span>
@@ -179,7 +179,7 @@ export default function AutomationsPage() {
                 aria-valuemax={100}
                 aria-describedby="upper-threshold-desc"
                 onChange={(e) => handleUpperThresholdChange(Number(e.target.value))}
-                className="w-full accent-emerald-500 cursor-pointer h-2 py-2 bg-slate-800 rounded-lg transition-all"
+                className="w-full accent-emerald-500 cursor-pointer h-2 py-4 min-h-[44px] bg-slate-800 rounded-lg transition-all"
               />
             </div>
 
@@ -209,7 +209,7 @@ export default function AutomationsPage() {
                 aria-valuemax={99}
                 aria-describedby="lower-threshold-desc"
                 onChange={(e) => handleLowerThresholdChange(Number(e.target.value))}
-                className="w-full accent-rose-500 cursor-pointer h-2 py-2 bg-slate-800 rounded-lg transition-all"
+                className="w-full accent-rose-500 cursor-pointer h-2 py-4 min-h-[44px] bg-slate-800 rounded-lg transition-all"
               />
             </div>
 
@@ -242,7 +242,7 @@ export default function AutomationsPage() {
             <button
               type="submit"
               disabled={isSaving || isLoading}
-              className="w-full sm:w-auto py-3 px-6 rounded-xl font-semibold text-sm bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all duration-150 shadow-lg shadow-emerald-950 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+              className="w-full sm:w-auto py-3 px-6 min-h-[44px] rounded-xl font-semibold text-sm bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all duration-150 shadow-lg shadow-emerald-950 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed flex items-center justify-center"
             >
               {isSaving ? "Salvando..." : "Salvar Regras de Automação"}
             </button>
