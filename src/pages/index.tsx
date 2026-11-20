@@ -3,6 +3,8 @@ import { TransitionLink } from "../components/TransitionLink";
 import { Layout } from "../components/Layout";
 import { useVisibilityPolling } from "../hooks/useVisibilityPolling";
 import { useLiveTelemetry } from "../hooks/useLiveTelemetry";
+import { WeatherWidget } from "../components/WeatherWidget";
+import { StormAlertBanner } from "../components/StormAlertBanner";
 import {
   BatteryCharging,
   Power,
@@ -98,6 +100,21 @@ export default function DashboardPage() {
   const [batteryCapacityWh, setBatteryCapacityWh] = useState<number>(2048);
   const [isTogglingAppliance, setIsTogglingAppliance] = useState<string | null>(null);
 
+  // Estados do Modo No-Break Preventivo Preditivo (Auto-Storm)
+  const [autoStormInfo, setAutoStormInfo] = useState<{
+    isStormAlertActive: boolean;
+    lastStormAlertDescription: string | null;
+    lastStormAlertTriggeredAt: string | null;
+    autoStormReserveThreshold: number;
+    autoStormPrechargeAc: boolean;
+  }>({
+    isStormAlertActive: false,
+    lastStormAlertDescription: null,
+    lastStormAlertTriggeredAt: null,
+    autoStormReserveThreshold: 85,
+    autoStormPrechargeAc: true,
+  });
+
   const fetchAppliances = async () => {
     try {
       const res = await fetch("/api/appliances");
@@ -145,9 +162,10 @@ export default function DashboardPage() {
 
   const fetchStatus = async () => {
     try {
-      const [statusRes, statsRes] = await Promise.all([
+      const [statusRes, statsRes, settingsRes] = await Promise.all([
         fetch("/api/dashboard-status"),
         fetch("/api/statistics"),
+        fetch("/api/settings"),
       ]);
 
       const statusJson = await statusRes.json();
@@ -172,6 +190,17 @@ export default function DashboardPage() {
         if (statsJson.data.bmsAnalytics) {
           setBmsAnalytics(statsJson.data.bmsAnalytics);
         }
+      }
+
+      const settingsJson = await settingsRes.json();
+      if (settingsJson.success && settingsJson.data) {
+        setAutoStormInfo({
+          isStormAlertActive: settingsJson.data.isStormAlertActive ?? false,
+          lastStormAlertDescription: settingsJson.data.lastStormAlertDescription ?? null,
+          lastStormAlertTriggeredAt: settingsJson.data.lastStormAlertTriggeredAt ?? null,
+          autoStormReserveThreshold: settingsJson.data.autoStormReserveThreshold ?? 85,
+          autoStormPrechargeAc: settingsJson.data.autoStormPrechargeAc ?? true,
+        });
       }
     } catch (err) {
       console.error("Erro ao carregar status:", err);
@@ -408,6 +437,15 @@ export default function DashboardPage() {
   return (
     <Layout>
       <div className="space-y-8">
+        {/* Banner de Alerta Crítico: Modo No-Break Preventivo Preditivo (Auto-Storm) */}
+        <StormAlertBanner
+          isStormAlertActive={autoStormInfo.isStormAlertActive}
+          alertDescription={autoStormInfo.lastStormAlertDescription}
+          triggeredAt={autoStormInfo.lastStormAlertTriggeredAt}
+          reserveThreshold={autoStormInfo.autoStormReserveThreshold}
+          isPrechargeActive={autoStormInfo.autoStormPrechargeAc}
+        />
+
         {/* Banner de Alerta Crítico: Modo Tempestade Ativo */}
         {isStormModeActive && (
           <section
@@ -794,10 +832,10 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* Seção Executiva de Inteligência Avançada (Previsão Solar, Inversor & BMS EcoFlow) */}
+        {/* Seção Executiva de Inteligência Avançada (Previsão Solar, Clima, Inversor & BMS EcoFlow) */}
         <section
-          aria-label="Inteligência Solar, Inversor & Diagnóstico BMS"
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6"
+          aria-label="Inteligência Solar, Clima, Inversor & Diagnóstico BMS"
+          className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6"
         >
           {/* Card 1: Previsão Solar Preditiva (Open-Meteo) */}
           <div className="animate-card stagger-4 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-5 flex flex-col justify-between">
@@ -896,7 +934,10 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Card 2: Monitoramento do Inversor & Sobrecarga AC */}
+          {/* Card 2: Clima & Previsão Meteorológica Local (Auto-Storm) */}
+          <WeatherWidget />
+
+          {/* Card 3: Monitoramento do Inversor & Sobrecarga AC */}
           <div className="animate-card stagger-5 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-5 flex flex-col justify-between">
             <div className="space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">

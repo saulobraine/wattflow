@@ -83,6 +83,16 @@ export interface SettingsResponseData {
   chargeOnlyOffPeak: boolean;
   cloudyPrechargeActive: boolean;
   lastSmartChargeAdjustAt: string | null;
+  // Feature 4.5: Automações Meteorológicas & Auto-Storm
+  isAutoStormActive: boolean;
+  autoStormReserveThreshold: number;
+  autoStormRainThresholdMm: number;
+  autoStormPrechargeAc: boolean;
+  isStormAlertActive: boolean;
+  lastStormAlertCode: number | null;
+  lastStormAlertDescription: string | null;
+  lastStormAlertTriggeredAt: string | null;
+  lastStormAlertEndedAt: string | null;
 }
 
 interface SettingsResponseBody {
@@ -225,6 +235,15 @@ export default async function handleSettings(
           chargeOnlyOffPeak: existing.chargeOnlyOffPeak ?? true,
           cloudyPrechargeActive: existing.cloudyPrechargeActive ?? true,
           lastSmartChargeAdjustAt: existing.lastSmartChargeAdjustAt?.toISOString() ?? null,
+          isAutoStormActive: existing.isAutoStormActive ?? false,
+          autoStormReserveThreshold: existing.autoStormReserveThreshold ?? 85,
+          autoStormRainThresholdMm: existing.autoStormRainThresholdMm ?? 20.0,
+          autoStormPrechargeAc: existing.autoStormPrechargeAc ?? true,
+          isStormAlertActive: existing.isStormAlertActive ?? false,
+          lastStormAlertCode: existing.lastStormAlertCode ?? null,
+          lastStormAlertDescription: existing.lastStormAlertDescription ?? null,
+          lastStormAlertTriggeredAt: existing.lastStormAlertTriggeredAt?.toISOString() ?? null,
+          lastStormAlertEndedAt: existing.lastStormAlertEndedAt?.toISOString() ?? null,
         },
       });
       return;
@@ -303,6 +322,10 @@ export default async function handleSettings(
       maxAcChargingWatts,
       chargeOnlyOffPeak,
       cloudyPrechargeActive,
+      isAutoStormActive,
+      autoStormReserveThreshold,
+      autoStormRainThresholdMm,
+      autoStormPrechargeAc,
     } = parsedBody.data;
 
     if (
@@ -347,11 +370,21 @@ export default async function handleSettings(
           ? resolveEcoFlowEndpointRegion(ecoflowEndpointRegion)
           : resolveEcoFlowEndpointRegion(fallbackRegion);
 
+      const resolvedPlainEcoFlowKey =
+        typeof normalizedAccessKey === "string" && normalizedAccessKey.trim().length > 0
+          ? normalizedAccessKey.trim()
+          : existingConfig?.ecoflowAccessKey ?? "";
+
+      const resolvedPlainEcoFlowSerial =
+        typeof normalizedSerialNumber === "string" && normalizedSerialNumber.trim().length > 0
+          ? normalizedSerialNumber.trim()
+          : existingConfig?.ecoflowSerialNumber ?? "";
+
       const resolvedPlainEcoFlowSecret = isUnchangedOrMaskedSecret(ecoflowAccessSecret)
         ? existingDecrypted.ecoflowAccessSecret
         : (ecoflowAccessSecret as string).trim();
 
-      if (!resolvedPlainEcoFlowSecret) {
+      if (!resolvedPlainEcoFlowKey || !resolvedPlainEcoFlowSecret || !resolvedPlainEcoFlowSerial) {
         response.status(400).json({
           success: false,
           message: "Access Key, Secret Key e Serial Number da EcoFlow são obrigatórios.",
@@ -544,14 +577,30 @@ export default async function handleSettings(
         typeof cloudyPrechargeActive === "boolean"
           ? cloudyPrechargeActive
           : existingConfig?.cloudyPrechargeActive ?? true;
+      const resolvedAutoStormActive =
+        typeof isAutoStormActive === "boolean"
+          ? isAutoStormActive
+          : existingConfig?.isAutoStormActive ?? false;
+      const resolvedAutoStormReserve =
+        typeof autoStormReserveThreshold === "number"
+          ? autoStormReserveThreshold
+          : existingConfig?.autoStormReserveThreshold ?? 85;
+      const resolvedAutoStormRain =
+        typeof autoStormRainThresholdMm === "number"
+          ? autoStormRainThresholdMm
+          : existingConfig?.autoStormRainThresholdMm ?? 20.0;
+      const resolvedAutoStormPrecharge =
+        typeof autoStormPrechargeAc === "boolean"
+          ? autoStormPrechargeAc
+          : existingConfig?.autoStormPrechargeAc ?? true;
 
       await prisma.userConfiguration.upsert({
         where: { userId: extractedUserId },
         update: {
           ecoflowEndpointRegion: validatedEndpointRegion,
-          ecoflowAccessKey: normalizedAccessKey,
+          ecoflowAccessKey: resolvedPlainEcoFlowKey,
           ecoflowAccessSecret: encryptedEcoFlowSecret,
-          ecoflowSerialNumber: normalizedSerialNumber,
+          ecoflowSerialNumber: resolvedPlainEcoFlowSerial,
           tuyaAccessId: resolvedTuyaAccessId,
           tuyaAccessSecret: encryptedTuyaSecret,
           tuyaDeviceId: resolvedTuyaDeviceId,
@@ -599,6 +648,10 @@ export default async function handleSettings(
           maxAcChargingWatts: resolvedMaxAcChargingWatts,
           chargeOnlyOffPeak: resolvedChargeOnlyOffPeak,
           cloudyPrechargeActive: resolvedCloudyPrecharge,
+          isAutoStormActive: resolvedAutoStormActive,
+          autoStormReserveThreshold: resolvedAutoStormReserve,
+          autoStormRainThresholdMm: resolvedAutoStormRain,
+          autoStormPrechargeAc: resolvedAutoStormPrecharge,
         },
         create: {
           userId: extractedUserId,
@@ -653,6 +706,10 @@ export default async function handleSettings(
           maxAcChargingWatts: resolvedMaxAcChargingWatts,
           chargeOnlyOffPeak: resolvedChargeOnlyOffPeak,
           cloudyPrechargeActive: resolvedCloudyPrecharge,
+          isAutoStormActive: resolvedAutoStormActive,
+          autoStormReserveThreshold: resolvedAutoStormReserve,
+          autoStormRainThresholdMm: resolvedAutoStormRain,
+          autoStormPrechargeAc: resolvedAutoStormPrecharge,
         },
       });
 

@@ -97,13 +97,15 @@ export const settingsPostBodySchema = z.object({
     .string({ message: "Access Key, Secret Key e Serial Number da EcoFlow são obrigatórios." })
     .trim()
     .min(1, "Access Key, Secret Key e Serial Number da EcoFlow são obrigatórios.")
-    .max(128, "Access Key excede o limite de 128 caracteres."),
+    .max(128, "Access Key excede o limite de 128 caracteres.")
+    .optional(),
   ecoflowAccessSecret: z.string().max(256, "Secret Key excede o limite de 256 caracteres.").optional(),
   ecoflowSerialNumber: z
     .string({ message: "Access Key, Secret Key e Serial Number da EcoFlow são obrigatórios." })
     .trim()
     .min(1, "Access Key, Secret Key e Serial Number da EcoFlow são obrigatórios.")
-    .max(64, "Serial Number excede o limite de 64 caracteres."),
+    .max(64, "Serial Number excede o limite de 64 caracteres.")
+    .optional(),
   tuyaAccessId: z.string().max(128, "Tuya Access ID excede 128 caracteres.").optional(),
   tuyaAccessSecret: z.string().max(256, "Tuya Secret excede 256 caracteres.").optional(),
   tuyaDeviceId: z.string().max(128, "Tuya Device ID excede 128 caracteres.").optional(),
@@ -261,6 +263,20 @@ export const settingsPostBodySchema = z.object({
     .optional(),
   chargeOnlyOffPeak: z.boolean({ message: "Flag chargeOnlyOffPeak deve ser booleana." }).optional(),
   cloudyPrechargeActive: z.boolean({ message: "Flag cloudyPrechargeActive deve ser booleana." }).optional(),
+  // Feature 4.5: Automações Meteorológicas & Auto-Storm
+  isAutoStormActive: z.boolean({ message: "Flag isAutoStormActive deve ser booleana." }).optional(),
+  autoStormReserveThreshold: z
+    .number({ message: "Reserva emergencial deve ser um número." })
+    .int("Reserva emergencial deve ser um número inteiro.")
+    .min(50, "Reserva emergencial deve ser de no mínimo 50%.")
+    .max(100, "Reserva emergencial não pode exceder 100%.")
+    .optional(),
+  autoStormRainThresholdMm: z
+    .number({ message: "Limiar de chuva deve ser um número." })
+    .min(5, "Limiar de chuva deve ser de pelo menos 5mm.")
+    .max(150, "Limiar de chuva não pode exceder 150mm.")
+    .optional(),
+  autoStormPrechargeAc: z.boolean({ message: "Flag autoStormPrechargeAc deve ser booleana." }).optional(),
 });
 
 export const stormModePostBodySchema = z.object({

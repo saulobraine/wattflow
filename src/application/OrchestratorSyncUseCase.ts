@@ -10,7 +10,11 @@ import {
   NotificationDispatcher,
   NotificationConfig,
 } from "../infrastructure/notifications/NotificationDispatcher";
-import { OpenMeteoSolarForecastService, SolarExpectationLevel } from "../infrastructure/services/OpenMeteoSolarForecastService";
+import {
+  OpenMeteoSolarForecastService,
+  SolarExpectationLevel,
+  WeatherRiskAssessment,
+} from "../infrastructure/services/OpenMeteoSolarForecastService";
 import { TariffScheduleService } from "../domain/services/TariffScheduleService";
 import { CriticalAlertService } from "../infrastructure/services/CriticalAlertService";
 import { SolarSmartChargingService } from "../domain/services/SolarSmartChargingService";
@@ -174,6 +178,7 @@ export class OrchestratorSyncUseCase {
 
       const isStormMode = configurationRecord.isStormModeActive;
       const isAutomationEnabled = configurationRecord.isAutomationActive;
+      let autoStormRiskActive = false;
       let actionResult = "Automação pausada: telemetria registrada sem alteração da saída AC.";
       let actionName = "MONITORAMENTO";
 
@@ -231,6 +236,80 @@ export class OrchestratorSyncUseCase {
           );
         }
 
+        let stormAssessment: WeatherRiskAssessment | null = null;
+
+        if (
+          configurationRecord.isAutoStormActive &&
+          configurationRecord.latitude !== null &&
+          configurationRecord.longitude !== null
+        ) {
+          try {
+            const forecastService = OpenMeteoSolarForecastService.getInstance();
+            const rainThreshold = configurationRecord.autoStormRainThresholdMm ?? 20.0;
+            stormAssessment = await forecastService.evaluateWeatherRisk(
+              configurationRecord.latitude,
+              configurationRecord.longitude,
+              rainThreshold
+            );
+            autoStormRiskActive = stormAssessment.isStormRisk;
+
+            const previousAlertActive = configurationRecord.isStormAlertActive ?? false;
+
+            if (autoStormRiskActive && !previousAlertActive) {
+              if (typeof this.repository.updateStormAlertStatus === "function") {
+                await this.repository.updateStormAlertStatus(databaseRecordId, {
+                  isStormAlertActive: true,
+                  lastStormAlertCode: stormAssessment.weatherCode,
+                  lastStormAlertDescription: stormAssessment.weatherDescription,
+                  lastStormAlertTriggeredAt: new Date(),
+                });
+              }
+
+              const lastTriggered = configurationRecord.lastStormAlertTriggeredAt;
+              const FOUR_HOURS_MS = 4 * 60 * 60 * 1000;
+              const shouldDispatchAlert =
+                !lastTriggered || Date.now() - new Date(lastTriggered).getTime() > FOUR_HOURS_MS;
+
+              if (shouldDispatchAlert) {
+                this.dispatchSafeAlert(
+                  {
+                    title: "⛈️ ALERTA AUTO-STORM: MODO DE DEFESA ATIVADO",
+                    message: `Risco de tempestade detectado (${stormAssessment.weatherDescription}, WMO ${stormAssessment.weatherCode}, Vento: ${stormAssessment.windSpeedMaxKmh} km/h, Chuva: ${stormAssessment.precipitationSumMm} mm). Cargas transferidas para a concessionária e reserva elevada para ${configurationRecord.autoStormReserveThreshold ?? 85}%.`,
+                    batteryPercentage: numericBattery,
+                    solarWatts: numericSolarWatts,
+                    actionState: "GRID",
+                  },
+                  notificationConfig
+                );
+              }
+            } else if (!autoStormRiskActive && previousAlertActive) {
+              if (typeof this.repository.updateStormAlertStatus === "function") {
+                await this.repository.updateStormAlertStatus(databaseRecordId, {
+                  isStormAlertActive: false,
+                  lastStormAlertEndedAt: new Date(),
+                });
+              }
+
+              this.dispatchSafeAlert(
+                {
+                  title: "☀️ ALERTA METEOROLÓGICO ENCERRADO",
+                  message:
+                    "Condições meteorológicas normalizadas. Modo Auto-Storm desarmado e automação inteligente reestabelecida.",
+                  batteryPercentage: numericBattery,
+                  solarWatts: numericSolarWatts,
+                  actionState: isAcOutputEnabled ? "SOLAR_BATTERY" : "GRID",
+                },
+                notificationConfig
+              );
+            }
+          } catch (weatherErr) {
+            console.warn(
+              "[OrchestratorSyncUseCase] Falha ao avaliar risco meteorológico para Auto-Storm:",
+              weatherErr
+            );
+          }
+        }
+
         if (isStormMode) {
           if (isAcOutputEnabled === true) {
             await ecoflowClient.setAcOutputState(ecoflowDevice, false);
@@ -252,6 +331,45 @@ export class OrchestratorSyncUseCase {
           actionResult =
             "Modo Tempestade / Alerta de Apagão Ativo: comutação suspensa, bateria preservada em reserva máxima.";
           actionName = "STORM_MODE_RESERVE";
+        } else if (autoStormRiskActive) {
+          const reserveThreshold = configurationRecord.autoStormReserveThreshold ?? 85;
+          if (isAcOutputEnabled === true) {
+            await ecoflowClient.setAcOutputState(ecoflowDevice, false);
+            if (typeof this.repository.incrementAtsCycle === "function") {
+              await this.repository.incrementAtsCycle(databaseRecordId);
+            }
+            this.dispatchSafeAlert(
+              {
+                title: "Modo Auto-Storm Ativo",
+                message: `Saída AC desligada preventivamente devido à aproximação de tempestade (${stormAssessment?.weatherDescription ?? "Risco Meteorológico"}). Bateria preservada para contingência.`,
+                batteryPercentage: numericBattery,
+                solarWatts: numericSolarWatts,
+                actionState: "GRID",
+              },
+              notificationConfig
+            );
+          }
+
+          if (
+            configurationRecord.autoStormPrechargeAc &&
+            numericBattery < reserveThreshold
+          ) {
+            try {
+              const maxChargeSpeed = configurationRecord.maxAcChargingWatts ?? 1200;
+              await ecoflowClient.setAcChargingSpeed(ecoflowDevice, maxChargeSpeed);
+              if (typeof this.repository.updateCurrentAcChargingWatts === "function") {
+                await this.repository.updateCurrentAcChargingWatts(databaseRecordId, maxChargeSpeed);
+              }
+            } catch (chargeErr) {
+              console.warn(
+                "[OrchestratorSyncUseCase] Falha ao acionar pré-recarga rápida no Auto-Storm:",
+                chargeErr
+              );
+            }
+          }
+
+          actionName = "AUTO_STORM_DEFENSE";
+          actionResult = `Modo Auto-Storm Ativo: risco meteorológico severo (${stormAssessment?.weatherDescription ?? "Tempestade"}). Cargas na concessionária e reserva elevada para ${reserveThreshold}%.`;
         } else if (isAutomationEnabled) {
           const tariffSchedule = TariffScheduleService.getInstance().evaluate(configurationRecord);
           const isPeakPeriod = tariffSchedule.isDynamicActive && tariffSchedule.period === "PEAK";
@@ -385,7 +503,7 @@ export class OrchestratorSyncUseCase {
           currentAcChargingWatts: configurationRecord.currentAcChargingWatts,
           chargeOnlyOffPeak: configurationRecord.chargeOnlyOffPeak,
           cloudyPrechargeActive: configurationRecord.cloudyPrechargeActive,
-          isStormModeActive: configurationRecord.isStormModeActive,
+          isStormModeActive: configurationRecord.isStormModeActive || autoStormRiskActive,
           batteryPercentage: numericBattery,
           solarWatts: numericSolarWatts,
           outputWatts,
@@ -474,6 +592,7 @@ export class OrchestratorSyncUseCase {
       actionName === "BATTERY_HIGH_DISCHARGE" ||
       actionName === "BATTERY_LOW_RECHARGE" ||
       actionName === "STORM_MODE_RESERVE" ||
+      actionName === "AUTO_STORM_DEFENSE" ||
       actionName === "THERMAL_PROTECTION_DISARM";
 
     let lastState = OrchestratorSyncUseCase.lastLoggedStatesByRecordId.get(databaseRecordId);

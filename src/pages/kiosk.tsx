@@ -22,6 +22,7 @@ import {
 import { useVisibilityPolling } from "../hooks/useVisibilityPolling";
 import { useLiveTelemetry } from "../hooks/useLiveTelemetry";
 import { ConnectionStatusIndicator } from "../components/ConnectionStatusIndicator";
+import { WeatherWidget } from "../components/WeatherWidget";
 
 interface KioskTelemetryData {
   currentWatts: number;
@@ -308,6 +309,8 @@ export default function KioskPage() {
 
           {/* Lado Direito: Relógio Digital & Controles Flutuantes */}
           <div className="flex items-center gap-3 sm:gap-4">
+            <WeatherWidget compact={true} className="hidden sm:inline-flex" />
+
             <ConnectionStatusIndicator
               status={connectionStatus}
               onReconnect={reconnect}
