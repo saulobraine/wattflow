@@ -105,6 +105,15 @@ model UserConfiguration {
   chargeOnlyOffPeak          Boolean            @default(true)
   cloudyPrechargeActive      Boolean            @default(true)
   lastSmartChargeAdjustAt    DateTime?
+  isAutoStormActive          Boolean            @default(false)
+  autoStormReserveThreshold  Int                @default(85)
+  autoStormRainThresholdMm   Float              @default(20.0)
+  autoStormPrechargeAc       Boolean            @default(true)
+  isStormAlertActive         Boolean            @default(false)
+  lastStormAlertCode         Int?
+  lastStormAlertDescription  String?
+  lastStormAlertTriggeredAt  DateTime?
+  lastStormAlertEndedAt      DateTime?
   applianceProfiles          ApplianceLoadProfile[]
   telegramBotToken     String             @default("")
   telegramChatId       String             @default("")
