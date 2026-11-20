@@ -1211,8 +1211,9 @@ export default function SettingsPage() {
                 <span className="text-xs font-semibold text-slate-400 block">
                   Modelos e Presets Comuns EcoFlow:
                 </span>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                   {[
+                    { label: "RIVER 2 Pro", wh: 768, desc: "768 Wh (Base)" },
                     { label: "DELTA 2", wh: 1024, desc: "1.024 Wh (Base)" },
                     { label: "DELTA 2 Max", wh: 2048, desc: "2.048 Wh (Base)" },
                     { label: "DELTA Pro", wh: 3600, desc: "3.600 Wh (Base)" },
