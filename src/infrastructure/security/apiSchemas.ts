@@ -352,3 +352,27 @@ export const applianceBatchToggleSchema = z.object({
   applianceIds: z.array(z.string().trim().min(1).max(128)),
   isActive: z.boolean().optional(),
 });
+
+// Estatísticas Avançadas Multitemporais & Exportação
+export const statisticsHistoryQuerySchema = z.object({
+  range: z
+    .enum(["24h", "7d", "30d", "year", "today-vs-yesterday"], {
+      message:
+        "Range inválido. Opções permitidas: 24h, 7d, 30d, year, today-vs-yesterday.",
+    })
+    .default("24h"),
+});
+
+export const statisticsExportQuerySchema = z.object({
+  range: z
+    .enum(["24h", "7d", "30d", "year"], {
+      message: "Range inválido para exportação. Opções: 24h, 7d, 30d, year.",
+    })
+    .default("24h"),
+  format: z
+    .enum(["csv"], {
+      message: "Formato inválido. Apenas 'csv' é suportado.",
+    })
+    .default("csv"),
+});
+
