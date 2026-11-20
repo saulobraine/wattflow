@@ -16,7 +16,12 @@ import {
   Inbox,
   Activity,
   Sliders,
+  CloudLightning,
+  DollarSign,
+  Timer,
+  Loader2,
 } from "lucide-react";
+import type { FinancialSavingsMetrics, AutonomyEstimateMetrics } from "./api/statistics";
 
 interface SyncLogItem {
   id: string;
@@ -30,6 +35,7 @@ interface SyncLogItem {
 interface DashboardData {
   isConfigured: boolean;
   isAutomationActive: boolean;
+  isStormModeActive?: boolean;
   turnOnThreshold: number;
   turnOffThreshold: number;
   lastBatteryPercentage: number | null;
@@ -45,12 +51,35 @@ export default function DashboardPage() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
+  // Estados da Suíte de Inteligência Operacional (Modo Tempestade, Autonomia e Economia)
+  const [isStormModeActive, setIsStormModeActive] = useState<boolean>(false);
+  const [isTogglingStormMode, setIsTogglingStormMode] = useState<boolean>(false);
+  const [autonomyData, setAutonomyData] = useState<AutonomyEstimateMetrics | null>(null);
+  const [savingsData, setSavingsData] = useState<FinancialSavingsMetrics | null>(null);
+
   const fetchStatus = async () => {
     try {
-      const response = await fetch("/api/dashboard-status");
-      const json = await response.json();
-      if (json.success) {
-        setData(json.data);
+      const [statusRes, statsRes] = await Promise.all([
+        fetch("/api/dashboard-status"),
+        fetch("/api/statistics"),
+      ]);
+
+      const statusJson = await statusRes.json();
+      if (statusJson.success && statusJson.data) {
+        setData(statusJson.data);
+        if (typeof statusJson.data.isStormModeActive === "boolean") {
+          setIsStormModeActive(statusJson.data.isStormModeActive);
+        }
+      }
+
+      const statsJson = await statsRes.json();
+      if (statsJson.success && statsJson.data) {
+        if (statsJson.data.autonomyEstimate) {
+          setAutonomyData(statsJson.data.autonomyEstimate);
+        }
+        if (statsJson.data.financialSavings) {
+          setSavingsData(statsJson.data.financialSavings);
+        }
       }
     } catch (err) {
       console.error("Erro ao carregar status:", err);
@@ -64,6 +93,41 @@ export default function DashboardPage() {
     const interval = setInterval(fetchStatus, 2000);
     return () => clearInterval(interval);
   }, []);
+
+  const handleToggleStormMode = async () => {
+    setIsTogglingStormMode(true);
+    try {
+      const nextMode = !isStormModeActive;
+      const response = await fetch("/api/storm-mode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isStormModeActive: nextMode }),
+      });
+      const json = await response.json();
+      if (json.success) {
+        setIsStormModeActive(nextMode);
+        setSyncFeedback({
+          type: "success",
+          message: nextMode
+            ? "Modo Tempestade ATIVADO: Inversor desarmado para a rede da concessionária para preservar 100% da bateria."
+            : "Modo Tempestade DESATIVADO: Orquestração solar/bateria normalizada.",
+        });
+        await fetchStatus();
+      } else {
+        setSyncFeedback({
+          type: "error",
+          message: json.message || "Falha ao alterar Modo Tempestade.",
+        });
+      }
+    } catch {
+      setSyncFeedback({
+        type: "error",
+        message: "Erro de comunicação ao acionar Modo Tempestade.",
+      });
+    } finally {
+      setIsTogglingStormMode(false);
+    }
+  };
 
   const triggerManualSync = async () => {
     setIsSyncing(true);
@@ -133,6 +197,49 @@ export default function DashboardPage() {
   return (
     <Layout>
       <div className="space-y-8">
+        {/* Banner de Alerta Crítico: Modo Tempestade Ativo */}
+        {isStormModeActive && (
+          <section
+            role="alert"
+            aria-label="Alerta de Modo Tempestade Ativo"
+            className="animate-card stagger-1 p-4 sm:p-5 rounded-2xl bg-amber-950/60 border-2 border-amber-500/80 shadow-2xl shadow-amber-950/50 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all"
+          >
+            <div className="flex items-start gap-3.5">
+              <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-400 shrink-0 mt-0.5 border border-amber-500/40">
+                <CloudLightning className="w-6 h-6 animate-pulse" aria-hidden="true" />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-base sm:text-lg font-bold text-amber-200">
+                    ⚠️ Modo Tempestade Ativo — Proteção contra Blackout
+                  </h2>
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono">
+                    ATS Retida na Rede
+                  </span>
+                </div>
+                <p className="text-xs sm:text-sm text-amber-300/90 mt-1 leading-relaxed">
+                  O inversor EcoFlow foi desarmado para a rede da concessionária para preservar 100% da carga da bateria para caso de interrupção no fornecimento.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleToggleStormMode}
+              disabled={isTogglingStormMode}
+              aria-label="Desativar Modo Tempestade"
+              className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs sm:text-sm transition-all duration-150 shadow-md shadow-amber-950/50 flex items-center justify-center gap-2 shrink-0 cursor-pointer disabled:opacity-50 active:scale-95"
+            >
+              {isTogglingStormMode ? (
+                <Loader2 className="w-4 h-4 animate-spin text-slate-950" aria-hidden="true" />
+              ) : (
+                <Power className="w-4 h-4" aria-hidden="true" />
+              )}
+              {isTogglingStormMode ? "Alterando..." : "Desativar Modo Tempestade"}
+            </button>
+          </section>
+        )}
+
         {/* Banner de Boas-vindas e Status do Sistema */}
         <section
           aria-label="Status Geral do Sistema"
@@ -148,12 +255,32 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Botão de 1 Clique: Modo Tempestade */}
+            <button
+              type="button"
+              onClick={handleToggleStormMode}
+              disabled={isTogglingStormMode}
+              aria-label={isStormModeActive ? "Desativar Modo Tempestade" : "Ativar Modo Tempestade"}
+              className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl font-semibold text-xs sm:text-sm transition-all duration-150 border cursor-pointer disabled:cursor-not-allowed active:scale-95 ${
+                isStormModeActive
+                  ? "bg-amber-500 text-slate-950 border-amber-400 hover:bg-amber-400 shadow-md shadow-amber-950/40"
+                  : "bg-slate-800/80 hover:bg-slate-700 text-amber-400 border-amber-500/30 hover:border-amber-500/60"
+              }`}
+            >
+              {isTogglingStormMode ? (
+                <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <CloudLightning className="w-4 h-4" aria-hidden="true" />
+              )}
+              <span>{isStormModeActive ? "Tempestade Ativa" : "Modo Tempestade"}</span>
+            </button>
+
             <button
               onClick={triggerManualSync}
               disabled={isSyncing || !data?.isConfigured}
               aria-label="Sincronizar telemetria e estado agora"
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 disabled:opacity-50 text-white font-semibold text-sm transition-all duration-150 shadow-lg shadow-emerald-950 cursor-pointer disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 disabled:opacity-50 text-white font-semibold text-xs sm:text-sm transition-all duration-150 shadow-lg shadow-emerald-950 cursor-pointer disabled:cursor-not-allowed"
             >
               <RefreshCw className={`w-4 h-4 ${isSyncing ? "animate-spin" : "transition-transform group-hover:rotate-45"}`} aria-hidden="true" />
               {isSyncing ? "Sincronizando..." : "Sincronizar Agora"}
@@ -199,8 +326,8 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Grade de Indicadores Principais (3 colunas com design minimalista nativo) */}
-        <section aria-label="Indicadores Operacionais" className="grid grid-cols-3 gap-2 sm:gap-4 lg:gap-5">
+        {/* Grade de Indicadores Principais (8 métricas em 4 colunas perfeitamente distribuídas) */}
+        <section aria-label="Indicadores Operacionais" className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4 lg:gap-5">
           {/* Card 1: Bateria (SOC %) */}
           <div className="animate-card stagger-2 interactive-card min-h-[105px] sm:min-h-[125px] flex flex-col justify-between p-3 sm:p-4 rounded-xl border border-slate-800/80 bg-slate-900/90 hover:border-slate-700 transition-all shadow-md group">
             <div className="flex items-center gap-2">
@@ -253,7 +380,85 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Card 3: Fonte Ativa (ATS) */}
+          {/* Card 3: Autonomia Preditiva */}
+          <div className="animate-card stagger-2 interactive-card min-h-[105px] sm:min-h-[125px] flex flex-col justify-between p-3 sm:p-4 rounded-xl border border-slate-800/80 bg-slate-900/90 hover:border-slate-700 transition-all shadow-md group">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-sky-500/10 border border-sky-500/20 text-sky-400 flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
+                <Timer className="w-4 h-4" aria-hidden="true" />
+              </div>
+              <span className="text-[11px] sm:text-xs text-slate-400 font-medium truncate">
+                Autonomia
+              </span>
+            </div>
+
+            <div className="truncate my-1">
+              {autonomyData?.isRecharging ? (
+                <span className="text-sm sm:text-base font-bold text-emerald-400 leading-tight block truncate">
+                  Carregando
+                </span>
+              ) : autonomyData?.formattedRuntime ? (
+                <span className="text-lg sm:text-2xl font-bold font-mono text-sky-300 truncate block">
+                  ~{autonomyData.formattedRuntime}
+                </span>
+              ) : (
+                <span className="text-lg sm:text-2xl font-bold font-mono text-slate-500 truncate block">
+                  --
+                </span>
+              )}
+            </div>
+
+            <div className={`inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-medium px-2 py-0.5 rounded-md border w-fit max-w-full truncate ${
+              autonomyData?.isRecharging
+                ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
+                : (autonomyData?.netDrainWatts ?? 0) > 0
+                ? "text-sky-400 bg-sky-500/10 border-sky-500/20"
+                : "text-slate-400 bg-slate-800/80 border-slate-700/60"
+            }`}>
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                autonomyData?.isRecharging
+                  ? "bg-emerald-400 animate-pulse"
+                  : (autonomyData?.netDrainWatts ?? 0) > 0
+                  ? "bg-sky-400"
+                  : "bg-slate-500"
+              }`} aria-hidden="true" />
+              <span className="truncate">
+                {autonomyData?.isRecharging
+                  ? "Geração supera consumo — Bateria carregando"
+                  : autonomyData?.formattedRuntime
+                  ? `~${autonomyData.formattedRuntime} restantes`
+                  : "Autonomia Preditiva"}
+              </span>
+            </div>
+          </div>
+
+          {/* Card 4: Economia Financeira */}
+          <div className="animate-card stagger-2 interactive-card min-h-[105px] sm:min-h-[125px] flex flex-col justify-between p-3 sm:p-4 rounded-xl border border-slate-800/80 bg-slate-900/90 hover:border-slate-700 transition-all shadow-md group">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
+                <DollarSign className="w-4 h-4" aria-hidden="true" />
+              </div>
+              <span className="text-[11px] sm:text-xs text-slate-400 font-medium truncate">
+                Economia
+              </span>
+            </div>
+
+            <div className="text-xl sm:text-2xl font-bold font-mono text-emerald-400 truncate my-1">
+              {savingsData
+                ? `${savingsData.currencySymbol} ${savingsData.todaySavings.toFixed(2)}`
+                : "--"}
+            </div>
+
+            <div className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20 w-fit max-w-full truncate">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" aria-hidden="true" />
+              <span className="truncate">
+                {savingsData
+                  ? `Hoje: ${savingsData.todayKwh.toFixed(1)} kWh | Mês: ${savingsData.currencySymbol} ${savingsData.monthSavings.toFixed(2)}`
+                  : "Economia Real"}
+              </span>
+            </div>
+          </div>
+
+          {/* Card 5: Fonte Ativa (ATS) */}
           <div className="animate-card stagger-3 interactive-card min-h-[105px] sm:min-h-[125px] flex flex-col justify-between p-3 sm:p-4 rounded-xl border border-slate-800/80 bg-slate-900/90 hover:border-slate-700 transition-all shadow-md group">
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
@@ -288,7 +493,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Card 4: Automação */}
+          {/* Card 6: Automação */}
           <div className="animate-card stagger-3 interactive-card min-h-[105px] sm:min-h-[125px] flex flex-col justify-between p-3 sm:p-4 rounded-xl border border-slate-800/80 bg-slate-900/90 hover:border-slate-700 transition-all shadow-md group">
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
@@ -311,7 +516,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Card 5: Limiar Corte */}
+          {/* Card 7: Limiar Corte */}
           <div className="animate-card stagger-4 interactive-card min-h-[105px] sm:min-h-[125px] flex flex-col justify-between p-3 sm:p-4 rounded-xl border border-slate-800/80 bg-slate-900/90 hover:border-slate-700 transition-all shadow-md group">
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
@@ -332,7 +537,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Card 6: Limiar Ativação */}
+          {/* Card 8: Limiar Ativação */}
           <div className="animate-card stagger-4 interactive-card min-h-[105px] sm:min-h-[125px] flex flex-col justify-between p-3 sm:p-4 rounded-xl border border-slate-800/80 bg-slate-900/90 hover:border-slate-700 transition-all shadow-md group">
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">

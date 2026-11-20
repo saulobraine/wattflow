@@ -11,6 +11,7 @@ interface DashboardStatusResponse {
   data?: {
     isConfigured: boolean;
     isAutomationActive: boolean;
+    isStormModeActive?: boolean;
     turnOnThreshold: number;
     turnOffThreshold: number;
     lastBatteryPercentage: number | null;
@@ -63,6 +64,7 @@ export default async function handleDashboardStatus(
       data: {
         isConfigured: false,
         isAutomationActive: false,
+        isStormModeActive: false,
         turnOnThreshold: 90,
         turnOffThreshold: 30,
         lastBatteryPercentage: null,
@@ -109,6 +111,7 @@ export default async function handleDashboardStatus(
         data: {
           isConfigured: false,
           isAutomationActive: false,
+          isStormModeActive: false,
           turnOnThreshold: 90,
           turnOffThreshold: 30,
           lastBatteryPercentage: null,
@@ -154,6 +157,7 @@ export default async function handleDashboardStatus(
       data: {
         isConfigured,
         isAutomationActive: configuration.isAutomationActive,
+        isStormModeActive: configuration.isStormModeActive ?? false,
         turnOnThreshold: configuration.turnOnThreshold,
         turnOffThreshold: configuration.turnOffThreshold,
         lastBatteryPercentage: resolvedBattery,

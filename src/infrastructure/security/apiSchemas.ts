@@ -125,6 +125,28 @@ export const settingsPostBodySchema = z.object({
     .min(0, "Ciclos atuais não podem ser negativos.")
     .max(1000000, "Ciclos atuais excedem o limite máximo permitido.")
     .optional(),
+  energyCostPerKwh: z
+    .number({ message: "Tarifa de energia deve ser um número." })
+    .positive("Tarifa de energia deve ser maior que zero.")
+    .max(50, "Tarifa de energia excede o limite razoável.")
+    .optional(),
+  currencySymbol: z.string().trim().min(1, "Símbolo de moeda não pode ser vazio.").max(8, "Símbolo de moeda excede 8 caracteres.").optional(),
+  batteryCapacityWh: z
+    .number({ message: "Capacidade da bateria deve ser um número." })
+    .int("A capacidade da bateria deve ser um número inteiro em Wh.")
+    .min(200, "Capacidade mínima de 200Wh.")
+    .max(50000, "Capacidade máxima de 50.000Wh.")
+    .optional(),
+  isStormModeActive: z.boolean({ message: "Flag isStormModeActive deve ser booleana." }).optional(),
+  isDailyReportActive: z.boolean({ message: "Flag isDailyReportActive deve ser booleana." }).optional(),
+  dailyReportTime: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Horário inválido. Utilize o formato HH:mm (ex: 21:00).")
+    .optional(),
+});
+
+export const stormModePostBodySchema = z.object({
+  isStormModeActive: z.boolean({ message: "Flag isStormModeActive deve ser booleana." }),
 });
 
 const strictPercentageThresholdSchema = (invalidMessage: string) =>

@@ -60,6 +60,13 @@ model UserConfiguration {
   atsLifespanCycles    Int                @default(10000)
   atsCurrentCycles     Int                @default(0)
   atsLastSwitchedAt    DateTime?
+  energyCostPerKwh     Float              @default(0.92)
+  currencySymbol       String             @default("R$")
+  batteryCapacityWh    Int                @default(2048)
+  isStormModeActive    Boolean            @default(false)
+  isDailyReportActive  Boolean            @default(true)
+  dailyReportTime      String             @default("21:00")
+  lastDailyReportSentAt DateTime?
   telegramBotToken     String             @default("")
   telegramChatId       String             @default("")
   whatsappPhoneNumber  String             @default("")

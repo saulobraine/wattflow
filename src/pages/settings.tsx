@@ -16,6 +16,10 @@ import {
   Send,
   ShieldAlert,
   X,
+  DollarSign,
+  BatteryCharging,
+  Clock,
+  FileText,
 } from "lucide-react";
 
 export default function SettingsPage() {
@@ -34,6 +38,13 @@ export default function SettingsPage() {
   const [atsLifespanCycles, setAtsLifespanCycles] = useState<number>(10000);
   const [atsCurrentCycles, setAtsCurrentCycles] = useState<number>(0);
   const [atsLastSwitchedAt, setAtsLastSwitchedAt] = useState<string | null>(null);
+
+  // Estados da Suíte de Inteligência Operacional (Economia, Bateria e Relatórios)
+  const [energyCostPerKwh, setEnergyCostPerKwh] = useState<number>(0.92);
+  const [currencySymbol, setCurrencySymbol] = useState<string>("R$");
+  const [batteryCapacityWh, setBatteryCapacityWh] = useState<number>(2048);
+  const [isDailyReportActive, setIsDailyReportActive] = useState<boolean>(true);
+  const [dailyReportTime, setDailyReportTime] = useState<string>("21:00");
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -175,6 +186,15 @@ export default function SettingsPage() {
           typeof json.data.atsCurrentCycles === "number" ? json.data.atsCurrentCycles : 0
         );
         setAtsLastSwitchedAt(json.data.atsLastSwitchedAt || null);
+        setEnergyCostPerKwh(
+          typeof json.data.energyCostPerKwh === "number" ? json.data.energyCostPerKwh : 0.92
+        );
+        setCurrencySymbol(json.data.currencySymbol || "R$");
+        setBatteryCapacityWh(
+          typeof json.data.batteryCapacityWh === "number" ? json.data.batteryCapacityWh : 2048
+        );
+        setIsDailyReportActive(json.data.isDailyReportActive ?? true);
+        setDailyReportTime(json.data.dailyReportTime || "21:00");
       }
     } catch (err) {
       console.error("Erro ao carregar configurações:", err);
@@ -212,6 +232,11 @@ export default function SettingsPage() {
           isNotificationActive,
           atsLifespanCycles: Number(atsLifespanCycles),
           atsCurrentCycles: Number(atsCurrentCycles),
+          energyCostPerKwh: Number(energyCostPerKwh),
+          currencySymbol,
+          batteryCapacityWh: Number(batteryCapacityWh),
+          isDailyReportActive,
+          dailyReportTime,
         }),
       });
 
@@ -777,6 +802,241 @@ export default function SettingsPage() {
                 <span className="text-[11px] text-slate-400 block leading-tight">
                   Permite ajustar o contador caso a ATS já estivesse em uso ou seja substituída.
                 </span>
+              </div>
+            </div>
+          </div>
+
+          {/* 4. Parâmetros Econômicos & Tarifa de Energia */}
+          <div className="animate-card stagger-5 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
+                  <DollarSign className="w-5 h-5" aria-hidden="true" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-100">
+                    4. Parâmetros Econômicos &amp; Tarifa de Energia
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Base tarifária da distribuidora para cálculo de economia real obtida com energia solar e bateria
+                  </p>
+                </div>
+              </div>
+              <span className="inline-flex items-center gap-1.5 text-xs font-mono px-2.5 py-1 rounded-full bg-slate-950 text-emerald-400 border border-emerald-900/50 self-start sm:self-auto">
+                <Zap className="w-3.5 h-3.5 text-amber-400" aria-hidden="true" />
+                {currencySymbol} / kWh
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="energy-cost-input" className="text-xs font-semibold text-slate-300">
+                    Tarifa de Energia ({currencySymbol}/kWh)
+                  </label>
+                  <span className="text-[11px] font-mono text-slate-500">Ex: 0.92</span>
+                </div>
+                <input
+                  id="energy-cost-input"
+                  type="number"
+                  min={0.01}
+                  max={100}
+                  step={0.01}
+                  required
+                  placeholder="0.92"
+                  value={energyCostPerKwh}
+                  onChange={(e) => setEnergyCostPerKwh(Math.max(0.01, parseFloat(e.target.value) || 0.01))}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-emerald-500 font-mono transition-colors"
+                />
+                <span className="text-[11px] text-slate-400 block leading-tight">
+                  Valor cobrado pela sua distribuidora por cada kWh consumido (incluindo impostos e bandeiras).
+                </span>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="currency-symbol-input" className="text-xs font-semibold text-slate-300">
+                    Símbolo Monetário
+                  </label>
+                  <span className="text-[11px] font-mono text-slate-500">Padrão: R$</span>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    id="currency-symbol-input"
+                    type="text"
+                    maxLength={5}
+                    required
+                    placeholder="R$"
+                    value={currencySymbol}
+                    onChange={(e) => setCurrencySymbol(e.target.value.trim() || "R$")}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-emerald-500 font-mono transition-colors"
+                  />
+                  <div className="flex gap-1 shrink-0">
+                    {["R$", "$", "€"].map((sym) => (
+                      <button
+                        key={sym}
+                        type="button"
+                        onClick={() => setCurrencySymbol(sym)}
+                        className={`px-3 py-2 text-xs font-mono font-bold rounded-xl border transition-colors ${
+                          currencySymbol === sym
+                            ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/50"
+                            : "bg-slate-950 text-slate-400 border-slate-800 hover:text-slate-200"
+                        }`}
+                      >
+                        {sym}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <span className="text-[11px] text-slate-400 block leading-tight">
+                  Símbolo exibido nos cards executivos de economia financeira e relatórios.
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* 5. Capacidade da Bateria & Autonomia */}
+          <div className="animate-card stagger-6 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-sky-500/10 text-sky-400">
+                  <BatteryCharging className="w-5 h-5" aria-hidden="true" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-100">
+                    5. Capacidade da Bateria &amp; Autonomia
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Capacidade nominal total do banco de baterias para cálculo preditivo de tempo de autonomia restante
+                  </p>
+                </div>
+              </div>
+              <span className="inline-flex items-center gap-1.5 text-xs font-mono px-2.5 py-1 rounded-full bg-slate-950 text-sky-300 border border-sky-900/50 self-start sm:self-auto">
+                <Zap className="w-3.5 h-3.5 text-sky-400" aria-hidden="true" />
+                {batteryCapacityWh.toLocaleString("pt-BR")} Wh
+              </span>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="battery-capacity-input" className="text-xs font-semibold text-slate-300">
+                    Capacidade Nominal Total (Wh)
+                  </label>
+                  <span className="text-[11px] font-mono text-slate-500">EcoFlow + Baterias Extras</span>
+                </div>
+                <input
+                  id="battery-capacity-input"
+                  type="number"
+                  min={100}
+                  max={50000}
+                  step={1}
+                  required
+                  placeholder="2048"
+                  value={batteryCapacityWh}
+                  onChange={(e) => setBatteryCapacityWh(Math.max(100, parseInt(e.target.value, 10) || 100))}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-sky-500 font-mono transition-colors"
+                />
+                <span className="text-[11px] text-slate-400 block leading-tight">
+                  Capacidade combinada em Watt-hora. Se possuir baterias extras conectadas à estação, some a capacidade de todas.
+                </span>
+              </div>
+
+              {/* Presets Rápidos EcoFlow */}
+              <div className="space-y-2">
+                <span className="text-xs font-semibold text-slate-400 block">
+                  Modelos e Presets Comuns EcoFlow:
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  {[
+                    { label: "DELTA 2", wh: 1024, desc: "1.024 Wh (Base)" },
+                    { label: "DELTA 2 Max", wh: 2048, desc: "2.048 Wh (Base)" },
+                    { label: "DELTA Pro", wh: 3600, desc: "3.600 Wh (Base)" },
+                  ].map((preset) => (
+                    <button
+                      key={preset.wh}
+                      type="button"
+                      onClick={() => setBatteryCapacityWh(preset.wh)}
+                      className={`p-3 rounded-xl border text-left transition-all ${
+                        batteryCapacityWh === preset.wh
+                          ? "bg-sky-950/80 border-sky-500/70 text-sky-200 shadow-sm shadow-sky-950"
+                          : "bg-slate-950 border-slate-800 hover:border-slate-700 text-slate-300"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold">{preset.label}</span>
+                        {batteryCapacityWh === preset.wh && (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-sky-400" aria-hidden="true" />
+                        )}
+                      </div>
+                      <span className="text-[11px] font-mono text-slate-400 block">{preset.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 6. Relatório Executivo Noturno (WhatsApp) */}
+          <div className="animate-card stagger-6 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
+                  <FileText className="w-5 h-5" aria-hidden="true" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-100">
+                    6. Relatório Executivo Noturno (WhatsApp)
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Disparo automático do balanço diário consolidado com geração solar, ciclos da ATS e economia em {currencySymbol}
+                  </p>
+                </div>
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer self-start sm:self-auto">
+                <input
+                  type="checkbox"
+                  checked={isDailyReportActive}
+                  onChange={(e) => setIsDailyReportActive(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                <span className="text-xs font-semibold text-slate-300">
+                  {isDailyReportActive ? "Ativado" : "Desativado"}
+                </span>
+              </label>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="daily-report-time-input" className="text-xs font-semibold text-slate-300">
+                    Horário de Disparo Diário
+                  </label>
+                  <span className="text-[11px] font-mono text-slate-500">Padrão: 21:00</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-emerald-400 shrink-0" aria-hidden="true" />
+                  <input
+                    id="daily-report-time-input"
+                    type="time"
+                    required
+                    value={dailyReportTime}
+                    disabled={!isDailyReportActive}
+                    onChange={(e) => setDailyReportTime(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-emerald-500 font-mono transition-colors disabled:opacity-40"
+                  />
+                </div>
+                <span className="text-[11px] text-slate-400 block leading-tight">
+                  Horário local em que o relatório executivo formatado é enviado para o seu WhatsApp configurado.
+                </span>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800/80 text-xs text-slate-400 space-y-1">
+                <span className="font-semibold text-slate-200 block">Conteúdo do Relatório:</span>
+                <p>• Balanço de Geração Solar Diária (kWh e economia em {currencySymbol})</p>
+                <p>• Comutações e desgaste mecânico da chave ATS no dia</p>
+                <p>• Autonomia preditiva e status operacional da bateria</p>
               </div>
             </div>
           </div>
