@@ -254,3 +254,79 @@ body {
     transform: none !important;
   }
 }
+
+/* ==========================================================================
+   Estilos de Impressão Executiva (@media print)
+   Otimizado para folha branca A4, relatórios PDF sem menus e sem fundos escuros
+   ========================================================================== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 1.2cm;
+  }
+
+  body {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    font-size: 10pt;
+  }
+
+  header,
+  nav,
+  footer,
+  .no-print,
+  .site-header,
+  [role="banner"],
+  [role="navigation"],
+  [data-pwa-prompt] {
+    display: none !important;
+  }
+
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .interactive-card,
+  section {
+    background-color: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: none !important;
+    color: #0f172a !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Textos e tabelas legíveis para impressão */
+  .text-slate-100,
+  .text-slate-200,
+  .text-slate-300 {
+    color: #0f172a !important;
+  }
+
+  .text-slate-400,
+  .text-slate-500 {
+    color: #475569 !important;
+  }
+
+  .text-emerald-300,
+  .text-emerald-400 {
+    color: #047857 !important;
+  }
+
+  .text-amber-300,
+  .text-amber-400 {
+    color: #b45309 !important;
+  }
+
+  .text-sky-300,
+  .text-sky-400 {
+    color: #0369a1 !important;
+  }
+
+  /* Garante nitidez do SVG na impressão */
+  svg {
+    max-width: 100% !important;
+  }
+}

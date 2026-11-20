@@ -147,5 +147,7 @@ model SyncExecutionLog {
   executedAt          DateTime          @default(now())
   userConfiguration   UserConfiguration @relation(fields: [userConfigurationId], references: [id], onDelete: Cascade)
 
+  @@index([userConfigurationId, executedAt])
+  @@index([executedAt])
   @@map("sync_execution_logs")
 }
