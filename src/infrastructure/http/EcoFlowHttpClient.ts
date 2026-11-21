@@ -18,6 +18,11 @@ export interface EcoFlowTelemetryResult {
   isAcOutputEnabled: boolean | null;
   deviceMaxChargeSoc?: number | null;
   deviceMinDsgSoc?: number | null;
+  batteryTempCelsius?: number | null;
+  batterySoh?: number | null;
+  batteryCycles?: number | null;
+  batteryVoltageVolts?: number | null;
+  batteryAmperageAmps?: number | null;
 }
 
 export interface EcoFlowMqttCertification {
@@ -26,6 +31,19 @@ export interface EcoFlowMqttCertification {
   certificateAccount: string;
   certificatePassword: string;
   protocol?: string;
+}
+
+export interface EcoFlowBoundDevice {
+  sn: string;
+  deviceName: string;
+  productName: string;
+  online: number;
+}
+
+export interface EcoFlowBoundDevicesResult {
+  isSuccessful: boolean;
+  devices: EcoFlowBoundDevice[];
+  errorMessage?: string;
 }
 
 interface TelemetryHttpAttempt {
@@ -186,6 +204,109 @@ export class EcoFlowHttpClient {
       certificatePassword: data.certificatePassword as string,
       protocol: validatedBroker.protocol,
     };
+  }
+
+  /**
+   * Consulta a lista de dispositivos pareados na conta EcoFlow Developer Open API.
+   * Endpoint oficial: GET /iot-open/sign/device/list
+   */
+  public async fetchBoundDevices(): Promise<EcoFlowBoundDevicesResult> {
+    const primaryAttempt = await this.performDeviceListRequest(this.baseApiUrl);
+    if (primaryAttempt.isSuccessful) {
+      return primaryAttempt;
+    }
+
+    const alternateUrl = this.resolveAlternativeEndpoint(this.baseApiUrl);
+    const isAuthOr401 =
+      primaryAttempt.errorMessage?.toLowerCase().includes("accesskey") ||
+      primaryAttempt.errorMessage?.includes("401");
+
+    if (isAuthOr401) {
+      const alternateAttempt = await this.performDeviceListRequest(alternateUrl);
+      if (alternateAttempt.isSuccessful) {
+        return alternateAttempt;
+      }
+    }
+
+    return primaryAttempt;
+  }
+
+  private async performDeviceListRequest(targetBaseUrl: string): Promise<EcoFlowBoundDevicesResult> {
+    const timestampString = Date.now().toString();
+    const nonceString = Math.floor(100000 + Math.random() * 900000).toString();
+    const queryParameters: Record<string, unknown> = {};
+
+    const calculator = new EcoFlowSignatureCalculator();
+    const { signatureDigest, rawAccessKey } = calculator.calculateSignature(
+      this.credentials,
+      queryParameters,
+      nonceString,
+      timestampString
+    );
+
+    let signatureHex = "";
+    signatureDigest.transferDigest((digestString: string) => {
+      signatureHex = digestString;
+    });
+
+    const requestUrl = `${targetBaseUrl}/iot-open/sign/device/list`;
+
+    try {
+      const response = await fetch(requestUrl, {
+        method: "GET",
+        headers: {
+          accessKey: rawAccessKey,
+          nonce: nonceString,
+          timestamp: timestampString,
+          sign: signatureHex,
+        },
+        signal: AbortSignal.timeout(8000),
+      });
+
+      if (!response.ok) {
+        return {
+          isSuccessful: false,
+          devices: [],
+          errorMessage: `[EcoFlow] Falha HTTP ao buscar dispositivos (${response.status}) em ${targetBaseUrl}`,
+        };
+      }
+
+      const json = (await response.json()) as {
+        code: string;
+        message?: string;
+        data?: Array<Record<string, unknown>>;
+      };
+
+      if (json.code !== "0" || !Array.isArray(json.data)) {
+        return {
+          isSuccessful: false,
+          devices: [],
+          errorMessage: `[EcoFlow] Erro ao listar dispositivos: ${json.message ?? json.code}`,
+        };
+      }
+
+      const devices: EcoFlowBoundDevice[] = json.data
+        .map((item) => {
+          const sn = String(item.sn ?? item.deviceSn ?? "");
+          const deviceName = String(item.deviceName ?? item.name ?? sn);
+          const productName = String(item.productName ?? item.deviceType ?? item.model ?? "EcoFlow PowerStation");
+          const online = typeof item.online === "number" ? item.online : item.online ? 1 : 0;
+          return { sn, deviceName, productName, online };
+        })
+        .filter((d) => d.sn.trim().length > 0);
+
+      return {
+        isSuccessful: true,
+        devices,
+      };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Falha de rede ao consultar dispositivos";
+      return {
+        isSuccessful: false,
+        devices: [],
+        errorMessage: `[EcoFlow] ${message}`,
+      };
+    }
   }
 
   /**
@@ -364,6 +485,11 @@ export class EcoFlowHttpClient {
     const extractedAcState = this.extractAcStateFromQuota(quotaData);
     const extractedMaxChargeSoc = this.extractMaxChargeSocFromQuota(quotaData);
     const extractedMinDsgSoc = this.extractMinDsgSocFromQuota(quotaData);
+    const extractedTemp = this.extractBatteryTempFromQuota(quotaData);
+    const extractedSoh = this.extractBatterySohFromQuota(quotaData);
+    const extractedCycles = this.extractBatteryCyclesFromQuota(quotaData);
+    const extractedVolts = this.extractBatteryVoltsFromQuota(quotaData);
+    const extractedAmps = this.extractBatteryAmpsFromQuota(quotaData);
 
     return {
       batteryLevel: new BatteryLevel(extractedPercentage),
@@ -372,6 +498,11 @@ export class EcoFlowHttpClient {
       isAcOutputEnabled: extractedAcState,
       deviceMaxChargeSoc: extractedMaxChargeSoc,
       deviceMinDsgSoc: extractedMinDsgSoc,
+      batteryTempCelsius: extractedTemp,
+      batterySoh: extractedSoh,
+      batteryCycles: extractedCycles,
+      batteryVoltageVolts: extractedVolts,
+      batteryAmperageAmps: extractedAmps,
     };
   }
 
@@ -748,6 +879,176 @@ export class EcoFlowHttpClient {
         );
         if (raw !== null && raw >= 0 && raw <= 100) {
           return Math.round(raw);
+        }
+      }
+    }
+
+    return null;
+  }
+
+  public extractBatteryTempFromQuota(quotaData: Record<string, unknown>): number | null {
+    const candidateKeys = [
+      "bms_bmsStatus.temp",
+      "bms_bmsStatus.maxCellTemp",
+      "bms_bmsStatus.minCellTemp",
+      "bms_bmsStatus.cellTemp",
+      "bmsMaster.temp",
+      "bmsMaster.cellTemp",
+      "bmsMaster.maxCellTemp",
+      "bms.temp",
+      "bms.cellTemp",
+      "temp",
+      "cellTemp",
+      "maxCellTemp",
+    ];
+
+    for (const key of candidateKeys) {
+      const parsedNumber = this.parseNumericCandidate(quotaData[key]);
+      if (parsedNumber !== null) {
+        return parsedNumber > 100 ? Number((parsedNumber / 10).toFixed(1)) : Number(parsedNumber.toFixed(1));
+      }
+    }
+
+    const nestedContainers = ["bms_bmsStatus", "bmsMaster", "bms", "ems", "bms_emsStatus", "bms_kit"];
+    for (const container of nestedContainers) {
+      const nestedObj = quotaData[container];
+      if (typeof nestedObj === "object" && nestedObj !== null) {
+        const nestedRec = nestedObj as Record<string, unknown>;
+        const raw = this.parseNumericCandidate(
+          nestedRec["temp"] ?? nestedRec["maxCellTemp"] ?? nestedRec["cellTemp"] ?? nestedRec["minCellTemp"]
+        );
+        if (raw !== null) {
+          return raw > 100 ? Number((raw / 10).toFixed(1)) : Number(raw.toFixed(1));
+        }
+      }
+    }
+
+    return null;
+  }
+
+  public extractBatterySohFromQuota(quotaData: Record<string, unknown>): number | null {
+    const candidateKeys = [
+      "bms_bmsStatus.soh",
+      "bms_bmsStatus.f32ShowSoh",
+      "bmsMaster.soh",
+      "bms.soh",
+      "soh",
+      "f32ShowSoh",
+    ];
+
+    for (const key of candidateKeys) {
+      const parsedNumber = this.parseNumericCandidate(quotaData[key]);
+      if (parsedNumber !== null && parsedNumber >= 0 && parsedNumber <= 100) {
+        return Math.round(parsedNumber);
+      }
+    }
+
+    const nestedContainers = ["bms_bmsStatus", "bmsMaster", "bms", "ems", "bms_emsStatus"];
+    for (const container of nestedContainers) {
+      const nestedObj = quotaData[container];
+      if (typeof nestedObj === "object" && nestedObj !== null) {
+        const nestedRec = nestedObj as Record<string, unknown>;
+        const raw = this.parseNumericCandidate(nestedRec["soh"] ?? nestedRec["f32ShowSoh"]);
+        if (raw !== null && raw >= 0 && raw <= 100) {
+          return Math.round(raw);
+        }
+      }
+    }
+
+    return null;
+  }
+
+  public extractBatteryCyclesFromQuota(quotaData: Record<string, unknown>): number | null {
+    const candidateKeys = [
+      "bms_bmsStatus.cycles",
+      "bms_bmsStatus.cycleCount",
+      "bmsMaster.cycles",
+      "bms.cycles",
+      "cycles",
+      "cycleCount",
+    ];
+
+    for (const key of candidateKeys) {
+      const parsedNumber = this.parseNumericCandidate(quotaData[key]);
+      if (parsedNumber !== null && parsedNumber >= 0) {
+        return Math.round(parsedNumber);
+      }
+    }
+
+    const nestedContainers = ["bms_bmsStatus", "bmsMaster", "bms", "ems", "bms_emsStatus"];
+    for (const container of nestedContainers) {
+      const nestedObj = quotaData[container];
+      if (typeof nestedObj === "object" && nestedObj !== null) {
+        const nestedRec = nestedObj as Record<string, unknown>;
+        const raw = this.parseNumericCandidate(nestedRec["cycles"] ?? nestedRec["cycleCount"]);
+        if (raw !== null && raw >= 0) {
+          return Math.round(raw);
+        }
+      }
+    }
+
+    return null;
+  }
+
+  public extractBatteryVoltsFromQuota(quotaData: Record<string, unknown>): number | null {
+    const candidateKeys = [
+      "bms_bmsStatus.vol",
+      "bms_bmsStatus.voltage",
+      "bmsMaster.vol",
+      "bms.vol",
+      "vol",
+      "voltage",
+    ];
+
+    for (const key of candidateKeys) {
+      const parsedNumber = this.parseNumericCandidate(quotaData[key]);
+      if (parsedNumber !== null && parsedNumber > 0) {
+        return parsedNumber > 1000 ? Number((parsedNumber / 1000).toFixed(2)) : Number(parsedNumber.toFixed(2));
+      }
+    }
+
+    const nestedContainers = ["bms_bmsStatus", "bmsMaster", "bms", "ems", "bms_emsStatus"];
+    for (const container of nestedContainers) {
+      const nestedObj = quotaData[container];
+      if (typeof nestedObj === "object" && nestedObj !== null) {
+        const nestedRec = nestedObj as Record<string, unknown>;
+        const raw = this.parseNumericCandidate(nestedRec["vol"] ?? nestedRec["voltage"]);
+        if (raw !== null && raw > 0) {
+          return raw > 1000 ? Number((raw / 1000).toFixed(2)) : Number(raw.toFixed(2));
+        }
+      }
+    }
+
+    return null;
+  }
+
+  public extractBatteryAmpsFromQuota(quotaData: Record<string, unknown>): number | null {
+    const candidateKeys = [
+      "bms_bmsStatus.amp",
+      "bms_bmsStatus.current",
+      "bmsMaster.amp",
+      "bms.amp",
+      "amp",
+      "current",
+    ];
+
+    for (const key of candidateKeys) {
+      const parsedNumber = this.parseNumericCandidate(quotaData[key]);
+      if (parsedNumber !== null) {
+        return Math.abs(parsedNumber) > 1000
+          ? Number((parsedNumber / 1000).toFixed(2))
+          : Number(parsedNumber.toFixed(2));
+      }
+    }
+
+    const nestedContainers = ["bms_bmsStatus", "bmsMaster", "bms", "ems", "bms_emsStatus"];
+    for (const container of nestedContainers) {
+      const nestedObj = quotaData[container];
+      if (typeof nestedObj === "object" && nestedObj !== null) {
+        const nestedRec = nestedObj as Record<string, unknown>;
+        const raw = this.parseNumericCandidate(nestedRec["amp"] ?? nestedRec["current"]);
+        if (raw !== null) {
+          return Math.abs(raw) > 1000 ? Number((raw / 1000).toFixed(2)) : Number(raw.toFixed(2));
         }
       }
     }

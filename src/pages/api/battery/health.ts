@@ -2,6 +2,10 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../../infrastructure/database/prismaClient";
 import { extractUserFromRequest } from "../../../infrastructure/auth/sessionHelper";
 import { EcoFlowMqttStreamService } from "../../../infrastructure/services/EcoFlowMqttStreamService";
+import { ConfigurationRepository } from "../../../infrastructure/repositories/ConfigurationRepository";
+import { EcoFlowHttpClient } from "../../../infrastructure/http/EcoFlowHttpClient";
+import { EcoFlowCredentials } from "../../../domain/models/EcoFlowCredentials";
+import { DeviceSerialNumber } from "../../../domain/values/DeviceSerialNumber";
 import {
   BatteryHealthService,
   BatteryHealthMetrics,
@@ -80,26 +84,87 @@ export default async function handleBatteryHealth(
     const streamService = EcoFlowMqttStreamService.getInstance();
     const liveTelemetry = streamService.getLatestTelemetry(extractedUserId, 300_000);
 
-    const temp =
+    let temp =
       liveTelemetry?.batteryTempCelsius ??
       latestLog?.batteryTempCelsius ??
       configuration.lastBatteryTempCelsius ??
       null;
 
-    const cycles =
+    let cycles =
       liveTelemetry?.batteryCycles ??
       latestLog?.batteryCycles ??
       configuration.lastBatteryCycles ??
       null;
 
-    const soh =
+    let soh =
       liveTelemetry?.batterySoh ??
       latestLog?.batterySoh ??
       configuration.lastBatterySoh ??
       null;
 
-    const volts = liveTelemetry?.batteryVolts ?? null;
-    const amps = liveTelemetry?.batteryAmps ?? null;
+    let volts = liveTelemetry?.batteryVolts ?? null;
+    let amps = liveTelemetry?.batteryAmps ?? null;
+
+    if (temp === null && cycles === null && soh === null) {
+      try {
+        const configRepo = new ConfigurationRepository(prisma);
+        const activeConfig = await configRepo.findActiveConfigurationByUserId(extractedUserId);
+        if (activeConfig) {
+          let ecoflowCreds: EcoFlowCredentials | undefined;
+          activeConfig.configuration.provideCredentialsBundle((bundle) => {
+            bundle.provideEcoFlowCredentials((creds) => {
+              ecoflowCreds = creds;
+            });
+          });
+
+          let targetDevice: DeviceSerialNumber | undefined;
+          activeConfig.configuration.provideAutomationProfile((profile) => {
+            profile.provideDevicePair((devices) => {
+              devices.provideEcoFlowSerialNumber((serial) => {
+                targetDevice = new DeviceSerialNumber(serial);
+              });
+            });
+          });
+
+          if (ecoflowCreds && targetDevice) {
+            const endpoint = activeConfig.ecoflowEndpointRegion || "https://api.ecoflow.com";
+            const client = new EcoFlowHttpClient(ecoflowCreds, endpoint);
+            const telemetry = await client.fetchDeviceTelemetry(targetDevice);
+
+            if (telemetry.batteryTempCelsius !== null && telemetry.batteryTempCelsius !== undefined) {
+              temp = telemetry.batteryTempCelsius;
+            }
+            if (telemetry.batterySoh !== null && telemetry.batterySoh !== undefined) {
+              soh = telemetry.batterySoh;
+            }
+            if (telemetry.batteryCycles !== null && telemetry.batteryCycles !== undefined) {
+              cycles = telemetry.batteryCycles;
+            }
+            if (telemetry.batteryVoltageVolts !== null && telemetry.batteryVoltageVolts !== undefined) {
+              volts = telemetry.batteryVoltageVolts;
+            }
+            if (telemetry.batteryAmperageAmps !== null && telemetry.batteryAmperageAmps !== undefined) {
+              amps = telemetry.batteryAmperageAmps;
+            }
+
+            if (temp !== null || soh !== null || cycles !== null) {
+              configRepo
+                .updateBmsTelemetry(configuration.id, {
+                  tempCelsius: temp,
+                  soh,
+                  cycles,
+                })
+                .catch((saveErr) => {
+                  console.warn("[BatteryHealth API] Falha ao persistir leitura ativa de BMS:", saveErr);
+                });
+            }
+          }
+        }
+      } catch (activeReadErr) {
+        console.warn("[BatteryHealth API] Leitura ativa de inicialização BMS falhou:", activeReadErr);
+      }
+    }
+
     const watts =
       volts !== null && amps !== null ? Number((volts * amps).toFixed(1)) : null;
 

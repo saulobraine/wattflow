@@ -215,6 +215,15 @@ export class OrchestratorSyncUseCase {
         if (telemetry.deviceMinDsgSoc !== undefined && telemetry.deviceMinDsgSoc !== null) {
           deviceMinDsgSoc = telemetry.deviceMinDsgSoc;
         }
+        if (telemetry.batteryTempCelsius !== undefined && telemetry.batteryTempCelsius !== null) {
+          batteryTempCelsius = telemetry.batteryTempCelsius;
+        }
+        if (telemetry.batterySoh !== undefined && telemetry.batterySoh !== null) {
+          batterySoh = telemetry.batterySoh;
+        }
+        if (telemetry.batteryCycles !== undefined && telemetry.batteryCycles !== null) {
+          batteryCycles = telemetry.batteryCycles;
+        }
 
         batteryLevel.transferBatteryPercentage((percentageNumber: number) => {
           numericBattery = percentageNumber;
@@ -854,6 +863,17 @@ export class OrchestratorSyncUseCase {
         batterySoh,
         batteryCycles
       );
+      if (typeof this.repository.updateBmsTelemetry === "function") {
+        try {
+          await this.repository.updateBmsTelemetry(databaseRecordId, {
+            tempCelsius: batteryTempCelsius,
+            soh: batterySoh,
+            cycles: batteryCycles,
+          });
+        } catch (bmsUpdateErr) {
+          console.warn("[OrchestratorSyncUseCase] Falha ao atualizar dados BMS no repositório:", bmsUpdateErr);
+        }
+      }
     } else {
       await this.repository.recordExecutionLog(
         databaseRecordId,
