@@ -16,6 +16,8 @@ export interface EcoFlowTelemetryResult {
   solarWatts: SolarGenerationWatts;
   outputWatts: number;
   isAcOutputEnabled: boolean | null;
+  deviceMaxChargeSoc?: number | null;
+  deviceMinDsgSoc?: number | null;
 }
 
 export interface EcoFlowMqttCertification {
@@ -360,12 +362,16 @@ export class EcoFlowHttpClient {
     const extractedSolarWatts = this.extractSolarWattsFromQuota(quotaData);
     const extractedOutputWatts = this.extractOutputWattsFromQuota(quotaData);
     const extractedAcState = this.extractAcStateFromQuota(quotaData);
+    const extractedMaxChargeSoc = this.extractMaxChargeSocFromQuota(quotaData);
+    const extractedMinDsgSoc = this.extractMinDsgSocFromQuota(quotaData);
 
     return {
       batteryLevel: new BatteryLevel(extractedPercentage),
       solarWatts: new SolarGenerationWatts(extractedSolarWatts),
       outputWatts: extractedOutputWatts,
       isAcOutputEnabled: extractedAcState,
+      deviceMaxChargeSoc: extractedMaxChargeSoc,
+      deviceMinDsgSoc: extractedMinDsgSoc,
     };
   }
 
@@ -669,6 +675,80 @@ export class EcoFlowHttpClient {
       const isDisabledState = candidateValue === 0 || candidateValue === "0" || candidateValue === false;
       if (isDisabledState) {
         return false;
+      }
+    }
+
+    return null;
+  }
+
+  public extractMaxChargeSocFromQuota(quotaData: Record<string, unknown>): number | null {
+    const candidateKeys = [
+      "bms_emsStatus.maxChargeSoc",
+      "ems.maxChargeSoc",
+      "bmsMaster.maxChargeSoc",
+      "pd.maxChgSoc",
+      "maxChargeSoc",
+      "maxChgSoc",
+      "bms_bmsStatus.maxChargeSoc",
+    ];
+
+    for (const key of candidateKeys) {
+      const candidateValue = quotaData[key];
+      const parsedNumber = this.parseNumericCandidate(candidateValue);
+      const isValid = parsedNumber !== null && parsedNumber > 0 && parsedNumber <= 100;
+      if (isValid) {
+        return Math.round(parsedNumber);
+      }
+    }
+
+    const nestedContainers = ["bmsMaster", "bms", "ems", "bms_emsStatus", "pd", "bms_bmsStatus"];
+    for (const container of nestedContainers) {
+      const nestedObj = quotaData[container];
+      if (typeof nestedObj === "object" && nestedObj !== null) {
+        const nestedRec = nestedObj as Record<string, unknown>;
+        const raw = this.parseNumericCandidate(
+          nestedRec["maxChargeSoc"] ?? nestedRec["maxChgSoc"]
+        );
+        if (raw !== null && raw > 0 && raw <= 100) {
+          return Math.round(raw);
+        }
+      }
+    }
+
+    return null;
+  }
+
+  public extractMinDsgSocFromQuota(quotaData: Record<string, unknown>): number | null {
+    const candidateKeys = [
+      "bms_emsStatus.minDsgSoc",
+      "ems.minDsgSoc",
+      "bmsMaster.minDsgSoc",
+      "pd.minDsgSoc",
+      "minDsgSoc",
+      "minDischgSoc",
+      "bms_bmsStatus.minDsgSoc",
+    ];
+
+    for (const key of candidateKeys) {
+      const candidateValue = quotaData[key];
+      const parsedNumber = this.parseNumericCandidate(candidateValue);
+      const isValid = parsedNumber !== null && parsedNumber >= 0 && parsedNumber <= 100;
+      if (isValid) {
+        return Math.round(parsedNumber);
+      }
+    }
+
+    const nestedContainers = ["bmsMaster", "bms", "ems", "bms_emsStatus", "pd", "bms_bmsStatus"];
+    for (const container of nestedContainers) {
+      const nestedObj = quotaData[container];
+      if (typeof nestedObj === "object" && nestedObj !== null) {
+        const nestedRec = nestedObj as Record<string, unknown>;
+        const raw = this.parseNumericCandidate(
+          nestedRec["minDsgSoc"] ?? nestedRec["minDischgSoc"]
+        );
+        if (raw !== null && raw >= 0 && raw <= 100) {
+          return Math.round(raw);
+        }
       }
     }
 

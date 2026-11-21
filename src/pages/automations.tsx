@@ -1,5 +1,6 @@
 import React, { useEffect, useState, FormEvent } from "react";
 import { Layout } from "../components/Layout";
+import { useLiveTelemetry } from "../hooks/useLiveTelemetry";
 import {
   Sliders,
   Zap,
@@ -23,10 +24,26 @@ import {
 } from "lucide-react";
 
 export default function AutomationsPage() {
+  const { telemetry: liveTelemetry } = useLiveTelemetry();
+
   // Limites Padrão da ATS (Histerese)
   const [turnOnThreshold, setTurnOnThreshold] = useState(90);
   const [turnOffThreshold, setTurnOffThreshold] = useState(30);
   const [isAutomationActive, setIsAutomationActive] = useState(true);
+
+  // Limites Nativos Detectados da EcoFlow
+  const [deviceMaxChargeSoc, setDeviceMaxChargeSoc] = useState<number | null>(null);
+  const [deviceMinDsgSoc, setDeviceMinDsgSoc] = useState<number | null>(null);
+
+  // Sincroniza em tempo real com telemetria MQTT se disponível
+  useEffect(() => {
+    if (liveTelemetry?.deviceMaxChargeSoc !== undefined && liveTelemetry?.deviceMaxChargeSoc !== null) {
+      setDeviceMaxChargeSoc(liveTelemetry.deviceMaxChargeSoc);
+    }
+    if (liveTelemetry?.deviceMinDsgSoc !== undefined && liveTelemetry?.deviceMinDsgSoc !== null) {
+      setDeviceMinDsgSoc(liveTelemetry.deviceMinDsgSoc);
+    }
+  }, [liveTelemetry?.deviceMaxChargeSoc, liveTelemetry?.deviceMinDsgSoc]);
 
   // Estados de Otimização Climática de Níveis de Energia (Previsão Solar / Histerese Adaptativa)
   const [isAdaptiveHysteresisActive, setIsAdaptiveHysteresisActive] = useState(false);
@@ -94,6 +111,12 @@ export default function AutomationsPage() {
           setTurnOnThreshold(autoJson.data.turnOnThreshold ?? 90);
           setTurnOffThreshold(autoJson.data.turnOffThreshold ?? 30);
           setIsAutomationActive(autoJson.data.isAutomationActive ?? true);
+          if (autoJson.data.deviceMaxChargeSoc !== undefined && autoJson.data.deviceMaxChargeSoc !== null) {
+            setDeviceMaxChargeSoc(autoJson.data.deviceMaxChargeSoc);
+          }
+          if (autoJson.data.deviceMinDsgSoc !== undefined && autoJson.data.deviceMinDsgSoc !== null) {
+            setDeviceMinDsgSoc(autoJson.data.deviceMinDsgSoc);
+          }
         }
 
         if (weatherRes && weatherRes.ok) {
@@ -415,6 +438,96 @@ export default function AutomationsPage() {
         </section>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Card: Limites Operacionais Nativos da EcoFlow */}
+          <div className="animate-card stagger-1 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  <BatteryCharging className="w-5 h-5" aria-hidden="true" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-bold text-slate-100">
+                      Limites Operacionais Nativos da EcoFlow
+                    </h2>
+                    {deviceMaxChargeSoc !== null || deviceMinDsgSoc !== null ? (
+                      <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                        Sincronização Nativa Ativa
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full font-bold bg-slate-800 text-slate-400 border border-slate-700">
+                        Aguardando Telemetria
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Sincronização em tempo real com os limites configurados no aplicativo oficial da EcoFlow
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (deviceMaxChargeSoc !== null && deviceMaxChargeSoc > 0) {
+                      setTurnOnThreshold(deviceMaxChargeSoc);
+                    }
+                    if (deviceMinDsgSoc !== null && deviceMinDsgSoc > 0) {
+                      setTurnOffThreshold(deviceMinDsgSoc);
+                    }
+                  }}
+                  disabled={deviceMaxChargeSoc === null && deviceMinDsgSoc === null}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  Aplicar Limites do App Agora
+                </button>
+              </div>
+            </div>
+
+            {/* Grid dos Limites Nativos Detectados */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-emerald-400" />
+                    Teto de Carga (App EcoFlow)
+                  </span>
+                  <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                    {deviceMaxChargeSoc !== null ? `${deviceMaxChargeSoc}%` : "Não informado (Padrão 100%)"}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  {deviceMaxChargeSoc !== null
+                    ? `A ATS religará as cargas solares assim que a bateria atingir ${deviceMaxChargeSoc}%, respeitando exatamente o teto definido no aplicativo oficial e evitando sobrecarga desnecessária.`
+                    : "Configure o limite de carga no app EcoFlow para sincronização automática."}
+                </p>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                    <Power className="w-3.5 h-3.5 text-rose-400" />
+                    Piso de Descarga (App EcoFlow)
+                  </span>
+                  <span className="text-xs font-mono font-bold text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded border border-sky-500/20">
+                    {deviceMinDsgSoc !== null ? `${deviceMinDsgSoc}%` : "Não informado (Padrão 0%)"}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  {deviceMinDsgSoc !== null
+                    ? `Nível mínimo de proteção de descarga configurado na estação: ${deviceMinDsgSoc}%. A ATS nunca permitirá corte abaixo deste patamar.`
+                    : "Piso de segurança do BMS para preservação da vida útil das células."}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-slate-950/40 border border-slate-800/60 text-xs text-slate-400">
+              💡 <strong>Sincronização Nativa Ativa:</strong> O WattFlow adota sincronização nativa por padrão: mesmo se o limiar manual for superior (ex: 90%), a ATS comutará assim que o teto configurado no app ({deviceMaxChargeSoc ?? "80"}%) for atingido, evitando sobrecarga ou desperdício de energia.
+            </div>
+          </div>
+
           {/* Card 1: Limites de Carga e Corte */}
           <div className="animate-card stagger-2 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">

@@ -25,6 +25,8 @@ export interface LiveTelemetrySnapshot {
   batteryCycles?: number | null;
   batteryVolts?: number | null;
   batteryAmps?: number | null;
+  deviceMaxChargeSoc?: number | null;
+  deviceMinDsgSoc?: number | null;
 }
 
 export type TelemetryListener = (snapshot: LiveTelemetrySnapshot) => void;
@@ -531,6 +533,8 @@ export class EcoFlowMqttStreamService {
         batteryTempCelsius: currentSnapshot.batteryTempCelsius,
         batterySoh: currentSnapshot.batterySoh,
         batteryCycles: currentSnapshot.batteryCycles,
+        deviceMaxChargeSoc: currentSnapshot.deviceMaxChargeSoc,
+        deviceMinDsgSoc: currentSnapshot.deviceMinDsgSoc,
       });
 
       userState.lastEvaluationTimeMs = Date.now();
@@ -587,6 +591,8 @@ export class EcoFlowMqttStreamService {
     const extractedCycles = this.extractBatteryCycles(quotaData, parsedJson);
     const extractedVolts = this.extractBatteryVolts(quotaData, parsedJson);
     const extractedAmps = this.extractBatteryAmps(quotaData, parsedJson);
+    const extractedMaxChargeSoc = this.extractMaxChargeSoc(quotaData, parsedJson);
+    const extractedMinDsgSoc = this.extractMinDsgSoc(quotaData, parsedJson);
 
     const previousSnapshot = userState.latestTelemetry;
 
@@ -625,6 +631,10 @@ export class EcoFlowMqttStreamService {
       extractedVolts !== null ? extractedVolts : (previousSnapshot?.batteryVolts ?? null);
     const resolvedAmps =
       extractedAmps !== null ? extractedAmps : (previousSnapshot?.batteryAmps ?? null);
+    const resolvedMaxChargeSoc =
+      extractedMaxChargeSoc !== null ? extractedMaxChargeSoc : (previousSnapshot?.deviceMaxChargeSoc ?? null);
+    const resolvedMinDsgSoc =
+      extractedMinDsgSoc !== null ? extractedMinDsgSoc : (previousSnapshot?.deviceMinDsgSoc ?? null);
 
     userState.latestTelemetry = {
       batteryPercentage: resolvedBattery,
@@ -637,6 +647,8 @@ export class EcoFlowMqttStreamService {
       batteryCycles: resolvedCycles,
       batteryVolts: resolvedVolts,
       batteryAmps: resolvedAmps,
+      deviceMaxChargeSoc: resolvedMaxChargeSoc,
+      deviceMinDsgSoc: resolvedMinDsgSoc,
     };
   }
 
@@ -1241,6 +1253,78 @@ export class EcoFlowMqttStreamService {
         const raw = this.parseNumericCandidate(nestedRec["amp"] ?? nestedRec["current"]);
         if (raw !== null) {
           return Math.abs(raw) > 1000 ? Number((raw / 1000).toFixed(2)) : Number(raw.toFixed(2));
+        }
+      }
+    }
+
+    return null;
+  }
+
+  public extractMaxChargeSoc(
+    quotaData: Record<string, unknown>,
+    parsedJson?: Record<string, unknown>
+  ): number | null {
+    const candidateKeys = [
+      "bms_emsStatus.maxChargeSoc",
+      "ems.maxChargeSoc",
+      "bmsMaster.maxChargeSoc",
+      "pd.maxChgSoc",
+      "maxChargeSoc",
+      "maxChgSoc",
+      "bms_bmsStatus.maxChargeSoc",
+    ];
+
+    const flatVal = this.extractNumericCandidateFromKeys(quotaData, candidateKeys);
+    if (flatVal !== null && flatVal > 0 && flatVal <= 100) {
+      return Math.round(flatVal);
+    }
+
+    const nestedContainers = ["bmsMaster", "bms", "ems", "bms_emsStatus", "pd", "bms_bmsStatus"];
+    for (const container of nestedContainers) {
+      const nestedObj = quotaData[container];
+      if (typeof nestedObj === "object" && nestedObj !== null) {
+        const nestedRec = nestedObj as Record<string, unknown>;
+        const raw = this.parseNumericCandidate(
+          nestedRec["maxChargeSoc"] ?? nestedRec["maxChgSoc"]
+        );
+        if (raw !== null && raw > 0 && raw <= 100) {
+          return Math.round(raw);
+        }
+      }
+    }
+
+    return null;
+  }
+
+  public extractMinDsgSoc(
+    quotaData: Record<string, unknown>,
+    parsedJson?: Record<string, unknown>
+  ): number | null {
+    const candidateKeys = [
+      "bms_emsStatus.minDsgSoc",
+      "ems.minDsgSoc",
+      "bmsMaster.minDsgSoc",
+      "pd.minDsgSoc",
+      "minDsgSoc",
+      "minDischgSoc",
+      "bms_bmsStatus.minDsgSoc",
+    ];
+
+    const flatVal = this.extractNumericCandidateFromKeys(quotaData, candidateKeys);
+    if (flatVal !== null && flatVal >= 0 && flatVal <= 100) {
+      return Math.round(flatVal);
+    }
+
+    const nestedContainers = ["bmsMaster", "bms", "ems", "bms_emsStatus", "pd", "bms_bmsStatus"];
+    for (const container of nestedContainers) {
+      const nestedObj = quotaData[container];
+      if (typeof nestedObj === "object" && nestedObj !== null) {
+        const nestedRec = nestedObj as Record<string, unknown>;
+        const raw = this.parseNumericCandidate(
+          nestedRec["minDsgSoc"] ?? nestedRec["minDischgSoc"]
+        );
+        if (raw !== null && raw >= 0 && raw <= 100) {
+          return Math.round(raw);
         }
       }
     }
