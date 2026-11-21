@@ -14,7 +14,7 @@ import { OrchestratorSyncUseCase } from "../../application/OrchestratorSyncUseCa
 import { ConfigurationRepository } from "../repositories/ConfigurationRepository";
 
 export interface LiveTelemetrySnapshot {
-  batteryPercentage: number;
+  batteryPercentage: number | null;
   solarInputWatts: number;
   outputWatts: number;
   isAcOutputEnabled: boolean | null;
@@ -453,7 +453,16 @@ export class EcoFlowMqttStreamService {
     userState: UserMqttStreamState,
     streamConfig: MqttStreamConfig
   ): Promise<void> {
-    if (!userState.latestTelemetry || !streamConfig.databaseClient) {
+    const currentSnapshot = userState.latestTelemetry;
+    if (!currentSnapshot || !streamConfig.databaseClient) {
+      return;
+    }
+
+    // Guarda mandatória: nunca comutar ATS sem leitura válida de bateria
+    if (
+      currentSnapshot.batteryPercentage === null ||
+      currentSnapshot.batteryPercentage === undefined
+    ) {
       return;
     }
 
@@ -468,7 +477,6 @@ export class EcoFlowMqttStreamService {
       return;
     }
 
-    const currentSnapshot = userState.latestTelemetry;
     const currentSoc = currentSnapshot.batteryPercentage;
     const currentAcState = currentSnapshot.isAcOutputEnabled;
     const now = Date.now();
@@ -565,8 +573,25 @@ export class EcoFlowMqttStreamService {
 
     const previousSnapshot = userState.latestTelemetry;
 
-    const resolvedBattery =
-      extractedBattery !== null ? extractedBattery : (previousSnapshot?.batteryPercentage ?? 0);
+    let resolvedBattery: number | null;
+    if (extractedBattery !== null) {
+      const prevBattery = previousSnapshot?.batteryPercentage;
+      if (
+        extractedBattery === 0 &&
+        prevBattery !== null &&
+        prevBattery !== undefined &&
+        prevBattery > 15
+      ) {
+        console.warn(
+          `[EcoFlow MQTT] Dropout transitório de bateria detectado (0% recebido, anterior ${prevBattery}%). Rejeitando ruído e preservando leitura real.`
+        );
+        resolvedBattery = prevBattery;
+      } else {
+        resolvedBattery = extractedBattery;
+      }
+    } else {
+      resolvedBattery = previousSnapshot?.batteryPercentage ?? null;
+    }
     const resolvedSolar =
       extractedSolarWatts !== null ? extractedSolarWatts : (previousSnapshot?.solarInputWatts ?? 0);
     const resolvedOutput =
@@ -607,9 +632,21 @@ export class EcoFlowMqttStreamService {
       return;
     }
 
+    const currentSnapshot = userState.latestTelemetry;
+
+    // Não persistir telemetria periódica se batteryPercentage for nulo ou dropout inválido
+    if (
+      currentSnapshot.batteryPercentage === null ||
+      currentSnapshot.batteryPercentage === undefined ||
+      (currentSnapshot.batteryPercentage <= 0 &&
+        userState.lastEvaluatedSoc !== null &&
+        userState.lastEvaluatedSoc > 15)
+    ) {
+      return;
+    }
+
     const now = Date.now();
     const elapsedSinceLastPersist = now - userState.lastPersistTimeMs;
-    const currentSnapshot = userState.latestTelemetry;
 
     const hasAcStateChanged =
       userState.lastPersistedAcState !== null &&
