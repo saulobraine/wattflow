@@ -30,7 +30,7 @@ export interface SyncExecutionResult {
 }
 
 export interface ProvidedTelemetry {
-  batteryPercentage: number;
+  batteryPercentage: number | null;
   solarWatts: number;
   outputWatts: number;
   isAcOutputEnabled: boolean | null;
@@ -141,7 +141,21 @@ export class OrchestratorSyncUseCase {
       let batteryCycles: number | null = configurationRecord.lastBatteryCycles;
 
       if (providedTelemetry) {
-        numericBattery = providedTelemetry.batteryPercentage;
+        let candidateBattery = providedTelemetry.batteryPercentage;
+        const recordedBattery = configurationRecord.lastBatteryPercentage;
+
+        if (
+          (candidateBattery === null || candidateBattery === undefined || candidateBattery <= 0) &&
+          typeof recordedBattery === "number" &&
+          recordedBattery > 15
+        ) {
+          console.warn(
+            `[OrchestratorSyncUseCase] Dropout detectado na telemetria (SOC=${candidateBattery}%, anterior=${recordedBattery}%). Preservando leitura anterior para evitar corte indevido da ATS.`
+          );
+          candidateBattery = recordedBattery;
+        }
+
+        numericBattery = candidateBattery ?? 0;
         numericSolarWatts = providedTelemetry.solarWatts;
         outputWatts = providedTelemetry.outputWatts;
         isAcOutputEnabled = providedTelemetry.isAcOutputEnabled;

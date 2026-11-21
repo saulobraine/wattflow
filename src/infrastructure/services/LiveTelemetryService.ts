@@ -77,6 +77,13 @@ export class LiveTelemetryService {
         return null;
       }
 
+      if (
+        memoryTelemetry.batteryPercentage === null ||
+        memoryTelemetry.batteryPercentage === undefined
+      ) {
+        return null;
+      }
+
       const userState = getOrCreateUserSyncState(normalizedUserId);
       const pendingSync = userState.inFlightSync;
       if (pendingSync) {

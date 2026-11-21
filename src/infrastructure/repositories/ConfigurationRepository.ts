@@ -51,6 +51,7 @@ export interface RetrievedConfigurationRecord {
   lastBatterySoh: number | null;
   lastBatteryCycles: number | null;
   maxRecordedBatteryTemp: number | null;
+  lastBatteryPercentage?: number | null;
   isDynamicTariffActive: boolean;
   peakTariffPerKwh: number;
   intermediateTariffPerKwh: number;
@@ -317,6 +318,27 @@ export class ConfigurationRepository {
     const automationProfile = new AutomationProfile(devicePair, thresholdPair);
     const configuration = new OrchestratorConfiguration(credentialsBundle, automationProfile);
 
+    let lastBatteryPercentage: number | null = null;
+    if (this.databaseClient?.syncExecutionLog?.findFirst) {
+      try {
+        const latestLog = await this.databaseClient.syncExecutionLog.findFirst({
+          where: { userConfigurationId: rawRecord.id },
+          orderBy: { executedAt: "desc" },
+          select: { batteryPercentage: true },
+        });
+        if (latestLog && typeof latestLog.batteryPercentage === "number") {
+          lastBatteryPercentage = latestLog.batteryPercentage;
+        }
+      } catch {
+        // Fallback silencioso caso findFirst não esteja disponível no mock
+      }
+    }
+
+    const candidateLastBattery =
+      lastBatteryPercentage ??
+      ((rawRecord as unknown as Record<string, unknown>)["lastBatteryPercentage"] as number | null) ??
+      null;
+
     return {
       databaseRecordId: rawRecord.id,
       ecoflowEndpointRegion: rawRecord.ecoflowEndpointRegion,
@@ -361,6 +383,7 @@ export class ConfigurationRepository {
       lastBatterySoh: rawRecord.lastBatterySoh ?? null,
       lastBatteryCycles: rawRecord.lastBatteryCycles ?? null,
       maxRecordedBatteryTemp: rawRecord.maxRecordedBatteryTemp ?? null,
+      lastBatteryPercentage: candidateLastBattery,
       isDynamicTariffActive: rawRecord.isDynamicTariffActive ?? false,
       peakTariffPerKwh: rawRecord.peakTariffPerKwh ?? 1.85,
       intermediateTariffPerKwh: rawRecord.intermediateTariffPerKwh ?? 1.15,
