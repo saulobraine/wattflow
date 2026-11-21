@@ -33,6 +33,19 @@ export interface EcoFlowMqttCertification {
   protocol?: string;
 }
 
+export interface EcoFlowBoundDevice {
+  sn: string;
+  deviceName: string;
+  productName: string;
+  online: number;
+}
+
+export interface EcoFlowBoundDevicesResult {
+  isSuccessful: boolean;
+  devices: EcoFlowBoundDevice[];
+  errorMessage?: string;
+}
+
 interface TelemetryHttpAttempt {
   isSuccessful: boolean;
   quotaData?: Record<string, unknown>;
@@ -191,6 +204,109 @@ export class EcoFlowHttpClient {
       certificatePassword: data.certificatePassword as string,
       protocol: validatedBroker.protocol,
     };
+  }
+
+  /**
+   * Consulta a lista de dispositivos pareados na conta EcoFlow Developer Open API.
+   * Endpoint oficial: GET /iot-open/sign/device/list
+   */
+  public async fetchBoundDevices(): Promise<EcoFlowBoundDevicesResult> {
+    const primaryAttempt = await this.performDeviceListRequest(this.baseApiUrl);
+    if (primaryAttempt.isSuccessful) {
+      return primaryAttempt;
+    }
+
+    const alternateUrl = this.resolveAlternativeEndpoint(this.baseApiUrl);
+    const isAuthOr401 =
+      primaryAttempt.errorMessage?.toLowerCase().includes("accesskey") ||
+      primaryAttempt.errorMessage?.includes("401");
+
+    if (isAuthOr401) {
+      const alternateAttempt = await this.performDeviceListRequest(alternateUrl);
+      if (alternateAttempt.isSuccessful) {
+        return alternateAttempt;
+      }
+    }
+
+    return primaryAttempt;
+  }
+
+  private async performDeviceListRequest(targetBaseUrl: string): Promise<EcoFlowBoundDevicesResult> {
+    const timestampString = Date.now().toString();
+    const nonceString = Math.floor(100000 + Math.random() * 900000).toString();
+    const queryParameters: Record<string, unknown> = {};
+
+    const calculator = new EcoFlowSignatureCalculator();
+    const { signatureDigest, rawAccessKey } = calculator.calculateSignature(
+      this.credentials,
+      queryParameters,
+      nonceString,
+      timestampString
+    );
+
+    let signatureHex = "";
+    signatureDigest.transferDigest((digestString: string) => {
+      signatureHex = digestString;
+    });
+
+    const requestUrl = `${targetBaseUrl}/iot-open/sign/device/list`;
+
+    try {
+      const response = await fetch(requestUrl, {
+        method: "GET",
+        headers: {
+          accessKey: rawAccessKey,
+          nonce: nonceString,
+          timestamp: timestampString,
+          sign: signatureHex,
+        },
+        signal: AbortSignal.timeout(8000),
+      });
+
+      if (!response.ok) {
+        return {
+          isSuccessful: false,
+          devices: [],
+          errorMessage: `[EcoFlow] Falha HTTP ao buscar dispositivos (${response.status}) em ${targetBaseUrl}`,
+        };
+      }
+
+      const json = (await response.json()) as {
+        code: string;
+        message?: string;
+        data?: Array<Record<string, unknown>>;
+      };
+
+      if (json.code !== "0" || !Array.isArray(json.data)) {
+        return {
+          isSuccessful: false,
+          devices: [],
+          errorMessage: `[EcoFlow] Erro ao listar dispositivos: ${json.message ?? json.code}`,
+        };
+      }
+
+      const devices: EcoFlowBoundDevice[] = json.data
+        .map((item) => {
+          const sn = String(item.sn ?? item.deviceSn ?? "");
+          const deviceName = String(item.deviceName ?? item.name ?? sn);
+          const productName = String(item.productName ?? item.deviceType ?? item.model ?? "EcoFlow PowerStation");
+          const online = typeof item.online === "number" ? item.online : item.online ? 1 : 0;
+          return { sn, deviceName, productName, online };
+        })
+        .filter((d) => d.sn.trim().length > 0);
+
+      return {
+        isSuccessful: true,
+        devices,
+      };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Falha de rede ao consultar dispositivos";
+      return {
+        isSuccessful: false,
+        devices: [],
+        errorMessage: `[EcoFlow] ${message}`,
+      };
+    }
   }
 
   /**

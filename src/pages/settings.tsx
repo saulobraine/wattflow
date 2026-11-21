@@ -39,6 +39,8 @@ import {
   AirVent,
   TrendingUp,
   Wallet,
+  Search,
+  Radio,
 } from "lucide-react";
 import type { ApplianceItem } from "./api/appliances";
 
@@ -47,6 +49,24 @@ export default function SettingsPage() {
   const [ecoflowAccessKey, setEcoflowAccessKey] = useState("");
   const [ecoflowAccessSecret, setEcoflowAccessSecret] = useState("");
   const [ecoflowSerialNumber, setEcoflowSerialNumber] = useState("");
+
+  interface DiscoveredDeviceItem {
+    sn: string;
+    deviceName: string;
+    productName: string;
+    online: number;
+  }
+
+  const [isDiscoveringDevices, setIsDiscoveringDevices] = useState(false);
+  const [discoveredDevices, setDiscoveredDevices] = useState<DiscoveredDeviceItem[]>([]);
+  const [activeDetectedBadge, setActiveDetectedBadge] = useState<{
+    productName: string;
+    online: number;
+  } | null>(null);
+  const [discoveryMessage, setDiscoveryMessage] = useState<{
+    isSuccess: boolean;
+    text: string;
+  } | null>(null);
 
   const [telegramBotToken, setTelegramBotToken] = useState("");
   const [telegramChatId, setTelegramChatId] = useState("");
@@ -655,6 +675,68 @@ export default function SettingsPage() {
     }
   };
 
+  const handleDiscoverDevices = async () => {
+    setIsDiscoveringDevices(true);
+    setDiscoveryMessage(null);
+    try {
+      const payload: Record<string, string> = {
+        endpointRegion: ecoflowEndpointRegion,
+      };
+      if (ecoflowAccessKey.trim()) {
+        payload.accessKey = ecoflowAccessKey.trim();
+      }
+      if (ecoflowAccessSecret.trim()) {
+        payload.accessSecret = ecoflowAccessSecret.trim();
+      }
+
+      const response = await fetch("/api/devices/discover", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const json = await response.json();
+      if (!response.ok || !json.success) {
+        throw new Error(json.message || "Falha ao buscar dispositivos EcoFlow.");
+      }
+
+      const devices: DiscoveredDeviceItem[] = json.devices || [];
+      setDiscoveredDevices(devices);
+
+      if (devices.length === 0) {
+        setDiscoveryMessage({
+          isSuccess: false,
+          text: "Nenhum dispositivo encontrado vinculado a esta conta EcoFlow.",
+        });
+        setActiveDetectedBadge(null);
+      } else if (devices.length === 1) {
+        const singleDevice = devices[0];
+        setEcoflowSerialNumber(singleDevice.sn);
+        setActiveDetectedBadge({
+          productName: singleDevice.productName,
+          online: singleDevice.online,
+        });
+        setDiscoveryMessage({
+          isSuccess: true,
+          text: `Estação detectada e pareada: ${singleDevice.productName} (${singleDevice.sn}).`,
+        });
+      } else {
+        setDiscoveryMessage({
+          isSuccess: true,
+          text: `${devices.length} dispositivos encontrados. Selecione qual deseja parear abaixo.`,
+        });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erro ao buscar dispositivos.";
+      setDiscoveryMessage({
+        isSuccess: false,
+        text: msg,
+      });
+    } finally {
+      setIsDiscoveringDevices(false);
+    }
+  };
+
   return (
     <Layout title="Configurações e Credenciais (BYOK)">
       <div className="space-y-8">
@@ -771,21 +853,130 @@ export default function SettingsPage() {
               </div>
 
               <div className="space-y-1.5 md:col-span-2">
-                <label htmlFor="ecoflow-sn-input" className="text-xs font-semibold text-slate-300">
-                  Número de Série da Estação (SN)
-                </label>
-                <input
-                  id="ecoflow-sn-input"
-                  type="text"
-                  required
-                  placeholder="Ex: R331Z..."
-                  value={ecoflowSerialNumber}
-                  onChange={(e) => setEcoflowSerialNumber(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-emerald-500 font-mono transition-colors"
-                />
+                <div className="flex flex-wrap items-center justify-between gap-1 sm:gap-2">
+                  <label htmlFor="ecoflow-sn-input" className="text-xs font-semibold text-slate-300">
+                    Número de Série da Estação (SN)
+                  </label>
+                  {activeDetectedBadge && (
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 animate-pulse">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-400" aria-hidden="true" />
+                      {activeDetectedBadge.productName}
+                      <span
+                        className={`inline-block w-1.5 h-1.5 rounded-full ${
+                          activeDetectedBadge.online ? "bg-emerald-400" : "bg-slate-500"
+                        }`}
+                      />
+                      <span className="text-[10px] text-slate-400">
+                        {activeDetectedBadge.online ? "Online" : "Offline"}
+                      </span>
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    id="ecoflow-sn-input"
+                    type="text"
+                    required
+                    placeholder="Ex: R331Z..."
+                    value={ecoflowSerialNumber}
+                    onChange={(e) => {
+                      setEcoflowSerialNumber(e.target.value);
+                      if (activeDetectedBadge) setActiveDetectedBadge(null);
+                    }}
+                    className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-slate-200 focus:outline-none focus:border-emerald-500 font-mono transition-colors"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleDiscoverDevices}
+                    disabled={isDiscoveringDevices}
+                    aria-label="Buscar estações EcoFlow vinculadas à conta"
+                    className="py-2.5 px-4 min-h-[44px] rounded-xl font-semibold text-xs bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-700 transition-all duration-150 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed shrink-0"
+                  >
+                    {isDiscoveringDevices ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-emerald-400" aria-hidden="true" />
+                    ) : (
+                      <Search className="w-4 h-4 text-emerald-400" aria-hidden="true" />
+                    )}
+                    {isDiscoveringDevices ? "Detectando..." : "Detectar Estação"}
+                  </button>
+                </div>
+
                 <span className="text-[11px] text-slate-400 block">
                   Compatível com River 2, River 2 Max/Pro, Delta 2, Delta 2 Max, Delta Pro.
                 </span>
+
+                {discoveryMessage && (
+                  <div
+                    role="alert"
+                    className={`p-3 rounded-xl border text-xs flex items-center justify-between gap-2 animate-alert mt-2 ${
+                      discoveryMessage.isSuccess
+                        ? "bg-emerald-950/40 border-emerald-800/60 text-emerald-300"
+                        : "bg-rose-950/40 border-rose-800/60 text-rose-300"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      {discoveryMessage.isSuccess ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                      )}
+                      <span>{discoveryMessage.text}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setDiscoveryMessage(null)}
+                      className="text-slate-400 hover:text-slate-200 p-1 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+
+                {discoveredDevices.length > 1 && (
+                  <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2.5 mt-2">
+                    <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                      <Radio className="w-3.5 h-3.5 text-cyan-400" />
+                      Dispositivos Detectados ({discoveredDevices.length}) - Selecione para parear:
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {discoveredDevices.map((dev) => {
+                        const isSelected = ecoflowSerialNumber === dev.sn;
+                        return (
+                          <button
+                            key={dev.sn}
+                            type="button"
+                            onClick={() => {
+                              setEcoflowSerialNumber(dev.sn);
+                              setActiveDetectedBadge({
+                                productName: dev.productName,
+                                online: dev.online,
+                              });
+                            }}
+                            className={`p-2.5 rounded-lg border text-left transition-all flex items-center justify-between gap-2 cursor-pointer ${
+                              isSelected
+                                ? "bg-emerald-950/60 border-emerald-500/70 text-emerald-200 shadow-sm shadow-emerald-950"
+                                : "bg-slate-900 border-slate-800 hover:border-slate-700 text-slate-300"
+                            }`}
+                          >
+                            <div className="min-w-0">
+                              <span className="text-xs font-bold block truncate">{dev.productName}</span>
+                              <span className="text-[11px] font-mono text-slate-400 block truncate">{dev.sn}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <span
+                                className={`inline-block w-2 h-2 rounded-full ${
+                                  dev.online ? "bg-emerald-400" : "bg-slate-500"
+                                }`}
+                              />
+                              <span className="text-[10px] text-slate-400">{dev.online ? "Online" : "Offline"}</span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
