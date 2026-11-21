@@ -32,6 +32,13 @@ export default function AutomationsPage() {
   const [isAdaptiveHysteresisActive, setIsAdaptiveHysteresisActive] = useState(false);
   const [minAdaptiveThreshold, setMinAdaptiveThreshold] = useState(20);
   const [maxAdaptiveThreshold, setMaxAdaptiveThreshold] = useState(50);
+  const [solarProjection, setSolarProjection] = useState<{
+    estimatedDailyGenerationKwh: number | null;
+    peakSunHours: number | null;
+    irradianceKwhM2: number | null;
+    irradianceMj?: number | null;
+    expectationLevel?: string | null;
+  } | null>(null);
 
   // Estados do Modo No-Break Preventivo & Defesa Meteorológica (Auto-Storm)
   const [isAutoStormActive, setIsAutoStormActive] = useState(false);
@@ -76,9 +83,10 @@ export default function AutomationsPage() {
   useEffect(() => {
     async function loadAutomations() {
       try {
-        const [autoRes, settingsRes] = await Promise.all([
+        const [autoRes, settingsRes, weatherRes] = await Promise.all([
           fetch("/api/automations"),
           fetch("/api/settings"),
+          fetch("/api/weather/forecast").catch(() => null),
         ]);
 
         const autoJson = await autoRes.json();
@@ -86,6 +94,19 @@ export default function AutomationsPage() {
           setTurnOnThreshold(autoJson.data.turnOnThreshold ?? 90);
           setTurnOffThreshold(autoJson.data.turnOffThreshold ?? 30);
           setIsAutomationActive(autoJson.data.isAutomationActive ?? true);
+        }
+
+        if (weatherRes && weatherRes.ok) {
+          const weatherJson = await weatherRes.json();
+          if (weatherJson.success && weatherJson.data) {
+            setSolarProjection({
+              estimatedDailyGenerationKwh: weatherJson.data.estimatedDailyGenerationKwh ?? null,
+              peakSunHours: weatherJson.data.peakSunHours ?? null,
+              irradianceKwhM2: weatherJson.data.irradianceKwhM2 ?? null,
+              irradianceMj: weatherJson.data.solarForecast?.irradianceMj ?? null,
+              expectationLevel: weatherJson.data.solarForecast?.expectationLevel ?? null,
+            });
+          }
         }
 
         const settingsJson = await settingsRes.json();
@@ -574,6 +595,40 @@ export default function AutomationsPage() {
                 )}
               </p>
             </div>
+
+            {/* Projeção de Geração Solar do Dia */}
+            {solarProjection && solarProjection.estimatedDailyGenerationKwh !== null && (
+              <div className="p-3.5 sm:p-4 rounded-xl bg-gradient-to-r from-amber-950/30 via-slate-950 to-slate-950 border border-amber-900/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-inner">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 shrink-0">
+                    <Sun className="w-5 h-5" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <div className="text-[11px] text-slate-400 font-mono uppercase tracking-wider">
+                      Previsão de Geração Solar do Dia
+                    </div>
+                    <div className="text-sm font-bold text-slate-100 flex items-baseline gap-2">
+                      <span>Geração Estimada Hoje:</span>
+                      <span className="text-amber-400 font-mono text-base sm:text-lg font-extrabold">
+                        ~{solarProjection.estimatedDailyGenerationKwh.toFixed(1)} kWh
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  {solarProjection.peakSunHours !== null && (
+                    <span
+                      className="inline-flex items-center gap-1.5 text-xs font-mono font-bold px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 shadow-sm"
+                      title="Horas de Sol Pleno (HSP = Irradiação Solar / 3.6 MJ/m²)"
+                    >
+                      <Sun className="w-3.5 h-3.5 text-amber-400" />
+                      {solarProjection.peakSunHours.toFixed(1)} HSP Previstas
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Sliders condicionais */}
             {isAdaptiveHysteresisActive && (

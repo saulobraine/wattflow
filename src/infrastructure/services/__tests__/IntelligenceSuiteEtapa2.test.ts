@@ -368,6 +368,9 @@ describe("Suíte de Inteligência Operacional - Etapa 2 (Backend)", () => {
         isCached: false,
         fetchedAt: new Date(),
         forecastSummary: "Sol pleno",
+        peakSunHours: 5.83,
+        irradianceKwhM2: 5.83,
+        estimatedDailyGenerationKwh: 1.98,
       });
 
       const mockRecordExecutionLog = vi.fn().mockResolvedValue(undefined);

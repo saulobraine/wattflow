@@ -4,6 +4,7 @@ import { extractUserFromRequest } from "../../../infrastructure/auth/sessionHelp
 import {
   OpenMeteoSolarForecastService,
   type WeatherForecastResponseData,
+  type SolarForecastResult,
 } from "../../../infrastructure/services/OpenMeteoSolarForecastService";
 
 interface WeatherForecastResponseBody {
@@ -15,6 +16,10 @@ interface WeatherForecastResponseBody {
     autoStormReserveThreshold: number;
     autoStormRainThresholdMm: number;
     autoStormPrechargeAc: boolean;
+    solarForecast?: SolarForecastResult;
+    peakSunHours?: number | null;
+    irradianceKwhM2?: number | null;
+    estimatedDailyGenerationKwh?: number | null;
   };
 }
 
@@ -93,6 +98,18 @@ export default async function handleWeatherForecast(
       rainThreshold
     );
 
+    let solarForecast: SolarForecastResult | null = null;
+    try {
+      solarForecast = await forecastService.getForecast(
+        configuration.latitude,
+        configuration.longitude,
+        configuration.minAdaptiveThreshold ?? 20,
+        configuration.maxAdaptiveThreshold ?? 50
+      );
+    } catch {
+      // Fallback gracioso caso a chamada solar falhe isoladamente
+    }
+
     response.status(200).json({
       success: true,
       data: {
@@ -102,6 +119,10 @@ export default async function handleWeatherForecast(
         autoStormReserveThreshold: configuration.autoStormReserveThreshold ?? 85,
         autoStormRainThresholdMm: rainThreshold,
         autoStormPrechargeAc: configuration.autoStormPrechargeAc ?? true,
+        solarForecast: solarForecast ?? undefined,
+        peakSunHours: solarForecast?.peakSunHours ?? null,
+        irradianceKwhM2: solarForecast?.irradianceKwhM2 ?? null,
+        estimatedDailyGenerationKwh: solarForecast?.estimatedDailyGenerationKwh ?? null,
       },
     });
   } catch (error: unknown) {
