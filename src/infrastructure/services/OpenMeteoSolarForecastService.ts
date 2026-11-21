@@ -89,6 +89,9 @@ export interface SolarForecastResult {
   isCached: boolean;
   fetchedAt: Date;
   forecastSummary: string;
+  peakSunHours: number;
+  irradianceKwhM2: number;
+  estimatedDailyGenerationKwh: number;
 }
 
 interface CacheEntry {
@@ -180,11 +183,33 @@ export class OpenMeteoSolarForecastService {
     }
   }
 
+  public calculateGenerationMetrics(
+    radiationMj: number,
+    solarCapacityWatts = 400
+  ): {
+    peakSunHours: number;
+    irradianceKwhM2: number;
+    estimatedDailyGenerationKwh: number;
+  } {
+    const peakSunHours = Number((radiationMj / 3.6).toFixed(2));
+    const irradianceKwhM2 = peakSunHours;
+    const capacity = Math.max(0, solarCapacityWatts);
+    const estimatedDailyGenerationKwh = Number(
+      ((capacity / 1000) * peakSunHours * 0.85).toFixed(2)
+    );
+    return {
+      peakSunHours,
+      irradianceKwhM2,
+      estimatedDailyGenerationKwh,
+    };
+  }
+
   public async getForecast(
     latitude: number,
     longitude: number,
     minAdaptiveThreshold = 20,
-    maxAdaptiveThreshold = 50
+    maxAdaptiveThreshold = 50,
+    solarCapacityWatts = 400
   ): Promise<SolarForecastResult> {
     const cacheKey = `${latitude.toFixed(2)}_${longitude.toFixed(2)}`;
     const now = Date.now();
@@ -196,9 +221,16 @@ export class OpenMeteoSolarForecastService {
         minAdaptiveThreshold,
         maxAdaptiveThreshold
       );
+      const metrics = this.calculateGenerationMetrics(
+        cached.result.irradianceMj,
+        solarCapacityWatts
+      );
       return {
         ...cached.result,
         effectiveTurnOffThreshold: adaptiveThreshold,
+        peakSunHours: metrics.peakSunHours,
+        irradianceKwhM2: metrics.irradianceKwhM2,
+        estimatedDailyGenerationKwh: metrics.estimatedDailyGenerationKwh,
         isCached: true,
       };
     }
@@ -251,6 +283,10 @@ export class OpenMeteoSolarForecastService {
         radiationMj,
         effectiveTurnOffThreshold
       );
+      const metrics = this.calculateGenerationMetrics(
+        radiationMj,
+        solarCapacityWatts
+      );
 
       const result: SolarForecastResult = {
         irradianceMj: Number(radiationMj.toFixed(2)),
@@ -262,6 +298,9 @@ export class OpenMeteoSolarForecastService {
         isCached: false,
         fetchedAt: new Date(),
         forecastSummary,
+        peakSunHours: metrics.peakSunHours,
+        irradianceKwhM2: metrics.irradianceKwhM2,
+        estimatedDailyGenerationKwh: metrics.estimatedDailyGenerationKwh,
       };
 
       this.cache.set(cacheKey, {
@@ -284,9 +323,14 @@ export class OpenMeteoSolarForecastService {
       const fallbackThreshold = Math.round(
         minAdaptiveThreshold + (maxAdaptiveThreshold - minAdaptiveThreshold) * 0.5
       );
+      const fallbackRadiationMj = 10.0;
+      const fallbackMetrics = this.calculateGenerationMetrics(
+        fallbackRadiationMj,
+        solarCapacityWatts
+      );
 
       return {
-        irradianceMj: 10.0,
+        irradianceMj: fallbackRadiationMj,
         sunshineDurationSeconds: 14400,
         weatherCode: 3,
         expectationLevel: fallbackLevel,
@@ -295,6 +339,9 @@ export class OpenMeteoSolarForecastService {
         isCached: false,
         fetchedAt: new Date(),
         forecastSummary: `Previsão solar indisponível temporariamente. Aplicando corte de segurança intermediário (${fallbackThreshold}%).`,
+        peakSunHours: fallbackMetrics.peakSunHours,
+        irradianceKwhM2: fallbackMetrics.irradianceKwhM2,
+        estimatedDailyGenerationKwh: fallbackMetrics.estimatedDailyGenerationKwh,
       };
     }
   }

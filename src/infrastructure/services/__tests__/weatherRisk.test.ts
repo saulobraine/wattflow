@@ -478,4 +478,47 @@ describe("Feature 4.5: Automações Meteorológicas & Auto-Storm (Backend)", () 
       expect(settingsPostBodySchema.shape.autoStormRainThresholdMm.safeParse(20.0).success).toBe(true);
     });
   });
+
+  describe("Previsão de Geração Solar Aproximada (HSP e kWh)", () => {
+    it("calcula corretamente Horas de Sol Pleno (HSP) e Geração Estimada com fator de eficiência de 85%", () => {
+      const service = OpenMeteoSolarForecastService.getInstance();
+      // 18 MJ/m² / 3.6 = 5.0 HSP
+      const metrics400w = service.calculateGenerationMetrics(18.0, 400);
+      expect(metrics400w.peakSunHours).toBe(5.0);
+      expect(metrics400w.irradianceKwhM2).toBe(5.0);
+      // (400 / 1000) * 5.0 * 0.85 = 1.70 kWh
+      expect(metrics400w.estimatedDailyGenerationKwh).toBe(1.70);
+
+      // Capacidade de 220W (River 2 Pro): (220 / 1000) * 5.0 * 0.85 = 0.935 -> 0.94 kWh
+      const metrics220w = service.calculateGenerationMetrics(18.0, 220);
+      expect(metrics220w.peakSunHours).toBe(5.0);
+      expect(metrics220w.estimatedDailyGenerationKwh).toBe(0.94);
+    });
+
+    it("getForecast inclui peakSunHours, irradianceKwhM2 e estimatedDailyGenerationKwh no resultado", async () => {
+      const service = OpenMeteoSolarForecastService.getInstance();
+      service.clearCacheForTests();
+
+      const mockResponse = {
+        daily: {
+          shortwave_radiation_sum: [21.6], // 21.6 / 3.6 = 6.0 HSP
+          sunshine_duration: [36000],
+          weathercode: [0],
+          time: ["2026-11-21"],
+        },
+      };
+
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockResponse,
+      });
+
+      const forecast = await service.getForecast(-23.55, -46.63, 20, 50, 400);
+      expect(forecast.peakSunHours).toBe(6.0);
+      expect(forecast.irradianceKwhM2).toBe(6.0);
+      // (400 / 1000) * 6.0 * 0.85 = 2.04 kWh
+      expect(forecast.estimatedDailyGenerationKwh).toBe(2.04);
+      expect(forecast.expectationLevel).toBe("SOLAR_EXCELLENT");
+    });
+  });
 });

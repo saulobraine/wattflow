@@ -19,6 +19,7 @@ import {
   Thermometer,
   Flame,
   BatteryCharging,
+  Sun,
 } from "lucide-react";
 
 export default function AutomationsPage() {
@@ -26,6 +27,18 @@ export default function AutomationsPage() {
   const [turnOnThreshold, setTurnOnThreshold] = useState(90);
   const [turnOffThreshold, setTurnOffThreshold] = useState(30);
   const [isAutomationActive, setIsAutomationActive] = useState(true);
+
+  // Estados de Otimização Climática de Níveis de Energia (Previsão Solar / Histerese Adaptativa)
+  const [isAdaptiveHysteresisActive, setIsAdaptiveHysteresisActive] = useState(false);
+  const [minAdaptiveThreshold, setMinAdaptiveThreshold] = useState(20);
+  const [maxAdaptiveThreshold, setMaxAdaptiveThreshold] = useState(50);
+  const [solarProjection, setSolarProjection] = useState<{
+    estimatedDailyGenerationKwh: number | null;
+    peakSunHours: number | null;
+    irradianceKwhM2: number | null;
+    irradianceMj?: number | null;
+    expectationLevel?: string | null;
+  } | null>(null);
 
   // Estados do Modo No-Break Preventivo & Defesa Meteorológica (Auto-Storm)
   const [isAutoStormActive, setIsAutoStormActive] = useState(false);
@@ -70,9 +83,10 @@ export default function AutomationsPage() {
   useEffect(() => {
     async function loadAutomations() {
       try {
-        const [autoRes, settingsRes] = await Promise.all([
+        const [autoRes, settingsRes, weatherRes] = await Promise.all([
           fetch("/api/automations"),
           fetch("/api/settings"),
+          fetch("/api/weather/forecast").catch(() => null),
         ]);
 
         const autoJson = await autoRes.json();
@@ -80,6 +94,19 @@ export default function AutomationsPage() {
           setTurnOnThreshold(autoJson.data.turnOnThreshold ?? 90);
           setTurnOffThreshold(autoJson.data.turnOffThreshold ?? 30);
           setIsAutomationActive(autoJson.data.isAutomationActive ?? true);
+        }
+
+        if (weatherRes && weatherRes.ok) {
+          const weatherJson = await weatherRes.json();
+          if (weatherJson.success && weatherJson.data) {
+            setSolarProjection({
+              estimatedDailyGenerationKwh: weatherJson.data.estimatedDailyGenerationKwh ?? null,
+              peakSunHours: weatherJson.data.peakSunHours ?? null,
+              irradianceKwhM2: weatherJson.data.irradianceKwhM2 ?? null,
+              irradianceMj: weatherJson.data.solarForecast?.irradianceMj ?? null,
+              expectationLevel: weatherJson.data.solarForecast?.expectationLevel ?? null,
+            });
+          }
         }
 
         const settingsJson = await settingsRes.json();
@@ -119,6 +146,11 @@ export default function AutomationsPage() {
           setIsThermalCutoffActive(s.isThermalCutoffActive ?? false);
           setLastThermalActionMessage(s.lastThermalActionMessage ?? null);
           setLastThermalEventAt(s.lastThermalEventAt ?? null);
+
+          // Otimização Climática de Níveis de Energia (Previsão Solar)
+          setIsAdaptiveHysteresisActive(s.isAdaptiveHysteresisActive ?? false);
+          setMinAdaptiveThreshold(s.minAdaptiveThreshold ?? 20);
+          setMaxAdaptiveThreshold(s.maxAdaptiveThreshold ?? 50);
         }
       } catch (err) {
         console.error("Erro ao carregar automações:", err);
@@ -145,6 +177,22 @@ export default function AutomationsPage() {
     setTurnOffThreshold(clampedLower);
   };
 
+  const handleMinAdaptiveChange = (newValue: number) => {
+    const clamped = Math.max(10, Math.min(50, newValue));
+    if (clamped >= maxAdaptiveThreshold) {
+      setMaxAdaptiveThreshold(clamped + 5);
+    }
+    setMinAdaptiveThreshold(clamped);
+  };
+
+  const handleMaxAdaptiveChange = (newValue: number) => {
+    const clamped = Math.max(20, Math.min(70, newValue));
+    if (clamped <= minAdaptiveThreshold) {
+      setMinAdaptiveThreshold(clamped - 5);
+    }
+    setMaxAdaptiveThreshold(clamped);
+  };
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setIsSaving(true);
@@ -155,6 +203,16 @@ export default function AutomationsPage() {
       setFeedback({
         type: "error",
         message: "O limite mínimo de bateria deve ser pelo menos 1% menor que o limite máximo.",
+      });
+      setIsSaving(false);
+      return;
+    }
+
+    // Validação Otimização Climática
+    if (isAdaptiveHysteresisActive && minAdaptiveThreshold >= maxAdaptiveThreshold) {
+      setFeedback({
+        type: "error",
+        message: "O limite adaptativo em dia ensolarado deve ser menor que o limite em dia nublado.",
       });
       setIsSaving(false);
       return;
@@ -268,6 +326,10 @@ export default function AutomationsPage() {
           autoStormReserveThreshold,
           autoStormRainThresholdMm,
           autoStormPrechargeAc,
+          // Otimização Climática (Previsão Solar)
+          isAdaptiveHysteresisActive,
+          minAdaptiveThreshold,
+          maxAdaptiveThreshold,
           // Time-of-Use
           isTimeOfUseActive,
           isDynamicTariffActive: isTimeOfUseActive,
@@ -470,6 +532,160 @@ export default function AutomationsPage() {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Card: Otimização Climática de Níveis de Energia (Previsão Solar) */}
+          <div className="animate-card stagger-2 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                  <Sun className="w-5 h-5" aria-hidden="true" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-bold text-slate-100">
+                      Otimização Climática de Níveis de Energia (Previsão Solar)
+                    </h2>
+                    {isAdaptiveHysteresisActive ? (
+                      <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                        Otimização Solar Ativa
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full font-bold bg-slate-800 text-slate-300 border border-slate-700">
+                        Níveis 100% Estáticos
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    Ajuste dinâmico inteligente da profundidade de descarga com base na irradiação solar esperada
+                  </p>
+                </div>
+              </div>
+
+              <label htmlFor="adaptive-hysteresis-checkbox" className="flex items-center gap-3 cursor-pointer group self-start sm:self-auto min-h-[44px]">
+                <div className="flex flex-col items-start sm:items-end">
+                  <span className="text-xs font-semibold text-slate-200 group-hover:text-amber-300 transition-colors">
+                    Ajustar níveis automaticamente pela previsão do tempo
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-medium">
+                    {isAdaptiveHysteresisActive ? "Adaptação dinâmica ligada" : "Desativado (opera estático)"}
+                  </span>
+                </div>
+                <input
+                  id="adaptive-hysteresis-checkbox"
+                  type="checkbox"
+                  checked={isAdaptiveHysteresisActive}
+                  onChange={(e) => setIsAdaptiveHysteresisActive(e.target.checked)}
+                  className="w-5 h-5 accent-amber-500 rounded cursor-pointer transition-transform active:scale-90"
+                />
+              </label>
+            </div>
+
+            {/* Explicação contextual */}
+            <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300 space-y-2">
+              <p>
+                {isAdaptiveHysteresisActive ? (
+                  <span>
+                    ☀️ <strong>Modo Otimizado Ativo:</strong> O sistema consulta a previsão de irradiação solar diária. Em dias ensolarados, permite descarregar mais a bateria até o limite mínimo ({minAdaptiveThreshold}%), aproveitando a recarga abundante do dia seguinte. Em dias chuvosos ou nublados, preserva mais reserva elevando o corte até ({maxAdaptiveThreshold}%).
+                  </span>
+                ) : (
+                  <span>
+                    🛡️ <strong>Modo 100% Estático Ativo:</strong> A meteorologia está desativada para a histerese. Os limites de comutação da ATS são fixos e imutáveis exatamente em <strong>{turnOffThreshold}% (corte)</strong> e <strong>{turnOnThreshold}% (religamento)</strong>, sem qualquer variação climática.
+                  </span>
+                )}
+              </p>
+            </div>
+
+            {/* Projeção de Geração Solar do Dia */}
+            {solarProjection && solarProjection.estimatedDailyGenerationKwh !== null && (
+              <div className="p-3.5 sm:p-4 rounded-xl bg-gradient-to-r from-amber-950/30 via-slate-950 to-slate-950 border border-amber-900/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-inner">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 shrink-0">
+                    <Sun className="w-5 h-5" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <div className="text-[11px] text-slate-400 font-mono uppercase tracking-wider">
+                      Previsão de Geração Solar do Dia
+                    </div>
+                    <div className="text-sm font-bold text-slate-100 flex items-baseline gap-2">
+                      <span>Geração Estimada Hoje:</span>
+                      <span className="text-amber-400 font-mono text-base sm:text-lg font-extrabold">
+                        ~{solarProjection.estimatedDailyGenerationKwh.toFixed(1)} kWh
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  {solarProjection.peakSunHours !== null && (
+                    <span
+                      className="inline-flex items-center gap-1.5 text-xs font-mono font-bold px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 shadow-sm"
+                      title="Horas de Sol Pleno (HSP = Irradiação Solar / 3.6 MJ/m²)"
+                    >
+                      <Sun className="w-3.5 h-3.5 text-amber-400" />
+                      {solarProjection.peakSunHours.toFixed(1)} HSP Previstas
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Sliders condicionais */}
+            {isAdaptiveHysteresisActive && (
+              <div className="space-y-6 pt-2">
+                {/* Slider Limite Minimo Adaptativo (Dias de Sol) */}
+                <div className="space-y-2">
+                  <div className="flex flex-wrap sm:flex-nowrap justify-between items-start sm:items-center gap-2">
+                    <label htmlFor="min-adaptive-slider" className="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                      <Sun className="w-4 h-4 text-amber-400" aria-hidden="true" />
+                      Corte Mínimo em Dias Ensolarados (Máxima Economia Solar)
+                    </label>
+                    <span className="font-mono text-amber-400 font-bold text-lg bg-amber-500/10 px-3 py-1 rounded-lg border border-amber-500/20">
+                      {minAdaptiveThreshold}%
+                    </span>
+                  </div>
+                  <p id="min-adaptive-desc" className="text-xs text-slate-400">
+                    Em dias de sol pleno com previsão de alta irradiação, a bateria pode descer até este patamar (&ge; {minAdaptiveThreshold}%), pois haverá sol para recarregá-la rapidamente.
+                  </p>
+                  <input
+                    id="min-adaptive-slider"
+                    type="range"
+                    min="10"
+                    max="50"
+                    value={minAdaptiveThreshold}
+                    aria-describedby="min-adaptive-desc"
+                    onChange={(e) => handleMinAdaptiveChange(Number(e.target.value))}
+                    className="w-full accent-amber-500 cursor-pointer h-2 py-4 min-h-[44px] bg-slate-800 rounded-lg transition-all"
+                  />
+                </div>
+
+                {/* Slider Limite Maximo Adaptativo (Dias Nublados) */}
+                <div className="space-y-2">
+                  <div className="flex flex-wrap sm:flex-nowrap justify-between items-start sm:items-center gap-2">
+                    <label htmlFor="max-adaptive-slider" className="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                      <CloudRain className="w-4 h-4 text-sky-400" aria-hidden="true" />
+                      Corte Máximo em Dias Nublados / Chuva (Proteção de Reserva)
+                    </label>
+                    <span className="font-mono text-sky-400 font-bold text-lg bg-sky-500/10 px-3 py-1 rounded-lg border border-sky-500/20">
+                      {maxAdaptiveThreshold}%
+                    </span>
+                  </div>
+                  <p id="max-adaptive-desc" className="text-xs text-slate-400">
+                    Em dias chuvosos ou de tempo fechado, a saída AC é desligada mais cedo (&le; {maxAdaptiveThreshold}%) para evitar descarregar a bateria quando a geração solar será fraca.
+                  </p>
+                  <input
+                    id="max-adaptive-slider"
+                    type="range"
+                    min="20"
+                    max="70"
+                    value={maxAdaptiveThreshold}
+                    aria-describedby="max-adaptive-desc"
+                    onChange={(e) => handleMaxAdaptiveChange(Number(e.target.value))}
+                    className="w-full accent-sky-500 cursor-pointer h-2 py-4 min-h-[44px] bg-slate-800 rounded-lg transition-all"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Card 2: Modo No-Break Preventivo & Defesa Meteorológica (Auto-Storm) */}

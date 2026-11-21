@@ -72,6 +72,9 @@ export interface SolarForecastMetrics {
   sunshineDurationSeconds?: number;
   weatherCode?: number;
   lastForecastCheckAt?: string | null;
+  peakSunHours?: number | null;
+  irradianceKwhM2?: number | null;
+  estimatedDailyGenerationKwh?: number | null;
 }
 
 export interface BmsAnalyticsMetrics {
@@ -404,6 +407,9 @@ async function buildSolarForecastMetrics(
         lastForecastCheckAt: configuration.lastSolarForecastCheckAt
           ? configuration.lastSolarForecastCheckAt.toISOString()
           : null,
+        peakSunHours: forecast.peakSunHours,
+        irradianceKwhM2: forecast.irradianceKwhM2,
+        estimatedDailyGenerationKwh: forecast.estimatedDailyGenerationKwh,
       };
     } catch {
       // Fallback gracioso
@@ -420,6 +426,9 @@ async function buildSolarForecastMetrics(
     lastForecastCheckAt: configuration?.lastSolarForecastCheckAt
       ? configuration.lastSolarForecastCheckAt.toISOString()
       : null,
+    peakSunHours: null,
+    irradianceKwhM2: null,
+    estimatedDailyGenerationKwh: null,
   };
 }
 
