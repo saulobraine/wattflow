@@ -236,64 +236,75 @@ export default function AutomationsPage() {
     }
 
     try {
-      const [autoRes, settingsRes] = await Promise.all([
-        fetch("/api/automations", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            turnOnThreshold,
-            turnOffThreshold,
-            isAutomationActive,
-          }),
+      // 1. Executa primeiro /api/automations de forma sequencial segura
+      const autoRes = await fetch("/api/automations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          turnOnThreshold,
+          turnOffThreshold,
+          isAutomationActive,
         }),
-        fetch("/api/settings", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ecoflowAccessKey: ecoflowAccessKey || undefined,
-            ecoflowSerialNumber: ecoflowSerialNumber || undefined,
-            isAutoStormActive,
-            autoStormReserveThreshold,
-            autoStormRainThresholdMm,
-            autoStormPrechargeAc,
-            // Time-of-Use
-            isTimeOfUseActive,
-            isDynamicTariffActive: isTimeOfUseActive,
-            timeOfUseWeekdaysOnly,
-            peakStartTime,
-            peakEndTime,
-            intermediateStartTime: intermediateStartTime || null,
-            intermediateEndTime: intermediateEndTime || null,
-            peakDischargeReserveLimit,
-            peakReserveThreshold: peakDischargeReserveLimit,
-            blockAcChargingDuringPeak,
-            peakTariffPerKwh,
-            intermediateTariffPerKwh,
-            offPeakTariffPerKwh,
-            // Proteção Térmica do BMS
-            isThermalProtectionActive,
-            thermalThrottleTempThreshold,
-            thermalCutoffTempThreshold,
-            thermalRecoveryTempThreshold: Math.max(30, thermalCutoffTempThreshold - 4),
-            thermalThrottleSpeedWatts,
-          }),
-        }),
-      ]);
+      });
 
       const autoJson = await autoRes.json();
-      const settingsJson = await settingsRes.json();
-
-      if (autoJson.success && settingsJson.success) {
+      if (!autoRes.ok || !autoJson.success) {
         setFeedback({
-          type: "success",
-          message: "Regras de automação, Auto-Storm, Tarifa Branca e Proteção Térmica salvas com sucesso!",
+          type: "error",
+          message: autoJson.message || "Erro ao salvar regras de automação.",
         });
-      } else {
-        const errMsg =
-          (!autoJson.success ? autoJson.message : settingsJson.message) ||
-          "Erro ao salvar regras de automação.";
-        setFeedback({ type: "error", message: errMsg });
+        setIsSaving(false);
+        return;
       }
+
+      // 2. Em seguida, executa /api/settings evitando split-brain / corridas no banco
+      const settingsRes = await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ecoflowAccessKey: ecoflowAccessKey || undefined,
+          ecoflowSerialNumber: ecoflowSerialNumber || undefined,
+          isAutoStormActive,
+          autoStormReserveThreshold,
+          autoStormRainThresholdMm,
+          autoStormPrechargeAc,
+          // Time-of-Use
+          isTimeOfUseActive,
+          isDynamicTariffActive: isTimeOfUseActive,
+          timeOfUseWeekdaysOnly,
+          peakStartTime,
+          peakEndTime,
+          intermediateStartTime: intermediateStartTime || null,
+          intermediateEndTime: intermediateEndTime || null,
+          peakDischargeReserveLimit,
+          peakReserveThreshold: peakDischargeReserveLimit,
+          blockAcChargingDuringPeak,
+          peakTariffPerKwh,
+          intermediateTariffPerKwh,
+          offPeakTariffPerKwh,
+          // Proteção Térmica do BMS
+          isThermalProtectionActive,
+          thermalThrottleTempThreshold,
+          thermalCutoffTempThreshold,
+          thermalRecoveryTempThreshold: Math.max(30, thermalCutoffTempThreshold - 4),
+          thermalThrottleSpeedWatts,
+        }),
+      });
+
+      const settingsJson = await settingsRes.json();
+      if (!settingsRes.ok || !settingsJson.success) {
+        setFeedback({
+          type: "error",
+          message: settingsJson.message || "Erro ao salvar configurações complementares.",
+        });
+        setIsSaving(false);
+        return;
+      }
+
+      setFeedback({
+        type: "success",
+        message: "Regras de automação, Auto-Storm, Tarifa Branca e Proteção Térmica salvas com sucesso!",
+      });
     } catch {
       setFeedback({ type: "error", message: "Falha na comunicação com o servidor." });
     } finally {
@@ -357,10 +368,15 @@ export default function AutomationsPage() {
                 </div>
               </div>
 
-              <label htmlFor="automation-active-checkbox" className="flex items-center gap-2 cursor-pointer group self-start sm:self-auto min-h-[44px]">
-                <span className="text-xs font-semibold text-slate-300 group-hover:text-emerald-300 transition-colors">
-                  Automação Ativa
-                </span>
+              <label htmlFor="automation-active-checkbox" className="flex items-center gap-3 cursor-pointer group self-start sm:self-auto min-h-[44px]">
+                <div className="flex flex-col items-start sm:items-end">
+                  <span className="text-xs font-semibold text-slate-200 group-hover:text-emerald-300 transition-colors">
+                    Disjuntor Geral da Automação (Loop 24/7)
+                  </span>
+                  <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 font-medium">
+                    Comanda histerese e horário de ponta
+                  </span>
+                </div>
                 <input
                   id="automation-active-checkbox"
                   type="checkbox"

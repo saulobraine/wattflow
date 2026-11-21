@@ -339,6 +339,10 @@ export class ConfigurationRepository {
       ((rawRecord as unknown as Record<string, unknown>)["lastBatteryPercentage"] as number | null) ??
       null;
 
+    const resolvedTariffActive = Boolean(
+      rawRecord.isTimeOfUseActive ?? rawRecord.isDynamicTariffActive ?? false
+    );
+
     return {
       databaseRecordId: rawRecord.id,
       ecoflowEndpointRegion: rawRecord.ecoflowEndpointRegion,
@@ -384,7 +388,7 @@ export class ConfigurationRepository {
       lastBatteryCycles: rawRecord.lastBatteryCycles ?? null,
       maxRecordedBatteryTemp: rawRecord.maxRecordedBatteryTemp ?? null,
       lastBatteryPercentage: candidateLastBattery,
-      isDynamicTariffActive: rawRecord.isDynamicTariffActive ?? false,
+      isDynamicTariffActive: resolvedTariffActive,
       peakTariffPerKwh: rawRecord.peakTariffPerKwh ?? 1.85,
       intermediateTariffPerKwh: rawRecord.intermediateTariffPerKwh ?? 1.15,
       offPeakTariffPerKwh: rawRecord.offPeakTariffPerKwh ?? 0.65,
@@ -395,7 +399,7 @@ export class ConfigurationRepository {
       intermediateStartTime2: rawRecord.intermediateStartTime2 ?? "20:30",
       intermediateEndTime2: rawRecord.intermediateEndTime2 ?? "21:30",
       peakReserveThreshold: rawRecord.peakReserveThreshold ?? 15,
-      isTimeOfUseActive: rawRecord.isTimeOfUseActive ?? rawRecord.isDynamicTariffActive ?? false,
+      isTimeOfUseActive: resolvedTariffActive,
       timeOfUseWeekdaysOnly: rawRecord.timeOfUseWeekdaysOnly ?? true,
       intermediateStartTime: rawRecord.intermediateStartTime ?? rawRecord.intermediateStartTime1 ?? "16:30",
       intermediateEndTime: rawRecord.intermediateEndTime ?? rawRecord.intermediateEndTime2 ?? "21:30",

@@ -17,6 +17,7 @@ import {
   checkCooldown,
   checkRateLimit,
   extractClientIp,
+  registerManualAcOverride,
   sendRateLimitExceeded,
 } from "../../infrastructure/security/rateLimiter";
 import { testControlPostBodySchema } from "../../infrastructure/security/apiSchemas";
@@ -207,14 +208,17 @@ export default async function handleTestControl(
       result = await testUseCase.executeTestAc(ecoflowClient, ecoflowDevice, false);
     }
 
-    if (isPhysicalAcToggle && result.isSuccess && savedConfiguration?.id) {
-      await prisma.userConfiguration.update({
-        where: { id: savedConfiguration.id },
-        data: {
-          atsCurrentCycles: { increment: 1 },
-          atsLastSwitchedAt: new Date(),
-        },
-      });
+    if (isPhysicalAcToggle && result.isSuccess) {
+      registerManualAcOverride(extractedUserId);
+      if (savedConfiguration?.id) {
+        await prisma.userConfiguration.update({
+          where: { id: savedConfiguration.id },
+          data: {
+            atsCurrentCycles: { increment: 1 },
+            atsLastSwitchedAt: new Date(),
+          },
+        });
+      }
     }
 
     response.status(200).json({

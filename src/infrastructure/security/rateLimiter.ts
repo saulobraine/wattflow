@@ -173,9 +173,54 @@ export function sendRateLimitExceeded(
 }
 
 /**
+ * Utilitário para controle de intervenção manual da saída AC / ATS (cooldown de sobrescrita).
+ * Quando o usuário liga ou desliga a saída AC manualmente, a automação em background
+ * não deve desfazer imediatamente a vontade do usuário (janela padrão: 5 minutos / 300.000 ms).
+ */
+const manualAcOverrideStore = new Map<string, number>();
+export const DEFAULT_MANUAL_AC_OVERRIDE_WINDOW_MS = 300_000;
+
+export function registerManualAcOverride(
+  userId: string,
+  windowMs = DEFAULT_MANUAL_AC_OVERRIDE_WINDOW_MS
+): void {
+  const normalized = typeof userId === "string" ? userId.trim() : "";
+  if (!normalized) {
+    return;
+  }
+  const expiresAtMs = Date.now() + windowMs;
+  manualAcOverrideStore.set(normalized, expiresAtMs);
+}
+
+export function isManualAcOverrideActive(
+  userId: string,
+  _windowMs?: number
+): boolean {
+  const normalized = typeof userId === "string" ? userId.trim() : "";
+  if (!normalized) {
+    return false;
+  }
+  const expiresAtMs = manualAcOverrideStore.get(normalized);
+  if (expiresAtMs === undefined) {
+    return false;
+  }
+  const nowMs = Date.now();
+  if (nowMs >= expiresAtMs) {
+    manualAcOverrideStore.delete(normalized);
+    return false;
+  }
+  return true;
+}
+
+export function resetManualAcOverrideState(): void {
+  manualAcOverrideStore.clear();
+}
+
+/**
  * Utilitário para limpeza determinística de estado em suítes de testes automatizados.
  */
 export function resetRateLimiterState(): void {
   rateLimitStore.clear();
   cooldownStore.clear();
+  manualAcOverrideStore.clear();
 }
