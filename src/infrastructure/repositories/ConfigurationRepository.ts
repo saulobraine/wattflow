@@ -205,27 +205,37 @@ export class ConfigurationRepository {
   public async updateBmsTelemetry(
     configurationId: string,
     bms: {
-      tempCelsius: number;
+      tempCelsius?: number | null;
       soh?: number | null;
       cycles?: number | null;
     }
   ): Promise<void> {
-    const current = await this.databaseClient.userConfiguration.findUnique({
-      where: { id: configurationId },
-      select: { maxRecordedBatteryTemp: true },
-    });
-    const previousMax = current?.maxRecordedBatteryTemp ?? 0;
-    const newMax = Math.max(previousMax, bms.tempCelsius);
+    const updateData: Record<string, unknown> = {};
 
-    await this.databaseClient.userConfiguration.update({
-      where: { id: configurationId },
-      data: {
-        lastBatteryTempCelsius: bms.tempCelsius,
-        ...(bms.soh !== undefined && bms.soh !== null ? { lastBatterySoh: bms.soh } : {}),
-        ...(bms.cycles !== undefined && bms.cycles !== null ? { lastBatteryCycles: bms.cycles } : {}),
-        maxRecordedBatteryTemp: newMax,
-      },
-    });
+    if (bms.tempCelsius !== undefined && bms.tempCelsius !== null) {
+      updateData.lastBatteryTempCelsius = bms.tempCelsius;
+      const current = await this.databaseClient.userConfiguration.findUnique({
+        where: { id: configurationId },
+        select: { maxRecordedBatteryTemp: true },
+      });
+      const previousMax = current?.maxRecordedBatteryTemp ?? 0;
+      updateData.maxRecordedBatteryTemp = Math.max(previousMax, bms.tempCelsius);
+    }
+
+    if (bms.soh !== undefined && bms.soh !== null) {
+      updateData.lastBatterySoh = bms.soh;
+    }
+
+    if (bms.cycles !== undefined && bms.cycles !== null) {
+      updateData.lastBatteryCycles = bms.cycles;
+    }
+
+    if (Object.keys(updateData).length > 0) {
+      await this.databaseClient.userConfiguration.update({
+        where: { id: configurationId },
+        data: updateData,
+      });
+    }
   }
 
   public async updateSolarForecast(

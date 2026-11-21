@@ -18,6 +18,11 @@ export interface EcoFlowTelemetryResult {
   isAcOutputEnabled: boolean | null;
   deviceMaxChargeSoc?: number | null;
   deviceMinDsgSoc?: number | null;
+  batteryTempCelsius?: number | null;
+  batterySoh?: number | null;
+  batteryCycles?: number | null;
+  batteryVoltageVolts?: number | null;
+  batteryAmperageAmps?: number | null;
 }
 
 export interface EcoFlowMqttCertification {
@@ -364,6 +369,11 @@ export class EcoFlowHttpClient {
     const extractedAcState = this.extractAcStateFromQuota(quotaData);
     const extractedMaxChargeSoc = this.extractMaxChargeSocFromQuota(quotaData);
     const extractedMinDsgSoc = this.extractMinDsgSocFromQuota(quotaData);
+    const extractedTemp = this.extractBatteryTempFromQuota(quotaData);
+    const extractedSoh = this.extractBatterySohFromQuota(quotaData);
+    const extractedCycles = this.extractBatteryCyclesFromQuota(quotaData);
+    const extractedVolts = this.extractBatteryVoltsFromQuota(quotaData);
+    const extractedAmps = this.extractBatteryAmpsFromQuota(quotaData);
 
     return {
       batteryLevel: new BatteryLevel(extractedPercentage),
@@ -372,6 +382,11 @@ export class EcoFlowHttpClient {
       isAcOutputEnabled: extractedAcState,
       deviceMaxChargeSoc: extractedMaxChargeSoc,
       deviceMinDsgSoc: extractedMinDsgSoc,
+      batteryTempCelsius: extractedTemp,
+      batterySoh: extractedSoh,
+      batteryCycles: extractedCycles,
+      batteryVoltageVolts: extractedVolts,
+      batteryAmperageAmps: extractedAmps,
     };
   }
 
@@ -748,6 +763,176 @@ export class EcoFlowHttpClient {
         );
         if (raw !== null && raw >= 0 && raw <= 100) {
           return Math.round(raw);
+        }
+      }
+    }
+
+    return null;
+  }
+
+  public extractBatteryTempFromQuota(quotaData: Record<string, unknown>): number | null {
+    const candidateKeys = [
+      "bms_bmsStatus.temp",
+      "bms_bmsStatus.maxCellTemp",
+      "bms_bmsStatus.minCellTemp",
+      "bms_bmsStatus.cellTemp",
+      "bmsMaster.temp",
+      "bmsMaster.cellTemp",
+      "bmsMaster.maxCellTemp",
+      "bms.temp",
+      "bms.cellTemp",
+      "temp",
+      "cellTemp",
+      "maxCellTemp",
+    ];
+
+    for (const key of candidateKeys) {
+      const parsedNumber = this.parseNumericCandidate(quotaData[key]);
+      if (parsedNumber !== null) {
+        return parsedNumber > 100 ? Number((parsedNumber / 10).toFixed(1)) : Number(parsedNumber.toFixed(1));
+      }
+    }
+
+    const nestedContainers = ["bms_bmsStatus", "bmsMaster", "bms", "ems", "bms_emsStatus", "bms_kit"];
+    for (const container of nestedContainers) {
+      const nestedObj = quotaData[container];
+      if (typeof nestedObj === "object" && nestedObj !== null) {
+        const nestedRec = nestedObj as Record<string, unknown>;
+        const raw = this.parseNumericCandidate(
+          nestedRec["temp"] ?? nestedRec["maxCellTemp"] ?? nestedRec["cellTemp"] ?? nestedRec["minCellTemp"]
+        );
+        if (raw !== null) {
+          return raw > 100 ? Number((raw / 10).toFixed(1)) : Number(raw.toFixed(1));
+        }
+      }
+    }
+
+    return null;
+  }
+
+  public extractBatterySohFromQuota(quotaData: Record<string, unknown>): number | null {
+    const candidateKeys = [
+      "bms_bmsStatus.soh",
+      "bms_bmsStatus.f32ShowSoh",
+      "bmsMaster.soh",
+      "bms.soh",
+      "soh",
+      "f32ShowSoh",
+    ];
+
+    for (const key of candidateKeys) {
+      const parsedNumber = this.parseNumericCandidate(quotaData[key]);
+      if (parsedNumber !== null && parsedNumber >= 0 && parsedNumber <= 100) {
+        return Math.round(parsedNumber);
+      }
+    }
+
+    const nestedContainers = ["bms_bmsStatus", "bmsMaster", "bms", "ems", "bms_emsStatus"];
+    for (const container of nestedContainers) {
+      const nestedObj = quotaData[container];
+      if (typeof nestedObj === "object" && nestedObj !== null) {
+        const nestedRec = nestedObj as Record<string, unknown>;
+        const raw = this.parseNumericCandidate(nestedRec["soh"] ?? nestedRec["f32ShowSoh"]);
+        if (raw !== null && raw >= 0 && raw <= 100) {
+          return Math.round(raw);
+        }
+      }
+    }
+
+    return null;
+  }
+
+  public extractBatteryCyclesFromQuota(quotaData: Record<string, unknown>): number | null {
+    const candidateKeys = [
+      "bms_bmsStatus.cycles",
+      "bms_bmsStatus.cycleCount",
+      "bmsMaster.cycles",
+      "bms.cycles",
+      "cycles",
+      "cycleCount",
+    ];
+
+    for (const key of candidateKeys) {
+      const parsedNumber = this.parseNumericCandidate(quotaData[key]);
+      if (parsedNumber !== null && parsedNumber >= 0) {
+        return Math.round(parsedNumber);
+      }
+    }
+
+    const nestedContainers = ["bms_bmsStatus", "bmsMaster", "bms", "ems", "bms_emsStatus"];
+    for (const container of nestedContainers) {
+      const nestedObj = quotaData[container];
+      if (typeof nestedObj === "object" && nestedObj !== null) {
+        const nestedRec = nestedObj as Record<string, unknown>;
+        const raw = this.parseNumericCandidate(nestedRec["cycles"] ?? nestedRec["cycleCount"]);
+        if (raw !== null && raw >= 0) {
+          return Math.round(raw);
+        }
+      }
+    }
+
+    return null;
+  }
+
+  public extractBatteryVoltsFromQuota(quotaData: Record<string, unknown>): number | null {
+    const candidateKeys = [
+      "bms_bmsStatus.vol",
+      "bms_bmsStatus.voltage",
+      "bmsMaster.vol",
+      "bms.vol",
+      "vol",
+      "voltage",
+    ];
+
+    for (const key of candidateKeys) {
+      const parsedNumber = this.parseNumericCandidate(quotaData[key]);
+      if (parsedNumber !== null && parsedNumber > 0) {
+        return parsedNumber > 1000 ? Number((parsedNumber / 1000).toFixed(2)) : Number(parsedNumber.toFixed(2));
+      }
+    }
+
+    const nestedContainers = ["bms_bmsStatus", "bmsMaster", "bms", "ems", "bms_emsStatus"];
+    for (const container of nestedContainers) {
+      const nestedObj = quotaData[container];
+      if (typeof nestedObj === "object" && nestedObj !== null) {
+        const nestedRec = nestedObj as Record<string, unknown>;
+        const raw = this.parseNumericCandidate(nestedRec["vol"] ?? nestedRec["voltage"]);
+        if (raw !== null && raw > 0) {
+          return raw > 1000 ? Number((raw / 1000).toFixed(2)) : Number(raw.toFixed(2));
+        }
+      }
+    }
+
+    return null;
+  }
+
+  public extractBatteryAmpsFromQuota(quotaData: Record<string, unknown>): number | null {
+    const candidateKeys = [
+      "bms_bmsStatus.amp",
+      "bms_bmsStatus.current",
+      "bmsMaster.amp",
+      "bms.amp",
+      "amp",
+      "current",
+    ];
+
+    for (const key of candidateKeys) {
+      const parsedNumber = this.parseNumericCandidate(quotaData[key]);
+      if (parsedNumber !== null) {
+        return Math.abs(parsedNumber) > 1000
+          ? Number((parsedNumber / 1000).toFixed(2))
+          : Number(parsedNumber.toFixed(2));
+      }
+    }
+
+    const nestedContainers = ["bms_bmsStatus", "bmsMaster", "bms", "ems", "bms_emsStatus"];
+    for (const container of nestedContainers) {
+      const nestedObj = quotaData[container];
+      if (typeof nestedObj === "object" && nestedObj !== null) {
+        const nestedRec = nestedObj as Record<string, unknown>;
+        const raw = this.parseNumericCandidate(nestedRec["amp"] ?? nestedRec["current"]);
+        if (raw !== null) {
+          return Math.abs(raw) > 1000 ? Number((raw / 1000).toFixed(2)) : Number(raw.toFixed(2));
         }
       }
     }
