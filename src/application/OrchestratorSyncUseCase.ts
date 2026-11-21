@@ -64,15 +64,40 @@ export class OrchestratorSyncUseCase {
     this.ecoflowBaseApiUrl = ecoflowBaseApiUrl;
   }
 
+  private static readonly activeUserSyncs = new Map<string, Promise<SyncExecutionResult>>();
+
+  public static resetActiveUserSyncsForTests(): void {
+    OrchestratorSyncUseCase.activeUserSyncs.clear();
+  }
+
   public async executeSyncForUser(
     userId: string,
     providedTelemetry?: ProvidedTelemetry
   ): Promise<SyncExecutionResult> {
-    const configurationRecord = await this.repository.findActiveConfigurationByUserId(userId);
-    if (!configurationRecord) {
+    const normalizedUserId = typeof userId === "string" ? userId.trim() : "";
+    if (!normalizedUserId) {
       return this.buildEmptyConfigurationResult();
     }
-    return this.executeSyncForRecord(configurationRecord, providedTelemetry);
+
+    const existingSync = OrchestratorSyncUseCase.activeUserSyncs.get(normalizedUserId);
+    if (existingSync) {
+      return await existingSync;
+    }
+
+    const syncPromise = (async () => {
+      try {
+        const configurationRecord = await this.repository.findActiveConfigurationByUserId(normalizedUserId);
+        if (!configurationRecord) {
+          return this.buildEmptyConfigurationResult();
+        }
+        return await this.executeSyncForRecord(configurationRecord, providedTelemetry);
+      } finally {
+        OrchestratorSyncUseCase.activeUserSyncs.delete(normalizedUserId);
+      }
+    })();
+
+    OrchestratorSyncUseCase.activeUserSyncs.set(normalizedUserId, syncPromise);
+    return await syncPromise;
   }
 
   public async executeSyncAll(): Promise<SyncExecutionResult[]> {
@@ -699,6 +724,7 @@ export class OrchestratorSyncUseCase {
 
   public static resetLoggedStatesForTests(): void {
     OrchestratorSyncUseCase.lastLoggedStatesByRecordId.clear();
+    OrchestratorSyncUseCase.activeUserSyncs.clear();
   }
 
   private async recordExecutionLogThrottled(
