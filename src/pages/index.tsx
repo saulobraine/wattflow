@@ -69,6 +69,8 @@ interface DashboardData {
   isStormModeActive?: boolean;
   turnOnThreshold: number;
   turnOffThreshold: number;
+  deviceMaxChargeSoc?: number | null;
+  deviceMinDsgSoc?: number | null;
   lastBatteryPercentage: number | null;
   lastSolarWatts: number | null;
   lastOutputWatts?: number | null;
@@ -703,13 +705,25 @@ export default function DashboardPage() {
               <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
                 <Power className="w-4 h-4" aria-hidden="true" />
               </div>
-              <span className="text-[11px] sm:text-xs text-slate-400 font-medium truncate">
-                Corte
-              </span>
+              <div className="flex flex-col min-w-0">
+                <span className="text-[11px] sm:text-xs text-slate-400 font-medium truncate">
+                  Corte ATS
+                </span>
+                {(liveTelemetry?.deviceMinDsgSoc !== null && liveTelemetry?.deviceMinDsgSoc !== undefined) ||
+                (data?.deviceMinDsgSoc !== null && data?.deviceMinDsgSoc !== undefined) ? (
+                  <span className="text-[9px] font-mono text-sky-400 truncate font-semibold" title="Piso de descarga detectado do aplicativo oficial EcoFlow">
+                    Piso: {liveTelemetry?.deviceMinDsgSoc ?? data?.deviceMinDsgSoc}% (App EcoFlow)
+                  </span>
+                ) : null}
+              </div>
             </div>
 
             <div className="text-xl sm:text-2xl font-bold font-mono text-rose-400 truncate my-1">
-              &le; {solarForecast?.isAdaptiveActive ? solarForecast.effectiveTurnOffThreshold : (data?.turnOffThreshold ?? 30)}%
+              &le; {solarForecast?.isAdaptiveActive
+                ? solarForecast.effectiveTurnOffThreshold
+                : (liveTelemetry?.deviceMinDsgSoc || data?.deviceMinDsgSoc)
+                ? Math.max(data?.turnOffThreshold ?? 30, (liveTelemetry?.deviceMinDsgSoc ?? data?.deviceMinDsgSoc)!)
+                : (data?.turnOffThreshold ?? 30)}%
             </div>
 
             <div className={`inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-medium px-2 py-0.5 rounded-md border w-fit max-w-full truncate ${
@@ -720,7 +734,13 @@ export default function DashboardPage() {
               <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
                 solarForecast?.isAdaptiveActive ? "bg-amber-400 animate-pulse" : "bg-rose-400"
               }`} aria-hidden="true" />
-              <span className="truncate">{solarForecast?.isAdaptiveActive ? "Corte Adaptado" : "Corte Rede"}</span>
+              <span className="truncate">
+                {solarForecast?.isAdaptiveActive
+                  ? "Corte Adaptado"
+                  : (liveTelemetry?.deviceMinDsgSoc || data?.deviceMinDsgSoc) && (data?.turnOffThreshold ?? 30) < (liveTelemetry?.deviceMinDsgSoc ?? data?.deviceMinDsgSoc)!
+                  ? "Sincronizado EcoFlow"
+                  : "Corte Rede"}
+              </span>
             </div>
           </div>
 
@@ -730,18 +750,32 @@ export default function DashboardPage() {
               <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
                 <Zap className="w-4 h-4" aria-hidden="true" />
               </div>
-              <span className="text-[11px] sm:text-xs text-slate-400 font-medium truncate">
-                Ativação
-              </span>
+              <div className="flex flex-col min-w-0">
+                <span className="text-[11px] sm:text-xs text-slate-400 font-medium truncate">
+                  Ativação ATS
+                </span>
+                {(liveTelemetry?.deviceMaxChargeSoc !== null && liveTelemetry?.deviceMaxChargeSoc !== undefined) ||
+                (data?.deviceMaxChargeSoc !== null && data?.deviceMaxChargeSoc !== undefined) ? (
+                  <span className="text-[9px] font-mono text-emerald-400 truncate font-semibold" title="Teto de carga detectado do aplicativo oficial EcoFlow">
+                    Teto detectado: {liveTelemetry?.deviceMaxChargeSoc ?? data?.deviceMaxChargeSoc}% (App EcoFlow)
+                  </span>
+                ) : null}
+              </div>
             </div>
 
             <div className="text-xl sm:text-2xl font-bold font-mono text-emerald-400 truncate my-1">
-              &ge; {data?.turnOnThreshold ?? 90}%
+              &ge; {(liveTelemetry?.deviceMaxChargeSoc || data?.deviceMaxChargeSoc)
+                ? Math.min(data?.turnOnThreshold ?? 90, (liveTelemetry?.deviceMaxChargeSoc ?? data?.deviceMaxChargeSoc)!)
+                : (data?.turnOnThreshold ?? 90)}%
             </div>
 
             <div className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20 w-fit max-w-full truncate">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" aria-hidden="true" />
-              <span className="truncate">Chaveia Solar</span>
+              <span className="truncate">
+                {(liveTelemetry?.deviceMaxChargeSoc || data?.deviceMaxChargeSoc) && (data?.turnOnThreshold ?? 90) > (liveTelemetry?.deviceMaxChargeSoc ?? data?.deviceMaxChargeSoc)!
+                  ? "Sincronizado EcoFlow"
+                  : "Chaveia Solar"}
+              </span>
             </div>
           </div>
         </section>
@@ -786,32 +820,57 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* Destaque do Corte Adaptado Efetivo */}
+              {/* Destaque do Limiar de Corte (Adaptativo vs Estático) */}
               <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-2">
-                <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1">
-                  <span className="text-xs uppercase font-semibold tracking-wider text-slate-400">
-                    Corte Adaptativo do Dia
-                  </span>
-                  <span className="text-xs font-mono text-slate-400">
-                    Padrão: {data?.turnOffThreshold ?? 30}% | Efetivo:{" "}
-                    <strong className="text-amber-300">
-                      {solarForecast ? `${solarForecast.effectiveTurnOffThreshold}%` : `${data?.turnOffThreshold ?? 30}%`}
-                    </strong>
-                  </span>
-                </div>
+                {solarForecast?.isAdaptiveActive ? (
+                  <>
+                    <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1">
+                      <span className="text-xs uppercase font-semibold tracking-wider text-slate-400">
+                        Corte Adaptativo do Dia
+                      </span>
+                      <span className="text-xs font-mono text-slate-400">
+                        Padrão: {data?.turnOffThreshold ?? 30}% | Efetivo:{" "}
+                        <strong className="text-amber-300">
+                          {solarForecast ? `${solarForecast.effectiveTurnOffThreshold}%` : `${data?.turnOffThreshold ?? 30}%`}
+                        </strong>
+                      </span>
+                    </div>
 
-                <div className="flex items-baseline gap-2">
-                  <span className="text-2xl sm:text-3xl font-extrabold font-mono text-amber-300">
-                    {solarForecast
-                      ? `Corte adaptado para ${solarForecast.effectiveTurnOffThreshold}% hoje`
-                      : "Aguardando previsão meteorológica"}
-                  </span>
-                </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-2xl sm:text-3xl font-extrabold font-mono text-amber-300">
+                        {solarForecast
+                          ? `Corte adaptado para ${solarForecast.effectiveTurnOffThreshold}% hoje`
+                          : "Aguardando previsão meteorológica"}
+                      </span>
+                    </div>
 
-                <p className="text-xs text-slate-400 leading-relaxed pt-1">
-                  {solarForecast?.forecastSummary ||
-                    "Com base na irradiância solar prevista para hoje, a histerese ajusta a profundidade de descarga da bateria para maximizar a economia."}
-                </p>
+                    <p className="text-xs text-slate-400 leading-relaxed pt-1">
+                      {solarForecast?.forecastSummary ||
+                        "Com base na irradiância solar prevista para hoje, a histerese ajusta a profundidade de descarga da bateria para maximizar a economia."}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1">
+                      <span className="text-xs uppercase font-semibold tracking-wider text-slate-400">
+                        Nível de Corte Estático (Meteorologia Inativa)
+                      </span>
+                      <span className="text-xs font-mono text-slate-400">
+                        Configurado: <strong className="text-rose-400">{data?.turnOffThreshold ?? 30}%</strong>
+                      </span>
+                    </div>
+
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-2xl sm:text-3xl font-extrabold font-mono text-slate-200">
+                        Corte fixo em {data?.turnOffThreshold ?? 30}%
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-slate-400 leading-relaxed pt-1">
+                      Ajuste climático automático desativado nas automações. O sistema opera 100% estático e fiel aos limites cadastrados, sem modulação pela previsão do tempo.
+                    </p>
+                  </>
+                )}
               </div>
 
               {/* Grid com Métricas da Previsão */}

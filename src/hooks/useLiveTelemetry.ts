@@ -14,6 +14,8 @@ export interface LiveTelemetrySnapshot {
   batteryCycles?: number | null;
   batteryVolts?: number | null;
   batteryAmps?: number | null;
+  deviceMaxChargeSoc?: number | null;
+  deviceMinDsgSoc?: number | null;
 }
 
 export interface UseLiveTelemetryOptions {
@@ -260,6 +262,8 @@ export class LiveTelemetryController {
             d.lastAction === "BATTERY_HIGH_DISCHARGE" ||
             (d.lastOutputWatts ?? 0) > 0,
           updatedAt: d.lastSyncTime ? new Date(d.lastSyncTime) : new Date(),
+          deviceMaxChargeSoc: d.deviceMaxChargeSoc ?? null,
+          deviceMinDsgSoc: d.deviceMinDsgSoc ?? null,
         };
         this.handleNewSnapshot(snapshot);
       }
