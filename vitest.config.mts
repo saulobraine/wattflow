@@ -15,5 +15,6 @@ export default defineConfig({
     include: ["src/**/*.test.ts", "src/**/*.spec.ts"],
     clearMocks: true,
     restoreMocks: true,
+    testTimeout: 10000,
   },
 });

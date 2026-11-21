@@ -724,19 +724,22 @@ export class EcoFlowMqttStreamService {
         console.warn("[EcoFlow MQTT] Falha ao persistir telemetria do stream:", databaseError);
       });
 
+    const bmsUpdateData: Record<string, unknown> = {};
     if (currentSnapshot.batteryTempCelsius !== null && currentSnapshot.batteryTempCelsius !== undefined) {
+      bmsUpdateData.lastBatteryTempCelsius = currentSnapshot.batteryTempCelsius;
+    }
+    if (currentSnapshot.batterySoh !== null && currentSnapshot.batterySoh !== undefined) {
+      bmsUpdateData.lastBatterySoh = currentSnapshot.batterySoh;
+    }
+    if (currentSnapshot.batteryCycles !== null && currentSnapshot.batteryCycles !== undefined) {
+      bmsUpdateData.lastBatteryCycles = currentSnapshot.batteryCycles;
+    }
+
+    if (Object.keys(bmsUpdateData).length > 0) {
       databaseClient.userConfiguration
         .update({
           where: { id: userConfigurationId },
-          data: {
-            lastBatteryTempCelsius: currentSnapshot.batteryTempCelsius,
-            ...(currentSnapshot.batterySoh !== null && currentSnapshot.batterySoh !== undefined
-              ? { lastBatterySoh: currentSnapshot.batterySoh }
-              : {}),
-            ...(currentSnapshot.batteryCycles !== null && currentSnapshot.batteryCycles !== undefined
-              ? { lastBatteryCycles: currentSnapshot.batteryCycles }
-              : {}),
-          },
+          data: bmsUpdateData,
         })
         .catch((databaseError) => {
           console.warn("[EcoFlow MQTT] Falha ao atualizar telemetria BMS em userConfiguration:", databaseError);
@@ -751,6 +754,8 @@ export class EcoFlowMqttStreamService {
     const candidateKeys = [
       "bmsMaster.soc",
       "bmsMaster.f32ShowSoc",
+      "bms_bmsStatus.soc",
+      "bms_bmsStatus.f32ShowSoc",
       "pd.soc",
       "pd.bpPowerSoc",
       "ems.soc",
@@ -762,7 +767,7 @@ export class EcoFlowMqttStreamService {
       return flatBattery;
     }
 
-    const nestedContainers = ["bmsMaster", "bms", "ems", "pd"];
+    const nestedContainers = ["bmsMaster", "bms", "ems", "pd", "bms_bmsStatus"];
     for (const container of nestedContainers) {
       const nestedObj = quotaData[container];
       if (typeof nestedObj === "object" && nestedObj !== null) {
@@ -1084,12 +1089,18 @@ export class EcoFlowMqttStreamService {
     parsedJson?: Record<string, unknown>
   ): number | null {
     const candidateKeys = [
+      "bms_bmsStatus.temp",
+      "bms_bmsStatus.maxCellTemp",
+      "bms_bmsStatus.minCellTemp",
+      "bms_bmsStatus.cellTemp",
       "bmsMaster.temp",
       "bmsMaster.cellTemp",
+      "bmsMaster.maxCellTemp",
       "bms.temp",
       "bms.cellTemp",
       "temp",
       "cellTemp",
+      "maxCellTemp",
     ];
 
     const flatTemp = this.extractNumericCandidateFromKeys(quotaData, candidateKeys);
@@ -1097,13 +1108,23 @@ export class EcoFlowMqttStreamService {
       return this.normalizeTemperature(flatTemp);
     }
 
-    const nestedContainers = ["bmsMaster", "bms", "ems", "bms_emsStatus", "bms_kit"];
+    const nestedContainers = [
+      "bms_bmsStatus",
+      "bmsMaster",
+      "bms",
+      "ems",
+      "bms_emsStatus",
+      "bms_kit",
+    ];
     for (const container of nestedContainers) {
       const nestedObj = quotaData[container];
       if (typeof nestedObj === "object" && nestedObj !== null) {
         const nestedRec = nestedObj as Record<string, unknown>;
         const rawNested = this.parseNumericCandidate(
-          nestedRec["temp"] ?? nestedRec["cellTemp"] ?? nestedRec["maxCellTemp"]
+          nestedRec["temp"] ??
+            nestedRec["cellTemp"] ??
+            nestedRec["maxCellTemp"] ??
+            nestedRec["minCellTemp"]
         );
         if (rawNested !== null) {
           return this.normalizeTemperature(rawNested);
@@ -1118,7 +1139,9 @@ export class EcoFlowMqttStreamService {
     const moduleType = parsedJson?.["moduleType"];
     const isBmsContext = typeCode.includes("bms") || moduleType === 2 || moduleType === "2";
     if (isBmsContext) {
-      const direct = this.parseNumericCandidate(quotaData["temp"] ?? quotaData["cellTemp"]);
+      const direct = this.parseNumericCandidate(
+        quotaData["temp"] ?? quotaData["cellTemp"] ?? quotaData["maxCellTemp"]
+      );
       if (direct !== null) {
         return this.normalizeTemperature(direct);
       }
@@ -1138,13 +1161,20 @@ export class EcoFlowMqttStreamService {
     quotaData: Record<string, unknown>,
     parsedJson?: Record<string, unknown>
   ): number | null {
-    const candidateKeys = ["bmsMaster.soh", "bms.soh", "soh", "f32ShowSoh"];
+    const candidateKeys = [
+      "bms_bmsStatus.soh",
+      "bms_bmsStatus.f32ShowSoh",
+      "bmsMaster.soh",
+      "bms.soh",
+      "soh",
+      "f32ShowSoh",
+    ];
     const flatSoh = this.extractNumericCandidateFromKeys(quotaData, candidateKeys);
     if (flatSoh !== null && flatSoh >= 0 && flatSoh <= 100) {
       return Math.round(flatSoh);
     }
 
-    const nestedContainers = ["bmsMaster", "bms", "ems"];
+    const nestedContainers = ["bms_bmsStatus", "bmsMaster", "bms", "ems", "bms_emsStatus"];
     for (const container of nestedContainers) {
       const nestedObj = quotaData[container];
       if (typeof nestedObj === "object" && nestedObj !== null) {
@@ -1176,13 +1206,20 @@ export class EcoFlowMqttStreamService {
     quotaData: Record<string, unknown>,
     parsedJson?: Record<string, unknown>
   ): number | null {
-    const candidateKeys = ["bmsMaster.cycles", "bms.cycles", "cycles", "cycleCount"];
+    const candidateKeys = [
+      "bms_bmsStatus.cycles",
+      "bms_bmsStatus.cycleCount",
+      "bmsMaster.cycles",
+      "bms.cycles",
+      "cycles",
+      "cycleCount",
+    ];
     const flatCycles = this.extractNumericCandidateFromKeys(quotaData, candidateKeys);
     if (flatCycles !== null && flatCycles >= 0) {
       return Math.round(flatCycles);
     }
 
-    const nestedContainers = ["bmsMaster", "bms", "ems"];
+    const nestedContainers = ["bms_bmsStatus", "bmsMaster", "bms", "ems", "bms_emsStatus"];
     for (const container of nestedContainers) {
       const nestedObj = quotaData[container];
       if (typeof nestedObj === "object" && nestedObj !== null) {
@@ -1214,13 +1251,20 @@ export class EcoFlowMqttStreamService {
     quotaData: Record<string, unknown>,
     parsedJson?: Record<string, unknown>
   ): number | null {
-    const candidateKeys = ["bmsMaster.vol", "bms.vol", "vol", "voltage"];
+    const candidateKeys = [
+      "bms_bmsStatus.vol",
+      "bms_bmsStatus.voltage",
+      "bmsMaster.vol",
+      "bms.vol",
+      "vol",
+      "voltage",
+    ];
     const flatVol = this.extractNumericCandidateFromKeys(quotaData, candidateKeys);
     if (flatVol !== null && flatVol > 0) {
       return flatVol > 1000 ? Number((flatVol / 1000).toFixed(2)) : Number(flatVol.toFixed(2));
     }
 
-    const nestedContainers = ["bmsMaster", "bms", "ems"];
+    const nestedContainers = ["bms_bmsStatus", "bmsMaster", "bms", "ems", "bms_emsStatus"];
     for (const container of nestedContainers) {
       const nestedObj = quotaData[container];
       if (typeof nestedObj === "object" && nestedObj !== null) {
@@ -1239,13 +1283,20 @@ export class EcoFlowMqttStreamService {
     quotaData: Record<string, unknown>,
     parsedJson?: Record<string, unknown>
   ): number | null {
-    const candidateKeys = ["bmsMaster.amp", "bms.amp", "amp", "current"];
+    const candidateKeys = [
+      "bms_bmsStatus.amp",
+      "bms_bmsStatus.current",
+      "bmsMaster.amp",
+      "bms.amp",
+      "amp",
+      "current",
+    ];
     const flatAmp = this.extractNumericCandidateFromKeys(quotaData, candidateKeys);
     if (flatAmp !== null) {
       return Math.abs(flatAmp) > 1000 ? Number((flatAmp / 1000).toFixed(2)) : Number(flatAmp.toFixed(2));
     }
 
-    const nestedContainers = ["bmsMaster", "bms", "ems"];
+    const nestedContainers = ["bms_bmsStatus", "bmsMaster", "bms", "ems", "bms_emsStatus"];
     for (const container of nestedContainers) {
       const nestedObj = quotaData[container];
       if (typeof nestedObj === "object" && nestedObj !== null) {
