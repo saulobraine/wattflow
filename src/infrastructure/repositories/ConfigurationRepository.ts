@@ -214,11 +214,14 @@ export class ConfigurationRepository {
 
     if (bms.tempCelsius !== undefined && bms.tempCelsius !== null) {
       updateData.lastBatteryTempCelsius = bms.tempCelsius;
-      const current = await this.databaseClient.userConfiguration.findUnique({
-        where: { id: configurationId },
-        select: { maxRecordedBatteryTemp: true },
-      });
-      const previousMax = current?.maxRecordedBatteryTemp ?? 0;
+      let previousMax = 0;
+      if (typeof this.databaseClient?.userConfiguration?.findUnique === "function") {
+        const current = await this.databaseClient.userConfiguration.findUnique({
+          where: { id: configurationId },
+          select: { maxRecordedBatteryTemp: true },
+        });
+        previousMax = current?.maxRecordedBatteryTemp ?? 0;
+      }
       updateData.maxRecordedBatteryTemp = Math.max(previousMax, bms.tempCelsius);
     }
 
@@ -230,7 +233,10 @@ export class ConfigurationRepository {
       updateData.lastBatteryCycles = bms.cycles;
     }
 
-    if (Object.keys(updateData).length > 0) {
+    if (
+      Object.keys(updateData).length > 0 &&
+      typeof this.databaseClient?.userConfiguration?.update === "function"
+    ) {
       await this.databaseClient.userConfiguration.update({
         where: { id: configurationId },
         data: updateData,
