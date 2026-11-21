@@ -14,6 +14,8 @@ interface DashboardStatusResponse {
     isStormModeActive?: boolean;
     turnOnThreshold: number;
     turnOffThreshold: number;
+    deviceMaxChargeSoc?: number | null;
+    deviceMinDsgSoc?: number | null;
     lastBatteryPercentage: number | null;
     lastSolarWatts: number | null;
     lastOutputWatts?: number | null;
@@ -182,6 +184,8 @@ export default async function handleDashboardStatus(
         isStormModeActive: configuration.isStormModeActive ?? false,
         turnOnThreshold: configuration.turnOnThreshold,
         turnOffThreshold: configuration.turnOffThreshold,
+        deviceMaxChargeSoc: memoryTelemetry?.deviceMaxChargeSoc ?? null,
+        deviceMinDsgSoc: memoryTelemetry?.deviceMinDsgSoc ?? null,
         lastBatteryPercentage: resolvedBattery,
         lastSolarWatts: resolvedSolarWatts,
         lastOutputWatts: resolvedOutputWatts,

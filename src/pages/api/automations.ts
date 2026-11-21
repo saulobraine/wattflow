@@ -7,6 +7,7 @@ import {
   extractUserFromRequest,
 } from "../../infrastructure/auth/sessionHelper";
 import { automationsPostBodySchema } from "../../infrastructure/security/apiSchemas";
+import { EcoFlowMqttStreamService } from "../../infrastructure/services/EcoFlowMqttStreamService";
 
 interface AutomationsResponseBody {
   success: boolean;
@@ -15,6 +16,8 @@ interface AutomationsResponseBody {
     turnOnThreshold: number;
     turnOffThreshold: number;
     isAutomationActive: boolean;
+    deviceMaxChargeSoc?: number | null;
+    deviceMinDsgSoc?: number | null;
   };
 }
 
@@ -63,6 +66,10 @@ export default async function handleAutomations(
       where: { userId: extractedUserId },
     });
 
+    const liveTelemetry = EcoFlowMqttStreamService.getInstance().getLatestTelemetry(extractedUserId);
+    const deviceMaxChargeSoc = liveTelemetry?.deviceMaxChargeSoc ?? null;
+    const deviceMinDsgSoc = liveTelemetry?.deviceMinDsgSoc ?? null;
+
     if (!config) {
       response.status(200).json({
         success: true,
@@ -71,6 +78,8 @@ export default async function handleAutomations(
           turnOnThreshold: 90,
           turnOffThreshold: 30,
           isAutomationActive: true,
+          deviceMaxChargeSoc,
+          deviceMinDsgSoc,
         },
       });
       return;
@@ -83,6 +92,8 @@ export default async function handleAutomations(
         turnOnThreshold: config.turnOnThreshold,
         turnOffThreshold: config.turnOffThreshold,
         isAutomationActive: config.isAutomationActive,
+        deviceMaxChargeSoc,
+        deviceMinDsgSoc,
       },
     });
     return;

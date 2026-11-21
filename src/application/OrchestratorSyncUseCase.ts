@@ -37,6 +37,8 @@ export interface ProvidedTelemetry {
   batteryTempCelsius?: number | null;
   batterySoh?: number | null;
   batteryCycles?: number | null;
+  deviceMaxChargeSoc?: number | null;
+  deviceMinDsgSoc?: number | null;
 }
 
 /**
@@ -164,6 +166,8 @@ export class OrchestratorSyncUseCase {
       let batteryTempCelsius: number | null = configurationRecord.lastBatteryTempCelsius;
       let batterySoh: number | null = configurationRecord.lastBatterySoh;
       let batteryCycles: number | null = configurationRecord.lastBatteryCycles;
+      let deviceMaxChargeSoc: number | null = null;
+      let deviceMinDsgSoc: number | null = null;
 
       if (providedTelemetry) {
         let candidateBattery = providedTelemetry.batteryPercentage;
@@ -193,12 +197,24 @@ export class OrchestratorSyncUseCase {
         if (providedTelemetry.batteryCycles !== undefined && providedTelemetry.batteryCycles !== null) {
           batteryCycles = providedTelemetry.batteryCycles;
         }
+        if (providedTelemetry.deviceMaxChargeSoc !== undefined && providedTelemetry.deviceMaxChargeSoc !== null) {
+          deviceMaxChargeSoc = providedTelemetry.deviceMaxChargeSoc;
+        }
+        if (providedTelemetry.deviceMinDsgSoc !== undefined && providedTelemetry.deviceMinDsgSoc !== null) {
+          deviceMinDsgSoc = providedTelemetry.deviceMinDsgSoc;
+        }
         batteryLevel = new BatteryLevel(numericBattery);
       } else {
         const telemetry = await ecoflowClient.fetchDeviceTelemetry(ecoflowDevice);
         batteryLevel = telemetry.batteryLevel;
         isAcOutputEnabled = telemetry.isAcOutputEnabled;
         outputWatts = telemetry.outputWatts;
+        if (telemetry.deviceMaxChargeSoc !== undefined && telemetry.deviceMaxChargeSoc !== null) {
+          deviceMaxChargeSoc = telemetry.deviceMaxChargeSoc;
+        }
+        if (telemetry.deviceMinDsgSoc !== undefined && telemetry.deviceMinDsgSoc !== null) {
+          deviceMinDsgSoc = telemetry.deviceMinDsgSoc;
+        }
 
         batteryLevel.transferBatteryPercentage((percentageNumber: number) => {
           numericBattery = percentageNumber;
@@ -529,7 +545,12 @@ export class OrchestratorSyncUseCase {
             }
           } else if (autoStormRiskActive) {
             // 2. Auto-Storm atua fora do horário de ponta (subordinado ao disjuntor geral)
-            const reserveThreshold = configurationRecord.autoStormReserveThreshold ?? 85;
+            const configuredReserve = configurationRecord.autoStormReserveThreshold ?? 85;
+            const reserveThreshold =
+              deviceMaxChargeSoc !== null && deviceMaxChargeSoc > 0
+                ? Math.min(configuredReserve, deviceMaxChargeSoc)
+                : configuredReserve;
+
             if (isAcOutputEnabled === true) {
               await ecoflowClient.setAcOutputState(ecoflowDevice, false);
               if (typeof this.repository.incrementAtsCycle === "function") {
@@ -569,7 +590,32 @@ export class OrchestratorSyncUseCase {
             actionResult = `Modo Auto-Storm Ativo: risco meteorológico severo (${stormAssessment?.weatherDescription ?? "Tempestade"}). Cargas na concessionária e reserva elevada para ${reserveThreshold}%.`;
           } else {
             // 3. Histerese de Bateria (Estática ou Adaptativa se habilitada)
-            let activeThresholdPair = thresholdPair;
+            let configuredUpper = 90;
+            let configuredLower = 30;
+            thresholdPair.transferThresholds((upper, lower) => {
+              configuredUpper = upper;
+              configuredLower = lower;
+            });
+
+            // Sincronização Nativa de Limites da EcoFlow:
+            // Se deviceMaxChargeSoc for detectado (ex: 80%), o religamento da ATS (turnOnThreshold)
+            // DEVE ser automaticamente sincronizado para o teto da EcoFlow (<= 80%),
+            // religando o inversor assim que a bateria bater o limite do app e evitando que o sol continue enchendo até 97%+
+            if (deviceMaxChargeSoc !== null && deviceMaxChargeSoc > 0) {
+              configuredUpper = Math.min(configuredUpper, deviceMaxChargeSoc);
+            }
+
+            if (deviceMinDsgSoc !== null && deviceMinDsgSoc > 0) {
+              configuredLower = Math.max(configuredLower, deviceMinDsgSoc);
+            }
+
+            const effectiveLower = Math.min(configuredLower, configuredUpper - 1);
+
+            let activeThresholdPair = new AutomationThresholdPair(
+              new PercentageValue(configuredUpper),
+              new PercentageValue(effectiveLower)
+            );
+
             if (
               configurationRecord.isAdaptiveHysteresisActive &&
               configurationRecord.latitude !== null &&
@@ -586,10 +632,6 @@ export class OrchestratorSyncUseCase {
                 if (typeof this.repository.updateSolarForecast === "function") {
                   await this.repository.updateSolarForecast(databaseRecordId, forecast.irradianceMj);
                 }
-                let configuredUpper = 90;
-                thresholdPair.transferThresholds((upper) => {
-                  configuredUpper = upper;
-                });
                 const adaptiveLower = Math.min(forecast.effectiveTurnOffThreshold, configuredUpper - 1);
                 activeThresholdPair = new AutomationThresholdPair(
                   new PercentageValue(configuredUpper),
@@ -642,6 +684,11 @@ export class OrchestratorSyncUseCase {
           }
         }
 
+        const effectiveStormReserve =
+          deviceMaxChargeSoc !== null && deviceMaxChargeSoc > 0
+            ? Math.min(configurationRecord.autoStormReserveThreshold ?? 85, deviceMaxChargeSoc)
+            : configurationRecord.autoStormReserveThreshold ?? 85;
+
         const smartChargingService = SolarSmartChargingService.getInstance();
         const smartChargeResult = smartChargingService.evaluate({
           isSmartChargingActive: configurationRecord.isSmartChargingActive,
@@ -650,7 +697,9 @@ export class OrchestratorSyncUseCase {
           currentAcChargingWatts: configurationRecord.currentAcChargingWatts,
           chargeOnlyOffPeak: configurationRecord.chargeOnlyOffPeak,
           cloudyPrechargeActive: configurationRecord.cloudyPrechargeActive,
-          isStormModeActive: configurationRecord.isStormModeActive || autoStormRiskActive,
+          isStormModeActive:
+            configurationRecord.isStormModeActive ||
+            (autoStormRiskActive && numericBattery < effectiveStormReserve),
           batteryPercentage: numericBattery,
           solarWatts: numericSolarWatts,
           outputWatts,
