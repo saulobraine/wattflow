@@ -70,7 +70,8 @@ export function BatteryHealthWidget({
     riskLevel: ThermalRiskLevel,
     throttleWatts: number,
     isCutoff: boolean,
-    isThrottle: boolean
+    isThrottle: boolean,
+    isPhysicalTempAvailable = true
   ): ThermalBadgeConfig => {
     if (isCutoff || riskLevel === "CRITICAL_CUTOFF") {
       return {
@@ -105,6 +106,17 @@ export function BatteryHealthWidget({
       };
     }
 
+    if (!isPhysicalTempAvailable) {
+      return {
+        label: "Hardware EMS Ativo",
+        dotColor: "bg-emerald-400",
+        badgeClass: "bg-emerald-950/80 text-emerald-300 border-emerald-600/70 shadow-emerald-950/40 shadow-sm",
+        textClass: "text-emerald-400",
+        barGradient: "from-emerald-500 to-teal-400",
+        icon: ShieldCheck,
+      };
+    }
+
     return {
       label: "Temperatura Ideal",
       dotColor: "bg-emerald-400",
@@ -133,7 +145,14 @@ export function BatteryHealthWidget({
   const throttleWatts = data?.thermalThrottleSpeedWatts ?? 200;
   const isCutoff = Boolean(data?.isThermalCutoffActive);
   const isThrottle = Boolean(data?.isThermalThrottleActive);
-  const thermalConfig = getThermalBadgeConfig(riskLevel, throttleWatts, isCutoff, isThrottle);
+  const isPhysicalTempAvailable = currentTemp !== null;
+  const thermalConfig = getThermalBadgeConfig(
+    riskLevel,
+    throttleWatts,
+    isCutoff,
+    isThrottle,
+    isPhysicalTempAvailable
+  );
 
   const soh = data?.bmsSohPercentage ?? data?.estimatedHealthPercentage ?? 100;
   const cycles = data?.bmsCycleCount ?? 0;
@@ -151,17 +170,30 @@ export function BatteryHealthWidget({
           <div
             role="status"
             aria-live="polite"
-            aria-label={`Saúde da Bateria: SOH ${soh}%, Temperatura ${
-              currentTemp !== null ? `${currentTemp.toFixed(1)}°C` : "--"
+            aria-label={`Saúde da Bateria: SOH ${soh}%, ${
+              currentTemp !== null
+                ? `Temperatura ${currentTemp.toFixed(1)}°C`
+                : "Hardware EMS Ativo / Proteção Térmica Integrada"
             }, Estado: ${thermalConfig.label}`}
             className={`inline-flex items-center gap-2.5 px-3 py-1.5 rounded-full border text-xs font-mono font-medium transition-all select-none ${thermalConfig.badgeClass} ${className}`}
           >
             <div className="flex items-center gap-1.5">
               <span className={`w-2 h-2 rounded-full ${thermalConfig.dotColor}`} aria-hidden="true" />
-              <Thermometer className="w-3.5 h-3.5" aria-hidden="true" />
-              <strong className="font-bold text-slate-100">
-                {currentTemp !== null ? `${currentTemp.toFixed(1)}°C` : "--"}
-              </strong>
+              {currentTemp !== null ? (
+                <>
+                  <Thermometer className="w-3.5 h-3.5" aria-hidden="true" />
+                  <strong className="font-bold text-slate-100">
+                    {`${currentTemp.toFixed(1)}°C`}
+                  </strong>
+                </>
+              ) : (
+                <>
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
+                  <strong className="font-bold text-emerald-300 text-[11px] whitespace-nowrap">
+                    Hardware EMS Ativo
+                  </strong>
+                </>
+              )}
             </div>
 
             <span className="opacity-40 select-none">|</span>
@@ -179,16 +211,24 @@ export function BatteryHealthWidget({
           </div>
         </TooltipTrigger>
         <TooltipContent side="bottom">
-          <div className="text-xs space-y-1.5 max-w-[260px] p-1 font-sans">
+          <div className="text-xs space-y-1.5 max-w-[280px] p-1 font-sans">
             <div className="font-bold text-slate-100 flex items-center justify-between border-b border-slate-800 pb-1">
               <span>BMS &amp; Saúde LiFePO4</span>
               <span className="text-[11px] font-mono text-emerald-400">{soh}% SOH</span>
             </div>
             <div className="text-slate-300">
-              <strong>Estado Térmico:</strong> {thermalConfig.label}
+              <strong>Estado Térmico:</strong>{" "}
+              {currentTemp !== null
+                ? thermalConfig.label
+                : "Hardware EMS Ativo / Proteção Térmica Integrada (River 2)"}
             </div>
             <div className="text-slate-400 text-[11px]">
-              Ciclos Registrados: <span className="font-mono text-slate-200">{cycles}</span> / {nominalCycles} (Restam ~{yearsRemaining} anos)
+              Ciclos: <span className="font-mono text-slate-200">{cycles}</span> / {nominalCycles} (Restam ~{yearsRemaining} anos)
+              {data?.isAnalyticalBms && (
+                <span className="block text-[10px] text-cyan-400 mt-0.5">
+                  ✓ Estimativa analítica LiFePO4 ativa
+                </span>
+              )}
             </div>
             {isCutoff && (
               <div className="text-rose-400 font-bold text-[11px]">
@@ -287,53 +327,87 @@ export function BatteryHealthWidget({
         </div>
       )}
 
-      {/* 3. Indicador de Temperatura das Células & Régua Térmica Volumétrica */}
-      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800/80 space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Thermometer className={`w-5 h-5 ${thermalConfig.textClass}`} aria-hidden="true" />
-            <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-              Temperatura Operacional das Células
+      {/* 3. Indicador de Temperatura das Células & Régua Térmica Volumétrica OU Card Informativo de Hardware EMS */}
+      {currentTemp !== null ? (
+        <div className="p-4 rounded-xl bg-slate-950 border border-slate-800/80 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Thermometer className={`w-5 h-5 ${thermalConfig.textClass}`} aria-hidden="true" />
+              <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                Temperatura Operacional das Células
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-xs font-mono text-slate-400">
+              <span>Máx. Registrada:</span>
+              <strong className="text-slate-200">
+                {maxRecorded !== null ? `${maxRecorded.toFixed(1)}°C` : "--"}
+              </strong>
+            </div>
+          </div>
+
+          <div className="flex items-baseline gap-3">
+            <span className={`text-3xl sm:text-4xl font-extrabold font-mono tracking-tight ${thermalConfig.textClass}`}>
+              {currentTemp.toFixed(1)}°C
+            </span>
+            <span className="text-xs text-slate-400 font-mono">
+              (Alerta: {warningThreshold}°C | Corte: {cutoffThreshold}°C)
             </span>
           </div>
-          <div className="flex items-center gap-2 text-xs font-mono text-slate-400">
-            <span>Máx. Registrada:</span>
-            <strong className="text-slate-200">
-              {maxRecorded !== null ? `${maxRecorded.toFixed(1)}°C` : "--"}
-            </strong>
-          </div>
-        </div>
 
-        <div className="flex items-baseline gap-3">
-          <span className={`text-3xl sm:text-4xl font-extrabold font-mono tracking-tight ${thermalConfig.textClass}`}>
-            {currentTemp !== null ? `${currentTemp.toFixed(1)}°C` : "--"}
-          </span>
-          <span className="text-xs text-slate-400 font-mono">
-            (Alerta: {warningThreshold}°C | Corte: {cutoffThreshold}°C)
-          </span>
+          {/* Barra Volumétrica de Temperatura com Gradiente Térmico */}
+          <div className="space-y-1.5">
+            <div className="w-full bg-slate-800/90 h-3 rounded-full overflow-hidden p-0.5 border border-slate-700/60 relative">
+              <div
+                className={`h-full rounded-full transition-all duration-700 ease-out bg-gradient-to-r ${thermalConfig.barGradient}`}
+                style={{ width: `${tempGaugePercent}%` }}
+                role="progressbar"
+                aria-valuenow={currentTemp}
+                aria-valuemin={20}
+                aria-valuemax={60}
+                aria-label="Nível de temperatura das células"
+              />
+            </div>
+            <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+              <span>20°C (Fria)</span>
+              <span className="text-amber-400/90">38°C (Ideal)</span>
+              <span className="text-orange-400/90">{warningThreshold}°C (Throttling)</span>
+              <span className="text-rose-400/90">{cutoffThreshold}°C (Corte)</span>
+            </div>
+          </div>
         </div>
+      ) : (
+        <div className="p-4 rounded-xl bg-slate-950 border border-emerald-900/50 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-emerald-400" aria-hidden="true" />
+              <span className="text-xs font-semibold text-emerald-300 uppercase tracking-wider">
+                Hardware EMS Ativo / Proteção Térmica Integrada
+              </span>
+            </div>
+            <span className="text-xs font-mono text-emerald-400/90 bg-emerald-950/80 px-2.5 py-0.5 rounded-full border border-emerald-800/60">
+              Firmware EcoFlow BMS
+            </span>
+          </div>
 
-        {/* Barra Volumétrica de Temperatura com Gradiente Térmico */}
-        <div className="space-y-1.5">
-          <div className="w-full bg-slate-800/90 h-3 rounded-full overflow-hidden p-0.5 border border-slate-700/60 relative">
-            <div
-              className={`h-full rounded-full transition-all duration-700 ease-out bg-gradient-to-r ${thermalConfig.barGradient}`}
-              style={{ width: `${tempGaugePercent}%` }}
-              role="progressbar"
-              aria-valuenow={currentTemp ?? 25}
-              aria-valuemin={20}
-              aria-valuemax={60}
-              aria-label="Nível de temperatura das células"
-            />
-          </div>
-          <div className="flex justify-between text-[10px] text-slate-500 font-mono">
-            <span>20°C (Fria)</span>
-            <span className="text-amber-400/90">38°C (Ideal)</span>
-            <span className="text-orange-400/90">{warningThreshold}°C (Throttling)</span>
-            <span className="text-rose-400/90">{cutoffThreshold}°C (Corte)</span>
+          <p className="text-xs text-slate-300 leading-relaxed">
+            O hardware EcoFlow gerencia a proteção térmica internamente no circuito do inversor e das células LiFePO4. O sistema possui desligamento de segurança de fábrica contra subtemperatura (&lt; 0°C) e sobretemperatura (&gt; 45°C em carga / &gt; 60°C em descarga).
+          </p>
+
+          <div className="flex flex-wrap items-center gap-2 sm:gap-4 pt-1 text-[11px] font-mono text-slate-400 border-t border-slate-900">
+            <span className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              Proteção Carga: 0°C a 45°C
+            </span>
+            <span className="hidden sm:inline opacity-30">•</span>
+            <span className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              Proteção Descarga: até 60°C
+            </span>
+            <span className="hidden sm:inline opacity-30">•</span>
+            <span className="text-slate-500">Química LFP Robusta</span>
           </div>
         </div>
-      </div>
+      )}
 
       {/* 4. Grade de Métricas Vitais: SOH, Ciclos LiFePO4 e Grandezas Elétricas */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -425,10 +499,17 @@ export function BatteryHealthWidget({
           </div>
 
           <div>
-            <div className="text-2xl font-extrabold font-mono text-amber-300">
-              {data?.voltageVolts !== null && data?.voltageVolts !== undefined
-                ? `${data.voltageVolts.toFixed(1)} V`
-                : "-- V"}
+            <div className="text-2xl font-extrabold font-mono text-amber-300 flex items-baseline gap-1.5">
+              <span>
+                {data?.voltageVolts !== null && data?.voltageVolts !== undefined
+                  ? `${data.voltageVolts.toFixed(1)} V`
+                  : "-- V"}
+              </span>
+              {data?.isVoltageEstimated && (
+                <span className="text-[10px] text-cyan-400 font-sans font-normal">
+                  (Estimada LFP)
+                </span>
+              )}
             </div>
             <div className="text-xs text-slate-400 font-mono mt-0.5">
               Corrente: {data?.amperageAmps !== null && data?.amperageAmps !== undefined

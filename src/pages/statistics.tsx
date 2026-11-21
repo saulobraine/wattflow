@@ -305,10 +305,10 @@ export default function StatisticsPage() {
   const getBmsThermalTheme = (tempCelsius: number | null | undefined) => {
     if (tempCelsius === null || tempCelsius === undefined) {
       return {
-        text: "text-slate-400",
-        bg: "bg-slate-500",
-        badge: "bg-slate-800 text-slate-400 border-slate-700",
-        label: "Standby",
+        text: "text-emerald-400",
+        bg: "bg-emerald-400",
+        badge: "bg-emerald-950/80 text-emerald-300 border-emerald-600/70 shadow-emerald-950/40",
+        label: "Hardware EMS Ativo / Proteção Térmica Integrada",
       };
     }
     if (tempCelsius < 38) {
@@ -1168,65 +1168,87 @@ export default function StatisticsPage() {
                   })()}
                 </div>
 
-                {/* Termômetro e Barra de Gradiente Térmico */}
-                <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs uppercase font-semibold tracking-wider text-slate-400 flex items-center gap-1.5">
-                      <Thermometer className="w-3.5 h-3.5 text-rose-400" aria-hidden="true" />
-                      Temperatura das Células
-                    </span>
-                    <span className="text-xs font-mono text-slate-400">
-                      Pico Histórico:{" "}
-                      <strong className="text-slate-200">
-                        {data.bmsAnalytics.maxRecordedTemp !== null
-                          ? `${data.bmsAnalytics.maxRecordedTemp.toFixed(1)}°C`
-                          : "--"}
-                      </strong>
-                    </span>
-                  </div>
+                {/* Termômetro e Barra de Gradiente Térmico OU Card de Hardware EMS */}
+                {data.bmsAnalytics.temperatureCelsius !== null ? (
+                  <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs uppercase font-semibold tracking-wider text-slate-400 flex items-center gap-1.5">
+                        <Thermometer className="w-3.5 h-3.5 text-rose-400" aria-hidden="true" />
+                        Temperatura das Células
+                      </span>
+                      <span className="text-xs font-mono text-slate-400">
+                        Pico Histórico:{" "}
+                        <strong className="text-slate-200">
+                          {data.bmsAnalytics.maxRecordedTemp !== null
+                            ? `${data.bmsAnalytics.maxRecordedTemp.toFixed(1)}°C`
+                            : "--"}
+                        </strong>
+                      </span>
+                    </div>
 
-                  <div className="flex items-baseline gap-2">
-                    <span className={`text-3xl sm:text-4xl font-extrabold font-mono tracking-tight ${
-                      getBmsThermalTheme(data.bmsAnalytics.temperatureCelsius).text
-                    }`}>
-                      {data.bmsAnalytics.temperatureCelsius !== null
-                        ? `${data.bmsAnalytics.temperatureCelsius.toFixed(1)}°C`
-                        : "-- °C"}
-                    </span>
-                    <span className="text-xs text-slate-400 font-mono">
-                      (Alerta: {data.bmsAnalytics.thermalWarningThreshold}°C | Corte: {data.bmsAnalytics.thermalShutdownThreshold}°C)
-                    </span>
-                  </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className={`text-3xl sm:text-4xl font-extrabold font-mono tracking-tight ${
+                        getBmsThermalTheme(data.bmsAnalytics.temperatureCelsius).text
+                      }`}>
+                        {`${data.bmsAnalytics.temperatureCelsius.toFixed(1)}°C`}
+                      </span>
+                      <span className="text-xs text-slate-400 font-mono">
+                        (Alerta: {data.bmsAnalytics.thermalWarningThreshold}°C | Corte: {data.bmsAnalytics.thermalShutdownThreshold}°C)
+                      </span>
+                    </div>
 
-                  <div className="space-y-1">
-                    <div
-                      className="w-full bg-slate-900 rounded-full h-3 p-0.5 border border-slate-800 overflow-hidden"
-                      role="progressbar"
-                      aria-valuenow={data.bmsAnalytics.temperatureCelsius ?? 0}
-                      aria-valuemin={20}
-                      aria-valuemax={60}
-                      aria-label="Temperatura das células da bateria EcoFlow"
-                    >
+                    <div className="space-y-1">
                       <div
-                        className={`h-full rounded-full transition-all duration-700 ease-out ${
-                          (data.bmsAnalytics.temperatureCelsius ?? 0) < 38
-                            ? "bg-gradient-to-r from-emerald-500 to-emerald-400"
-                            : (data.bmsAnalytics.temperatureCelsius ?? 0) <= 45
-                            ? "bg-gradient-to-r from-emerald-500 via-amber-400 to-amber-500"
-                            : "bg-gradient-to-r from-amber-500 via-rose-500 to-red-600 animate-pulse"
-                        }`}
-                        style={{
-                          width: `${Math.max(5, Math.min(100, (((data.bmsAnalytics.temperatureCelsius ?? 25) - 20) / 40) * 100))}%`,
-                        }}
-                      />
-                    </div>
-                    <div className="flex justify-between text-[10px] font-mono text-slate-500">
-                      <span>20°C (Fria)</span>
-                      <span className="text-amber-500/80">38°C (Atenção)</span>
-                      <span className="text-rose-500/80">50°C (Corte AC)</span>
+                        className="w-full bg-slate-900 rounded-full h-3 p-0.5 border border-slate-800 overflow-hidden"
+                        role="progressbar"
+                        aria-valuenow={data.bmsAnalytics.temperatureCelsius}
+                        aria-valuemin={20}
+                        aria-valuemax={60}
+                        aria-label="Temperatura das células da bateria EcoFlow"
+                      >
+                        <div
+                          className={`h-full rounded-full transition-all duration-700 ease-out ${
+                            data.bmsAnalytics.temperatureCelsius < 38
+                              ? "bg-gradient-to-r from-emerald-500 to-emerald-400"
+                              : data.bmsAnalytics.temperatureCelsius <= 45
+                              ? "bg-gradient-to-r from-emerald-500 via-amber-400 to-amber-500"
+                              : "bg-gradient-to-r from-amber-500 via-rose-500 to-red-600 animate-pulse"
+                          }`}
+                          style={{
+                            width: `${Math.max(5, Math.min(100, (((data.bmsAnalytics.temperatureCelsius) - 20) / 40) * 100))}%`,
+                          }}
+                        />
+                      </div>
+                      <div className="flex justify-between text-[10px] font-mono text-slate-500">
+                        <span>20°C (Fria)</span>
+                        <span className="text-amber-500/80">38°C (Atenção)</span>
+                        <span className="text-rose-500/80">50°C (Corte AC)</span>
+                      </div>
                     </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="p-4 rounded-xl bg-slate-950/80 border border-emerald-900/50 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs uppercase font-semibold tracking-wider text-emerald-300 flex items-center gap-1.5">
+                        <ShieldCheck className="w-4 h-4 text-emerald-400" aria-hidden="true" />
+                        Hardware EMS Ativo / Proteção Térmica Integrada
+                      </span>
+                      <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800/60">
+                        EcoFlow River 2
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      O hardware EcoFlow gerencia a proteção térmica internamente no firmware do BMS (corte automático a &lt; 0°C e &gt; 45°C na carga, e &gt; 60°C na descarga). Células LiFePO4 protegidas ativamente pelo controlador embarcado.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-3 pt-1 text-[11px] font-mono text-slate-400 border-t border-slate-900">
+                      <span>Subtemperatura Carga: &lt; 0°C</span>
+                      <span>•</span>
+                      <span>Sobretemperatura Carga: &gt; 45°C</span>
+                      <span>•</span>
+                      <span>Sobretemperatura Descarga: &gt; 60°C</span>
+                    </div>
+                  </div>
+                )}
 
                 {/* Grid com SOH %, Ciclos BMS e Tensão */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
@@ -1279,8 +1301,15 @@ export default function StatisticsPage() {
                       <RefreshCw className="w-3.5 h-3.5 text-sky-400" aria-hidden="true" />
                     </div>
                     <div className="my-1.5">
-                      <div className="text-xl sm:text-2xl font-extrabold font-mono text-slate-100">
-                        {data.bmsAnalytics.bmsCycles !== null ? data.bmsAnalytics.bmsCycles : "--"}
+                      <div className="text-xl sm:text-2xl font-extrabold font-mono text-slate-100 flex items-baseline gap-1.5">
+                        <span>
+                          {data.bmsAnalytics.bmsCycles !== null ? data.bmsAnalytics.bmsCycles : "--"}
+                        </span>
+                        {data.bmsAnalytics.isAnalyticalBms && (
+                          <span className="text-[10px] text-cyan-400 font-sans font-normal">
+                            (Analítico)
+                          </span>
+                        )}
                       </div>
                       <span className="text-[11px] text-slate-400 font-mono">/ ~3.000 ciclos nominais</span>
                     </div>
@@ -1295,8 +1324,15 @@ export default function StatisticsPage() {
                       <Zap className="w-3.5 h-3.5 text-amber-400" aria-hidden="true" />
                     </div>
                     <div className="my-1.5">
-                      <div className="text-xl sm:text-2xl font-extrabold font-mono text-amber-300">
-                        {data.bmsAnalytics.voltageVolts !== null ? `${data.bmsAnalytics.voltageVolts.toFixed(1)} V` : "-- V"}
+                      <div className="text-xl sm:text-2xl font-extrabold font-mono text-amber-300 flex items-baseline gap-1.5">
+                        <span>
+                          {data.bmsAnalytics.voltageVolts !== null ? `${data.bmsAnalytics.voltageVolts.toFixed(1)} V` : "-- V"}
+                        </span>
+                        {data.bmsAnalytics.isVoltageEstimated && (
+                          <span className="text-[10px] text-cyan-400 font-sans font-normal">
+                            (Estimada LFP)
+                          </span>
+                        )}
                       </div>
                       <span className="text-[11px] text-slate-400 font-mono">
                         Corrente: {data.bmsAnalytics.amperageAmps !== null ? `${data.bmsAnalytics.amperageAmps.toFixed(1)} A` : "-- A"}
