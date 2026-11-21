@@ -21,6 +21,9 @@ export interface BatteryHealthMetrics {
   amperageAmps: number | null;
   powerWatts: number | null;
   recentThermalTrend: Array<{ time: string; temperatureCelsius: number }>;
+  isAnalyticalBms?: boolean;
+  hardwareStatus?: string;
+  isVoltageEstimated?: boolean;
 }
 
 export interface ThermalRiskEvaluationResult {
@@ -42,6 +45,11 @@ export interface RawBatteryTelemetryParams {
   amps?: number | null;
   bmsMasterAmps?: number | null;
   watts?: number | null;
+  batteryPercentage?: number | null;
+  atsCurrentCycles?: number | null;
+  accumulatedThroughputKwh?: number | null;
+  isAnalyticalBms?: boolean;
+  hardwareStatus?: string;
 }
 
 export interface BatteryHealthConfig {
@@ -57,6 +65,9 @@ export interface BatteryHealthConfig {
   maxRecordedBatteryTemp?: number | null;
   dailyCycleRate?: number;
   nominalLifespanCycles?: number;
+  batteryCapacityWh?: number | null;
+  atsCurrentCycles?: number | null;
+  ecoflowSerialNumber?: string | null;
 }
 
 /**
@@ -177,25 +188,102 @@ export class BatteryHealthService {
     };
   }
 
+  /**
+   * Estima a tensão (Volts) de saída da bateria com base na curva de descarga LiFePO4 (LFP)
+   * e no estado de carga atual (SOC %).
+   */
+  public estimateVoltageFromSoc(soc: number, nominalVoltage = 25.6): number {
+    const clampedSoc = Math.max(0, Math.min(100, soc));
+    const cellCount = nominalVoltage > 40 ? 16 : nominalVoltage > 20 ? 8 : 4;
+    let cellVolts: number;
+    if (clampedSoc <= 0) {
+      cellVolts = 2.50;
+    } else if (clampedSoc < 10) {
+      cellVolts = 2.50 + (clampedSoc / 10) * 0.50; // 2.50V - 3.00V
+    } else if (clampedSoc < 20) {
+      cellVolts = 3.00 + ((clampedSoc - 10) / 10) * 0.20; // 3.00V - 3.20V
+    } else if (clampedSoc < 90) {
+      cellVolts = 3.20 + ((clampedSoc - 20) / 70) * 0.16; // 3.20V - 3.36V (platô LiFePO4 estável)
+    } else {
+      cellVolts = 3.36 + ((clampedSoc - 90) / 10) * 0.24; // 3.36V - 3.60V
+    }
+    return Number((cellVolts * cellCount).toFixed(1));
+  }
+
+  /**
+   * Calcula ciclos analíticos equivalentes acumulados a partir das transferências da ATS
+   * ou pelo throughput energético acumulado em kWh.
+   */
+  public calculateAnalyticalCycles(
+    atsCurrentCycles = 0,
+    accumulatedThroughputKwh = 0,
+    batteryCapacityWh = 768
+  ): number {
+    const safeCapacity = batteryCapacityWh > 0 ? batteryCapacityWh : 768;
+    const throughputCycles = Math.round((accumulatedThroughputKwh * 1000) / safeCapacity);
+    return Math.max(atsCurrentCycles, throughputCycles);
+  }
+
   public evaluateBatteryHealth(
     rawParams: RawBatteryTelemetryParams,
     config: BatteryHealthConfig = {},
     configurationId = "default"
   ): BatteryHealthMetrics {
     const temp = rawParams.bmsMasterTemp ?? rawParams.temp ?? null;
-    const cycles = rawParams.bmsMasterCycles ?? rawParams.cycles ?? null;
-    const soh = rawParams.bmsMasterSoh ?? rawParams.soh ?? null;
-    const volts = rawParams.bmsMasterVolts ?? rawParams.volts ?? null;
+    let cycles = rawParams.bmsMasterCycles ?? rawParams.cycles ?? null;
+    let soh = rawParams.bmsMasterSoh ?? rawParams.soh ?? null;
+    let volts = rawParams.bmsMasterVolts ?? rawParams.volts ?? null;
     const amps = rawParams.bmsMasterAmps ?? rawParams.amps ?? null;
+
+    const nominalLifespanCycles = config.nominalLifespanCycles ?? 3000;
+    const dailyCycleRate = config.dailyCycleRate ?? 1.0;
+    const nominalVoltage = (config.batteryCapacityWh ?? 768) > 1500 ? 51.2 : 25.6;
+
+    let isVoltageEstimated = false;
+    let isAnalyticalBms = Boolean(rawParams.isAnalyticalBms);
+
+    if (
+      cycles === null &&
+      (rawParams.atsCurrentCycles !== undefined ||
+        config.atsCurrentCycles !== undefined ||
+        rawParams.accumulatedThroughputKwh !== undefined)
+    ) {
+      cycles = this.calculateAnalyticalCycles(
+        rawParams.atsCurrentCycles ?? config.atsCurrentCycles ?? 0,
+        rawParams.accumulatedThroughputKwh ?? 0,
+        config.batteryCapacityWh ?? 768
+      );
+      isAnalyticalBms = true;
+    }
+
+    if (soh === null && cycles !== null) {
+      soh = Math.max(80, Math.min(100, Math.round(100 - (cycles / nominalLifespanCycles) * 20)));
+      isAnalyticalBms = true;
+    }
+
+    if (volts === null && rawParams.batteryPercentage !== undefined && rawParams.batteryPercentage !== null) {
+      volts = this.estimateVoltageFromSoc(rawParams.batteryPercentage, nominalVoltage);
+      isVoltageEstimated = true;
+      isAnalyticalBms = true;
+    }
+
     const watts = rawParams.watts ?? (volts !== null && amps !== null ? Number((volts * amps).toFixed(1)) : null);
+
+    const hardwareStatus =
+      rawParams.hardwareStatus ??
+      (temp === null
+        ? "Hardware EMS Ativo / Proteção Térmica Integrada"
+        : "Sensores Térmicos Físicos Conectados");
+
+    if (temp === null) {
+      isAnalyticalBms = true;
+    }
 
     const isThermalProtectionActive = config.isThermalProtectionActive ?? true;
     const thermalWarningThreshold = config.thermalThrottleTempThreshold ?? config.thermalWarningThreshold ?? 42.0;
     const thermalShutdownThreshold = config.thermalCutoffTempThreshold ?? config.thermalShutdownThreshold ?? 48.0;
     const thermalRecoveryTempThreshold = config.thermalRecoveryTempThreshold ?? Math.max(30, thermalShutdownThreshold - 4.0);
     const thermalThrottleSpeedWatts = config.thermalThrottleSpeedWatts ?? 200;
-    const nominalLifespanCycles = config.nominalLifespanCycles ?? 3000;
-    const dailyCycleRate = config.dailyCycleRate ?? 1.0;
 
     const previousCutoff = Boolean(config.isThermalCutoffActive);
 
@@ -242,6 +330,9 @@ export class BatteryHealthService {
       amperageAmps: amps,
       powerWatts: watts,
       recentThermalTrend,
+      isAnalyticalBms,
+      hardwareStatus,
+      isVoltageEstimated,
     };
   }
 

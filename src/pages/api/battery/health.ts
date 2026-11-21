@@ -168,6 +168,11 @@ export default async function handleBatteryHealth(
     const watts =
       volts !== null && amps !== null ? Number((volts * amps).toFixed(1)) : null;
 
+    const batteryPercentage =
+      liveTelemetry?.batteryPercentage ??
+      latestLog?.batteryPercentage ??
+      null;
+
     const rawParams: RawBatteryTelemetryParams = {
       temp,
       cycles,
@@ -175,12 +180,21 @@ export default async function handleBatteryHealth(
       volts,
       amps,
       watts,
+      batteryPercentage,
+      atsCurrentCycles: configuration.atsCurrentCycles,
+      accumulatedThroughputKwh: configuration.atsCurrentCycles
+        ? (configuration.atsCurrentCycles * (configuration.batteryCapacityWh ?? 768)) / 1000
+        : null,
     };
 
     const batteryHealthService = BatteryHealthService.getInstance();
     const metrics = batteryHealthService.evaluateBatteryHealth(
       rawParams,
-      configuration,
+      {
+        ...configuration,
+        batteryCapacityWh: configuration.batteryCapacityWh,
+        atsCurrentCycles: configuration.atsCurrentCycles,
+      },
       configuration.id
     );
 

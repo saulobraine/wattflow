@@ -582,3 +582,101 @@ describe("Validação Zod de Configurações Térmicas (settingsPostBodySchema)"
     expect(invalidHigh.success).toBe(false);
   });
 });
+
+describe("Adaptação Inteligente BMS River 2 e Métricas Analíticas", () => {
+  const service = BatteryHealthService.getInstance();
+
+  it("calcula curva de tensão estimada LiFePO4 para sistema 25.6V (8S - River 2)", () => {
+    // 0% SoC -> 20.0V (2.50V/célula)
+    expect(service.estimateVoltageFromSoc(0, 25.6)).toBe(20.0);
+    // 10% SoC -> 24.0V (3.00V/célula)
+    expect(service.estimateVoltageFromSoc(10, 25.6)).toBe(24.0);
+    // 50% SoC -> platô LiFePO4 (~26.2V)
+    const soc50 = service.estimateVoltageFromSoc(50, 25.6);
+    expect(soc50).toBeGreaterThanOrEqual(25.6);
+    expect(soc50).toBeLessThanOrEqual(26.8);
+    // 100% SoC -> 28.8V (3.60V/célula)
+    expect(service.estimateVoltageFromSoc(100, 25.6)).toBe(28.8);
+  });
+
+  it("calcula curva de tensão estimada LiFePO4 para sistema 51.2V (16S - Delta Pro)", () => {
+    // 0% SoC -> 40.0V
+    expect(service.estimateVoltageFromSoc(0, 51.2)).toBe(40.0);
+    // 100% SoC -> 57.6V
+    expect(service.estimateVoltageFromSoc(100, 51.2)).toBe(57.6);
+  });
+
+  it("calcula ciclos analíticos acumulados a partir da ATS ou do throughput em kWh", () => {
+    // Caso 1: ATS tem mais ciclos que throughput
+    const cyclesFromAts = service.calculateAnalyticalCycles(120, 50, 768);
+    expect(cyclesFromAts).toBe(120);
+
+    // Caso 2: Throughput em kWh tem mais ciclos que ATS (ex: 768Wh, 153.6 kWh = 200 ciclos)
+    const cyclesFromThroughput = service.calculateAnalyticalCycles(50, 153.6, 768);
+    expect(cyclesFromThroughput).toBe(200);
+
+    // Caso 3: Fallback gracioso com capacidade não positiva
+    const fallbackCycles = service.calculateAnalyticalCycles(10, 7.68, 0);
+    expect(fallbackCycles).toBe(10);
+  });
+
+  it("aplica adaptação inteligente completa para EcoFlow River 2 sem sondas físicas", () => {
+    const rawTelemetry: RawBatteryTelemetryParams = {
+      temp: null,
+      cycles: null,
+      soh: null,
+      volts: null,
+      amps: 5.0,
+      batteryPercentage: 80,
+      atsCurrentCycles: 150,
+      accumulatedThroughputKwh: 115.2,
+    };
+
+    const config: BatteryHealthConfig = {
+      batteryCapacityWh: 768,
+      atsCurrentCycles: 150,
+      nominalLifespanCycles: 3000,
+    };
+
+    const metrics = service.evaluateBatteryHealth(rawTelemetry, config, "test-user-river2");
+
+    // Deve computar ciclos analíticos
+    expect(metrics.bmsCycleCount).toBe(150);
+    // Deve estimar SOH baseado nos ciclos (3000 ciclos até 80%)
+    expect(metrics.bmsSohPercentage).toBe(99); // 100 - (150/3000)*20 = 99
+    // Deve estimar a tensão LiFePO4 pelo SoC de 80%
+    expect(metrics.voltageVolts).toBeGreaterThan(25.0);
+    expect(metrics.isVoltageEstimated).toBe(true);
+    // Deve sinalizar BMS analítico e status de hardware EMS ativo
+    expect(metrics.isAnalyticalBms).toBe(true);
+    expect(metrics.hardwareStatus).toBe("Hardware EMS Ativo / Proteção Térmica Integrada");
+    // Potência calculada a partir da tensão estimada * amperagem
+    expect(metrics.powerWatts).toBe(Number(((metrics.voltageVolts ?? 0) * 5.0).toFixed(1)));
+  });
+
+  it("preserva leituras físicas de sensores quando disponíveis (família Delta)", () => {
+    const rawTelemetry: RawBatteryTelemetryParams = {
+      temp: 34.5,
+      cycles: 42,
+      soh: 98,
+      volts: 51.8,
+      amps: 12.0,
+      batteryPercentage: 90,
+    };
+
+    const config: BatteryHealthConfig = {
+      batteryCapacityWh: 2048,
+      atsCurrentCycles: 40,
+    };
+
+    const metrics = service.evaluateBatteryHealth(rawTelemetry, config, "test-user-delta");
+
+    expect(metrics.currentTempCelsius).toBe(34.5);
+    expect(metrics.bmsCycleCount).toBe(42);
+    expect(metrics.bmsSohPercentage).toBe(98);
+    expect(metrics.voltageVolts).toBe(51.8);
+    expect(metrics.isVoltageEstimated).toBe(false);
+    expect(metrics.isAnalyticalBms).toBe(false);
+    expect(metrics.hardwareStatus).toBe("Sensores Térmicos Físicos Conectados");
+  });
+});

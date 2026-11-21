@@ -14,6 +14,7 @@ import {
   type TariffPeriod,
   type DynamicTariffConfig,
 } from "../../domain/services/TariffScheduleService";
+import { BatteryHealthService } from "../../domain/services/BatteryHealthService";
 
 export type { SolarExpectationLevel, TariffPeriod };
 
@@ -91,6 +92,9 @@ export interface BmsAnalyticsMetrics {
     time: string;
     temperatureCelsius: number;
   }>;
+  hardwareStatus?: string;
+  isAnalyticalBms?: boolean;
+  isVoltageEstimated?: boolean;
 }
 
 export interface ApplianceSimulationMetrics {
@@ -440,6 +444,8 @@ function buildBmsAnalyticsMetrics(
     lastBatterySoh?: number | null;
     lastBatteryCycles?: number | null;
     maxRecordedBatteryTemp?: number | null;
+    atsCurrentCycles?: number | null;
+    batteryCapacityWh?: number | null;
   } | null,
   liveTelemetry: {
     batteryTempCelsius?: number | null;
@@ -447,8 +453,10 @@ function buildBmsAnalyticsMetrics(
     batteryCycles?: number | null;
     batteryVolts?: number | null;
     batteryAmps?: number | null;
+    batteryPercentage?: number | null;
   } | null,
-  rawLogs: Array<{ executedAt: Date; batteryTempCelsius?: number | null }>
+  rawLogs: Array<{ executedAt: Date; batteryTempCelsius?: number | null }>,
+  latestBatteryPercentage?: number | null
 ): BmsAnalyticsMetrics {
   const warning = configuration?.thermalWarningThreshold ?? 45.0;
   const shutdown = configuration?.thermalShutdownThreshold ?? 50.0;
@@ -463,15 +471,61 @@ function buildBmsAnalyticsMetrics(
     maxTemp = maxTemp !== null ? Math.max(maxTemp, currentTemp) : currentTemp;
   }
 
-  const soh =
+  const batteryHealthService = BatteryHealthService.getInstance();
+  let isAnalyticalBms = false;
+  let isVoltageEstimated = false;
+
+  let cycles =
+    liveTelemetry?.batteryCycles !== undefined && liveTelemetry?.batteryCycles !== null
+      ? liveTelemetry.batteryCycles
+      : configuration?.lastBatteryCycles ?? null;
+
+  if (
+    cycles === null &&
+    configuration?.atsCurrentCycles !== undefined &&
+    configuration?.atsCurrentCycles !== null
+  ) {
+    const throughputKwh =
+      (configuration.atsCurrentCycles * (configuration.batteryCapacityWh ?? 768)) / 1000;
+    cycles = batteryHealthService.calculateAnalyticalCycles(
+      configuration.atsCurrentCycles,
+      throughputKwh,
+      configuration.batteryCapacityWh ?? 768
+    );
+    isAnalyticalBms = true;
+  }
+
+  let soh =
     liveTelemetry?.batterySoh !== undefined && liveTelemetry?.batterySoh !== null
       ? liveTelemetry.batterySoh
       : configuration?.lastBatterySoh ?? null;
 
-  const cycles =
-    liveTelemetry?.batteryCycles !== undefined && liveTelemetry?.batteryCycles !== null
-      ? liveTelemetry.batteryCycles
-      : configuration?.lastBatteryCycles ?? null;
+  if (soh === null && cycles !== null) {
+    soh = Math.max(80, Math.min(100, Math.round(100 - (cycles / 3000) * 20)));
+    isAnalyticalBms = true;
+  }
+
+  let volts = liveTelemetry?.batteryVolts ?? null;
+  const currentSoc =
+    liveTelemetry?.batteryPercentage !== undefined && liveTelemetry?.batteryPercentage !== null
+      ? liveTelemetry.batteryPercentage
+      : latestBatteryPercentage ?? null;
+
+  if (volts === null && currentSoc !== null && currentSoc !== undefined) {
+    const nominalVoltage = (configuration?.batteryCapacityWh ?? 768) > 1500 ? 51.2 : 25.6;
+    volts = batteryHealthService.estimateVoltageFromSoc(currentSoc, nominalVoltage);
+    isVoltageEstimated = true;
+    isAnalyticalBms = true;
+  }
+
+  const hardwareStatus =
+    currentTemp === null
+      ? "Hardware EMS Ativo / Proteção Térmica Integrada"
+      : "Sensores Térmicos Físicos Conectados";
+
+  if (currentTemp === null) {
+    isAnalyticalBms = true;
+  }
 
   let thermalStatus: "NORMAL" | "WARM" | "HOT" | "CRITICAL" = "NORMAL";
   if (currentTemp !== null) {
@@ -501,9 +555,12 @@ function buildBmsAnalyticsMetrics(
     thermalStatus,
     thermalWarningThreshold: warning,
     thermalShutdownThreshold: shutdown,
-    voltageVolts: liveTelemetry?.batteryVolts ?? null,
+    voltageVolts: volts,
     amperageAmps: liveTelemetry?.batteryAmps ?? null,
     recentThermalTrend,
+    hardwareStatus,
+    isAnalyticalBms,
+    isVoltageEstimated,
   };
 }
 
@@ -676,7 +733,7 @@ export default async function handleStatistics(
       );
       const liveSnapshot = EcoFlowMqttStreamService.getInstance().getLatestTelemetry(extractedUserId);
       const defaultSolarForecast = await buildSolarForecastMetrics(configuration);
-      const defaultBms = buildBmsAnalyticsMetrics(configuration, liveSnapshot, []);
+      const defaultBms = buildBmsAnalyticsMetrics(configuration, liveSnapshot, [], 0);
       const defaultApplianceSimulation = buildApplianceSimulationMetrics(
         configuration?.applianceProfiles,
         configuration?.batteryCapacityWh ?? 2048,
@@ -916,7 +973,7 @@ export default async function handleStatistics(
 
     const liveSnapshot = EcoFlowMqttStreamService.getInstance().getLatestTelemetry(extractedUserId);
     const solarForecast = await buildSolarForecastMetrics(configuration);
-    const bmsAnalytics = buildBmsAnalyticsMetrics(configuration, liveSnapshot, rawLogs24h);
+    const bmsAnalytics = buildBmsAnalyticsMetrics(configuration, liveSnapshot, rawLogs24h, latestBattery);
     const applianceSimulation = buildApplianceSimulationMetrics(
       configuration?.applianceProfiles,
       configuration?.batteryCapacityWh ?? 2048,
