@@ -428,6 +428,8 @@ describe("OrchestratorSyncUseCase - Ações de Proteção Térmica do BMS", () =
       thermalThrottleSpeedWatts: 200,
       isSmartChargingActive: true,
       currentAcChargingWatts: 800,
+      latitude: null,
+      longitude: null,
     });
 
     (repo as unknown as Record<string, unknown>).findActiveConfigurationByUserId =
