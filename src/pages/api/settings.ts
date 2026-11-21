@@ -547,10 +547,13 @@ export default async function handleSettings(
         typeof thermalShutdownThreshold === "number"
           ? thermalShutdownThreshold
           : existingConfig?.thermalShutdownThreshold ?? 50.0;
-      const resolvedDynamicTariff =
-        typeof isDynamicTariffActive === "boolean"
+      const resolvedTariffSyncActive =
+        typeof isTimeOfUseActive === "boolean"
+          ? isTimeOfUseActive
+          : typeof isDynamicTariffActive === "boolean"
           ? isDynamicTariffActive
-          : existingConfig?.isDynamicTariffActive ?? false;
+          : existingConfig?.isTimeOfUseActive ?? existingConfig?.isDynamicTariffActive ?? false;
+      const resolvedDynamicTariff = resolvedTariffSyncActive;
       const resolvedPeakTariff =
         typeof peakTariffPerKwh === "number"
           ? peakTariffPerKwh
@@ -655,12 +658,7 @@ export default async function handleSettings(
         typeof autoStormPrechargeAc === "boolean"
           ? autoStormPrechargeAc
           : existingConfig?.autoStormPrechargeAc ?? true;
-      const resolvedTimeOfUseActive =
-        typeof isTimeOfUseActive === "boolean"
-          ? isTimeOfUseActive
-          : typeof isDynamicTariffActive === "boolean"
-          ? isDynamicTariffActive
-          : existingConfig?.isTimeOfUseActive ?? existingConfig?.isDynamicTariffActive ?? false;
+      const resolvedTimeOfUseActive = resolvedTariffSyncActive;
       const resolvedTimeOfUseWeekdays =
         typeof timeOfUseWeekdaysOnly === "boolean"
           ? timeOfUseWeekdaysOnly

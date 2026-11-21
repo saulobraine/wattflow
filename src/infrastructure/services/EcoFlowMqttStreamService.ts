@@ -12,6 +12,7 @@ import {
 import { decryptAndMigrateConfigurationSecrets } from "../security/secretMigrationHelper";
 import { OrchestratorSyncUseCase } from "../../application/OrchestratorSyncUseCase";
 import { ConfigurationRepository } from "../repositories/ConfigurationRepository";
+import { isManualAcOverrideActive } from "../security/rateLimiter";
 
 export interface LiveTelemetrySnapshot {
   batteryPercentage: number | null;
@@ -480,6 +481,22 @@ export class EcoFlowMqttStreamService {
     const currentSoc = currentSnapshot.batteryPercentage;
     const currentAcState = currentSnapshot.isAcOutputEnabled;
     const now = Date.now();
+
+    // Intervenção manual recente (cooldown de 5m):
+    // Aborta a comutação automática para respeitar a decisão manual do usuário,
+    // a menos que haja emergência crítica de segurança (SOC <= 10% ou corte térmico BMS >= 48°C).
+    const isThermalCutoff =
+      typeof currentSnapshot.batteryTempCelsius === "number" &&
+      currentSnapshot.batteryTempCelsius >= 48;
+    const isCriticalBattery = currentSoc <= 10;
+    const isOverrideActive = isManualAcOverrideActive(streamConfig.userId);
+
+    if (isOverrideActive && !isCriticalBattery && !isThermalCutoff) {
+      console.warn(
+        `[EcoFlow MQTT] Automação suspensa temporariamente para user=${streamConfig.userId} devido a intervenção manual recente (cooldown ativo). SOC=${currentSoc}%.`
+      );
+      return;
+    }
 
     const isFirstEvaluation = userState.lastEvaluationTimeMs === 0;
     const hasAcStateChanged =
