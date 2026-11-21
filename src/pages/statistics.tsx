@@ -115,6 +115,7 @@ export default function StatisticsPage() {
   const [selectedRange, setSelectedRange] = useState<StatisticsRange>("today-vs-yesterday");
   const [historyData, setHistoryData] = useState<StatisticsHistoryResponse | null>(null);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [hoveredHistPoint, setHoveredHistPoint] = useState<StatisticsHistoryPoint | null>(null);
   const [hoveredCompPoint, setHoveredCompPoint] = useState<{
     today?: TodayVsYesterdayPoint;
@@ -124,14 +125,20 @@ export default function StatisticsPage() {
 
   const fetchHistory = async (range: StatisticsRange) => {
     setIsHistoryLoading(true);
+    setHistoryError(null);
     try {
-      const res = await fetch(`/api/statistics/history?range=${range}`);
+      const res = await fetch(`/api/statistics/history?range=${range}&t=${Date.now()}`, {
+        cache: "no-store",
+      });
       const json = await res.json();
       if (res.ok && json.range) {
         setHistoryData(json);
+      } else {
+        setHistoryError(json.message || "Não foi possível carregar o histórico multitemporal.");
       }
     } catch (err) {
       console.error("Erro ao carregar histórico multitemporal:", err);
+      setHistoryError("Falha de conexão ao carregar o histórico multitemporal.");
     } finally {
       setIsHistoryLoading(false);
     }
@@ -1550,7 +1557,26 @@ export default function StatisticsPage() {
           )}
 
           {/* Renderização do Gráfico conforme o Modo Selecionado */}
-          {selectedRange === "today-vs-yesterday" ? (
+          {historyError ? (
+            <div className="py-12 px-4 text-center rounded-xl bg-slate-950/60 border border-rose-900/40 space-y-3">
+              <div className="text-sm font-medium text-rose-400">
+                {historyError}
+              </div>
+              <button
+                type="button"
+                onClick={() => fetchHistory(selectedRange)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-900 border border-slate-700 text-xs font-semibold text-slate-200 hover:text-emerald-300 hover:border-emerald-500/50 transition-all cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Tentar Novamente
+              </button>
+            </div>
+          ) : isHistoryLoading && !historyData ? (
+            <div className="py-16 text-center text-slate-400 text-sm flex flex-col items-center justify-center gap-2">
+              <RefreshCw className="w-5 h-5 animate-spin text-emerald-400" />
+              <span>Carregando dados do histórico...</span>
+            </div>
+          ) : selectedRange === "today-vs-yesterday" ? (
             /* ==============================================================
                MODO A: CURVA SOBREPOSTA HOJE VS ONTEM
                ============================================================== */
@@ -1603,7 +1629,8 @@ export default function StatisticsPage() {
                   const comp = historyData.comparison;
                   const todayPts = comp.todayPoints;
                   const yesterdayPts = comp.yesterdayPoints;
-                  const maxPtsCount = Math.max(todayPts.length, yesterdayPts.length, 1);
+                  const totalDaySlots = 96;
+                  const maxPtsCount = Math.max(todayPts.length, yesterdayPts.length, totalDaySlots);
 
                   const maxWatts = Math.max(
                     comp.todayPeakWatts,
@@ -1624,7 +1651,9 @@ export default function StatisticsPage() {
                   const chartH = svgH - padTop - padBottom;
                   const yZero = svgH - padBottom;
 
-                  const getX = (i: number, total: number) =>
+                  // Alinhamento temporal correto em 96 slots de 15 minutos (24 horas)
+                  const getTodayX = (i: number) => padX + (i / (totalDaySlots - 1)) * chartW;
+                  const getYesterdayX = (i: number, total: number) =>
                     padX + (total > 1 ? (i / (total - 1)) * chartW : chartW / 2);
                   const getY = (watts: number) => {
                     const clamped = Math.max(0, Math.min(watts, scaleMax));
@@ -1632,15 +1661,15 @@ export default function StatisticsPage() {
                   };
 
                   const todayPath = todayPts
-                    .map((p, i) => `${i === 0 ? "M" : "L"} ${getX(i, todayPts.length).toFixed(1)} ${getY(p.solarWatts).toFixed(1)}`)
+                    .map((p, i) => `${i === 0 ? "M" : "L"} ${getTodayX(i).toFixed(1)} ${getY(p.solarWatts).toFixed(1)}`)
                     .join(" ");
                   const todayArea =
                     todayPts.length > 0
-                      ? `${todayPath} L ${getX(todayPts.length - 1, todayPts.length).toFixed(1)} ${yZero} L ${getX(0, todayPts.length).toFixed(1)} ${yZero} Z`
+                      ? `${todayPath} L ${getTodayX(todayPts.length - 1).toFixed(1)} ${yZero} L ${getTodayX(0).toFixed(1)} ${yZero} Z`
                       : "";
 
                   const yesterdayPath = yesterdayPts
-                    .map((p, i) => `${i === 0 ? "M" : "L"} ${getX(i, yesterdayPts.length).toFixed(1)} ${getY(p.solarWatts).toFixed(1)}`)
+                    .map((p, i) => `${i === 0 ? "M" : "L"} ${getYesterdayX(i, yesterdayPts.length).toFixed(1)} ${getY(p.solarWatts).toFixed(1)}`)
                     .join(" ");
 
                   return (
@@ -1706,7 +1735,7 @@ export default function StatisticsPage() {
                         {todayPts.map((p, i) => (
                           <circle
                             key={i}
-                            cx={getX(i, todayPts.length)}
+                            cx={getTodayX(i)}
                             cy={getY(p.solarWatts)}
                             r={3}
                             fill="#10b981"
@@ -1722,8 +1751,16 @@ export default function StatisticsPage() {
                         {Array.from({ length: maxPtsCount }).map((_, idx) => {
                           const ptToday = todayPts[idx];
                           const ptYesterday = yesterdayPts[idx];
-                          const time = ptToday?.time || ptYesterday?.time || `${idx}:00`;
-                          const diff = (ptToday?.solarWatts ?? 0) - (ptYesterday?.solarWatts ?? 0);
+                          const time =
+                            ptToday?.time ||
+                            ptYesterday?.time ||
+                            `${Math.floor((idx * 15) / 60)
+                              .toString()
+                              .padStart(2, "0")}:${((idx * 15) % 60).toString().padStart(2, "0")}`;
+                          const diff =
+                            ptToday !== undefined
+                              ? ptToday.solarWatts - (ptYesterday?.solarWatts ?? 0)
+                              : null;
                           const isSelected =
                             hoveredCompPoint?.today === ptToday && hoveredCompPoint?.yesterday === ptYesterday;
 
@@ -1754,21 +1791,39 @@ export default function StatisticsPage() {
                                 }`}
                               >
                                 <span className="text-slate-400 font-mono">{time}:</span>
-                                <span className="font-bold text-emerald-400 font-mono">
-                                  Hoje: {ptToday?.solarWatts ?? 0}W
-                                </span>
-                                <span className="text-slate-600">•</span>
-                                <span className="font-bold text-slate-300 font-mono">
-                                  Ontem: {ptYesterday?.solarWatts ?? 0}W
-                                </span>
-                                <span className="text-slate-600">•</span>
-                                <span
-                                  className={`font-mono font-bold ${
-                                    diff >= 0 ? "text-emerald-300" : "text-amber-400"
-                                  }`}
-                                >
-                                  {diff >= 0 ? `+${diff}W` : `${diff}W`}
-                                </span>
+                                {ptToday !== undefined ? (
+                                  <>
+                                    <span className="font-bold text-emerald-400 font-mono">
+                                      Hoje: {ptToday.solarWatts}W
+                                    </span>
+                                    <span className="text-slate-600">•</span>
+                                    <span className="font-bold text-slate-300 font-mono">
+                                      Ontem: {ptYesterday?.solarWatts ?? 0}W
+                                    </span>
+                                    {diff !== null && (
+                                      <>
+                                        <span className="text-slate-600">•</span>
+                                        <span
+                                          className={`font-mono font-bold ${
+                                            diff >= 0 ? "text-emerald-300" : "text-amber-400"
+                                          }`}
+                                        >
+                                          {diff >= 0 ? `+${diff}W` : `${diff}W`}
+                                        </span>
+                                      </>
+                                    )}
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="font-medium text-slate-400 font-mono text-[10px]">
+                                      Hoje: Aguardando leitura
+                                    </span>
+                                    <span className="text-slate-600">•</span>
+                                    <span className="font-bold text-slate-300 font-mono">
+                                      Ontem: {ptYesterday?.solarWatts ?? 0}W
+                                    </span>
+                                  </>
+                                )}
                               </div>
                             </div>
                           );

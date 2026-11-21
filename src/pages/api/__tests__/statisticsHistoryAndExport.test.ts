@@ -162,6 +162,35 @@ describe("Endpoints REST de Estatísticas Avançadas (history.ts & export.ts)", 
       expect(responseObj.body.comparison).toBeDefined();
       expect(responseObj.body.comparison?.yesterdayPoints).toHaveLength(96);
     });
+
+    it("retorna 200 com payload íntegro e valores zerados seguros quando houver 0 logs no banco", async () => {
+      mockFindManyLogs.mockResolvedValueOnce([]);
+
+      const { req, res } = createMockReqRes({ range: "today-vs-yesterday" });
+      await handleStatisticsHistory(req, res);
+
+      const responseObj = res as unknown as {
+        statusCode: number;
+        body: {
+          range: string;
+          summary: Record<string, number>;
+          comparison?: {
+            todayPoints: Array<unknown>;
+            yesterdayPoints: Array<unknown>;
+            divergencePercentage: number;
+          };
+        };
+      };
+
+      expect(responseObj.statusCode).toBe(200);
+      expect(responseObj.body.range).toBe("today-vs-yesterday");
+      expect(responseObj.body.summary.totalSolarGeneratedKwh).toBe(0);
+      expect(responseObj.body.summary.totalConsumedKwh).toBe(0);
+      expect(Number.isNaN(responseObj.body.summary.netEnergyKwh)).toBe(false);
+      expect(responseObj.body.comparison).toBeDefined();
+      expect(responseObj.body.comparison?.yesterdayPoints).toHaveLength(96);
+      expect(responseObj.body.comparison?.divergencePercentage).toBe(0);
+    });
   });
 
   describe("GET /api/statistics/export", () => {
