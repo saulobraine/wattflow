@@ -453,45 +453,6 @@ export class OrchestratorSyncUseCase {
           actionResult =
             "Modo Tempestade / Alerta de Apagão Ativo: comutação suspensa, bateria preservada em reserva máxima.";
           actionName = "STORM_MODE_RESERVE";
-        } else if (autoStormRiskActive) {
-          const reserveThreshold = configurationRecord.autoStormReserveThreshold ?? 85;
-          if (isAcOutputEnabled === true) {
-            await ecoflowClient.setAcOutputState(ecoflowDevice, false);
-            if (typeof this.repository.incrementAtsCycle === "function") {
-              await this.repository.incrementAtsCycle(databaseRecordId);
-            }
-            this.dispatchSafeAlert(
-              {
-                title: "Modo Auto-Storm Ativo",
-                message: `Saída AC desligada preventivamente devido à aproximação de tempestade (${stormAssessment?.weatherDescription ?? "Risco Meteorológico"}). Bateria preservada para contingência.`,
-                batteryPercentage: numericBattery,
-                solarWatts: numericSolarWatts,
-                actionState: "GRID",
-              },
-              notificationConfig
-            );
-          }
-
-          if (
-            configurationRecord.autoStormPrechargeAc &&
-            numericBattery < reserveThreshold
-          ) {
-            try {
-              const maxChargeSpeed = configurationRecord.maxAcChargingWatts ?? 1200;
-              await ecoflowClient.setAcChargingSpeed(ecoflowDevice, maxChargeSpeed);
-              if (typeof this.repository.updateCurrentAcChargingWatts === "function") {
-                await this.repository.updateCurrentAcChargingWatts(databaseRecordId, maxChargeSpeed);
-              }
-            } catch (chargeErr) {
-              console.warn(
-                "[OrchestratorSyncUseCase] Falha ao acionar pré-recarga rápida no Auto-Storm:",
-                chargeErr
-              );
-            }
-          }
-
-          actionName = "AUTO_STORM_DEFENSE";
-          actionResult = `Modo Auto-Storm Ativo: risco meteorológico severo (${stormAssessment?.weatherDescription ?? "Tempestade"}). Cargas na concessionária e reserva elevada para ${reserveThreshold}%.`;
         } else if (isAutomationEnabled) {
           const tariffStatus = TariffScheduleService.getInstance().evaluateTariffPeriod(configurationRecord);
           const isPeakPeriod = tariffStatus.isTimeOfUseActive && tariffStatus.currentPeriod === "PEAK";
@@ -501,6 +462,7 @@ export class OrchestratorSyncUseCase {
             20;
 
           if (isPeakPeriod) {
+            // 1. Horário de Ponta (Pico) tem PREVALÊNCIA sobre Auto-Storm (prioridade financeira)
             if (configurationRecord.blockAcChargingDuringPeak ?? true) {
               if (typeof ecoflowClient.setAcChargingSpeed === "function") {
                 try {
@@ -565,7 +527,48 @@ export class OrchestratorSyncUseCase {
                 actionResult = `Reserva de Ponta Mantida: Bateria em ${numericBattery}% (limite ${peakReserve}%). Saída AC mantida desligada na Concessionária.`;
               }
             }
+          } else if (autoStormRiskActive) {
+            // 2. Auto-Storm atua fora do horário de ponta (subordinado ao disjuntor geral)
+            const reserveThreshold = configurationRecord.autoStormReserveThreshold ?? 85;
+            if (isAcOutputEnabled === true) {
+              await ecoflowClient.setAcOutputState(ecoflowDevice, false);
+              if (typeof this.repository.incrementAtsCycle === "function") {
+                await this.repository.incrementAtsCycle(databaseRecordId);
+              }
+              this.dispatchSafeAlert(
+                {
+                  title: "Modo Auto-Storm Ativo",
+                  message: `Saída AC desligada preventivamente devido à aproximação de tempestade (${stormAssessment?.weatherDescription ?? "Risco Meteorológico"}). Bateria preservada para contingência.`,
+                  batteryPercentage: numericBattery,
+                  solarWatts: numericSolarWatts,
+                  actionState: "GRID",
+                },
+                notificationConfig
+              );
+            }
+
+            if (
+              configurationRecord.autoStormPrechargeAc &&
+              numericBattery < reserveThreshold
+            ) {
+              try {
+                const maxChargeSpeed = configurationRecord.maxAcChargingWatts ?? 1200;
+                await ecoflowClient.setAcChargingSpeed(ecoflowDevice, maxChargeSpeed);
+                if (typeof this.repository.updateCurrentAcChargingWatts === "function") {
+                  await this.repository.updateCurrentAcChargingWatts(databaseRecordId, maxChargeSpeed);
+                }
+              } catch (chargeErr) {
+                console.warn(
+                  "[OrchestratorSyncUseCase] Falha ao acionar pré-recarga rápida no Auto-Storm:",
+                  chargeErr
+                );
+              }
+            }
+
+            actionName = "AUTO_STORM_DEFENSE";
+            actionResult = `Modo Auto-Storm Ativo: risco meteorológico severo (${stormAssessment?.weatherDescription ?? "Tempestade"}). Cargas na concessionária e reserva elevada para ${reserveThreshold}%.`;
           } else {
+            // 3. Histerese de Bateria (Estática ou Adaptativa se habilitada)
             let activeThresholdPair = thresholdPair;
             if (
               configurationRecord.isAdaptiveHysteresisActive &&

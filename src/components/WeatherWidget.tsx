@@ -16,6 +16,7 @@ import { TransitionLink } from "./TransitionLink";
 import type {
   WeatherForecastResponseData,
   StormSeverity,
+  SolarForecastResult,
 } from "../infrastructure/services/OpenMeteoSolarForecastService";
 
 export interface WeatherWidgetData extends WeatherForecastResponseData {
@@ -24,6 +25,10 @@ export interface WeatherWidgetData extends WeatherForecastResponseData {
   autoStormReserveThreshold: number;
   autoStormRainThresholdMm: number;
   autoStormPrechargeAc: boolean;
+  solarForecast?: SolarForecastResult;
+  peakSunHours?: number | null;
+  irradianceKwhM2?: number | null;
+  estimatedDailyGenerationKwh?: number | null;
 }
 
 export interface WeatherWidgetProps {
@@ -167,12 +172,17 @@ export function WeatherWidget({ className = "", compact = false }: WeatherWidget
     return (
       <div
         className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900/80 border border-slate-800 text-xs font-mono select-none ${className}`}
-        title={`${assessment.weatherDescription} • ${assessment.temperatureMaxCelsius.toFixed(0)}°C / ${assessment.temperatureMinCelsius.toFixed(0)}°C`}
+        title={`${assessment.weatherDescription} • ${assessment.temperatureMaxCelsius.toFixed(0)}°C / ${assessment.temperatureMinCelsius.toFixed(0)}°C${data.estimatedDailyGenerationKwh !== null && data.estimatedDailyGenerationKwh !== undefined ? ` • Geração: ~${data.estimatedDailyGenerationKwh} kWh` : ""}`}
       >
         <WeatherIcon className="w-4 h-4 text-amber-400" aria-hidden="true" />
         <span className="font-semibold text-slate-200">
           {assessment.temperatureMaxCelsius.toFixed(0)}°C
         </span>
+        {data.estimatedDailyGenerationKwh !== null && data.estimatedDailyGenerationKwh !== undefined && (
+          <span className="text-amber-400 font-bold hidden sm:inline">
+            ~{data.estimatedDailyGenerationKwh} kWh
+          </span>
+        )}
         {data.isStormAlertActive && (
           <span className="px-2 py-0.5 rounded-full text-[10px] font-bold font-mono bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse">
             NO-BREAK PREVENTIVO
@@ -256,6 +266,40 @@ export function WeatherWidget({ className = "", compact = false }: WeatherWidget
             </div>
           </div>
         </div>
+
+        {/* Destaque: Previsão de Geração Solar do Dia */}
+        {data.estimatedDailyGenerationKwh !== null && data.estimatedDailyGenerationKwh !== undefined && (
+          <div className="p-3.5 rounded-xl bg-gradient-to-r from-amber-950/30 via-slate-950 to-slate-950 border border-amber-900/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-inner">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 shrink-0">
+                <Sun className="w-5 h-5" aria-hidden="true" />
+              </div>
+              <div>
+                <div className="text-[11px] text-slate-400 font-mono uppercase tracking-wider">
+                  Previsão de Geração Solar
+                </div>
+                <div className="text-sm font-bold text-slate-100 flex items-baseline gap-2">
+                  <span>Geração Estimada Hoje:</span>
+                  <span className="text-amber-400 font-mono text-base sm:text-lg font-extrabold">
+                    ~{data.estimatedDailyGenerationKwh.toFixed(1)} kWh
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              {data.peakSunHours !== null && data.peakSunHours !== undefined && (
+                <span
+                  className="inline-flex items-center gap-1.5 text-xs font-mono font-bold px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 shadow-sm"
+                  title="Horas de Sol Pleno (HSP = Irradiação Solar / 3.6 MJ/m²)"
+                >
+                  <Sun className="w-3.5 h-3.5 text-amber-400" />
+                  {data.peakSunHours.toFixed(1)} HSP
+                </span>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Resumo do Risco / Auto-Storm Status */}
         <div className="p-3 rounded-xl bg-slate-950 border border-slate-800/80 text-xs space-y-1.5">

@@ -439,8 +439,8 @@ describe("Feature 4.6: Tarifação Horária Inteligente (Tarifa Branca / Time-of
       expect(mockRepo.incrementAtsCycle).toHaveBeenCalledWith("config-peak-2");
     });
 
-    it("prevalência absoluta do Modo Auto-Storm sobre a Tarifa Branca: comuta para rede e preserva emergência", async () => {
-      // Mesmo se estiver no horário de ponta
+    it("prevalência do Horário de Ponta sobre o Auto-Storm: mantém alimentação da bateria para economia na ponta", async () => {
+      // Horário de ponta (Sexta-feira 18:30)
       vi.spyOn(TariffScheduleService.prototype, "getBrasiliaTime").mockReturnValue({
         dayOfWeek: 5,
         hours: 18,
@@ -500,10 +500,9 @@ describe("Feature 4.6: Tarifação Horária Inteligente (Tarifa Branca / Time-of
       const orchestrator = new OrchestratorSyncUseCase(mockRepo);
       const result = await orchestrator.executeSyncForUser("user-3", telemetry);
 
-      // Auto-Storm vence: aciona AUTO_STORM_DEFENSE, desliga AC e pré-recarrega em 1200W (em vez de descarregar na ponta)
-      expect(result.triggeredAction).toBe("AUTO_STORM_DEFENSE");
-      expect(spySetAcOutput).toHaveBeenCalledWith(expect.anything(), false);
-      expect(spySetAcSpeed).toHaveBeenCalledWith(expect.anything(), 1200);
+      // Prevalência financeira da Ponta: Bateria a 60% > reserva de 20%, mantém AC ligada economizando na ponta
+      expect(result.triggeredAction).toBe("HOLD_CURRENT_STATE");
+      expect(spySetAcOutput).not.toHaveBeenCalledWith(expect.anything(), false);
     });
   });
 
