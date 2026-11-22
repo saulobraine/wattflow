@@ -3,7 +3,7 @@ import { TransitionLink } from "../components/TransitionLink";
 import { Layout } from "../components/Layout";
 import { useVisibilityPolling } from "../hooks/useVisibilityPolling";
 import { useLiveTelemetry } from "../hooks/useLiveTelemetry";
-import { WeatherWidget } from "../components/WeatherWidget";
+import { WeatherWidget, formatSolarTime } from "../components/WeatherWidget";
 import { StormAlertBanner } from "../components/StormAlertBanner";
 import { TariffStatusBadge } from "../components/TariffStatusBadge";
 import { BatteryHealthWidget } from "../components/BatteryHealthWidget";
@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   Zap,
   Sun,
+  Moon,
   ArrowLeftRight,
   Inbox,
   Activity,
@@ -806,7 +807,13 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 self-start sm:self-auto">
+                <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+                  {solarForecast?.isDaylightOnlyActive && !solarForecast?.isDaylight && (
+                    <span className="inline-flex items-center gap-1.5 text-xs font-mono font-bold px-2.5 py-1 rounded-full border shadow-sm bg-indigo-950/90 text-indigo-300 border-indigo-600/70 shadow-indigo-950/40">
+                      <Moon className="w-3.5 h-3.5 text-indigo-400" aria-hidden="true" />
+                      Modo Noturno (Standby)
+                    </span>
+                  )}
                   {(() => {
                     const badge = getSolarExpectationBadge(solarForecast?.expectation);
                     const BadgeIcon = badge.icon;
@@ -902,6 +909,39 @@ export default function DashboardPage() {
                   </span>
                 </div>
               </div>
+
+              {/* Horários de Nascer e Pôr do Sol */}
+              {(solarForecast?.sunrise || solarForecast?.sunset) && (
+                <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-1.5 text-amber-300 font-mono">
+                      <Sun className="w-4 h-4 text-amber-400" aria-hidden="true" />
+                      <span>Nascer: <strong className="text-slate-100">{formatSolarTime(solarForecast.sunrise)}</strong></span>
+                    </div>
+                    <span className="text-slate-600">•</span>
+                    <div className="flex items-center gap-1.5 text-indigo-300 font-mono">
+                      <Moon className="w-4 h-4 text-indigo-400" aria-hidden="true" />
+                      <span>Pôr do Sol: <strong className="text-slate-100">{formatSolarTime(solarForecast.sunset)}</strong></span>
+                    </div>
+                  </div>
+
+                  {solarForecast.isDaylightOnlyActive && (
+                    <div>
+                      {!solarForecast.isDaylight ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold font-mono bg-indigo-950 text-indigo-300 border border-indigo-700/60 shadow-sm">
+                          <Moon className="w-3 h-3 text-indigo-400" />
+                          Modo Noturno (Standby)
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold font-mono bg-emerald-950 text-emerald-300 border border-emerald-700/60 shadow-sm">
+                          <Sun className="w-3 h-3 text-emerald-400" />
+                          Período Solar Ativo
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-500 font-mono">

@@ -41,7 +41,10 @@ import {
   Wallet,
   Search,
   Radio,
+  Sun,
+  Moon,
 } from "lucide-react";
+import { formatSolarTime } from "../components/WeatherWidget";
 import type { ApplianceItem } from "./api/appliances";
 
 export default function SettingsPage() {
@@ -95,6 +98,8 @@ export default function SettingsPage() {
 
   // Estados da Etapa 2: Previsão Solar, Histerese Adaptativa & Segurança Térmica BMS
   const [isAdaptiveHysteresisActive, setIsAdaptiveHysteresisActive] = useState<boolean>(false);
+  const [isDaylightOnlyActive, setIsDaylightOnlyActive] = useState<boolean>(false);
+  const [solarTimes, setSolarTimes] = useState<{ sunrise: string | null; sunset: string | null; isDaylight: boolean } | null>(null);
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
   const [minAdaptiveThreshold, setMinAdaptiveThreshold] = useState<number>(20);
@@ -328,6 +333,21 @@ export default function SettingsPage() {
         setIsDailyReportActive(json.data.isDailyReportActive ?? true);
         setDailyReportTime(json.data.dailyReportTime || "21:00");
         setIsAdaptiveHysteresisActive(Boolean(json.data.isAdaptiveHysteresisActive));
+        setIsDaylightOnlyActive(Boolean(json.data.isDaylightOnlyActive));
+        if (json.data.latitude && json.data.longitude) {
+          fetch("/api/weather/forecast")
+            .then((res) => res.json())
+            .then((wJson) => {
+              if (wJson.success && wJson.data) {
+                setSolarTimes({
+                  sunrise: wJson.data.sunrise || wJson.data.solarForecast?.sunrise || null,
+                  sunset: wJson.data.sunset || wJson.data.solarForecast?.sunset || null,
+                  isDaylight: Boolean(wJson.data.isDaylight ?? wJson.data.solarForecast?.isDaylight ?? true),
+                });
+              }
+            })
+            .catch(() => null);
+        }
         setLatitude(typeof json.data.latitude === "number" ? json.data.latitude : null);
         setLongitude(typeof json.data.longitude === "number" ? json.data.longitude : null);
         setMinAdaptiveThreshold(
@@ -520,6 +540,7 @@ export default function SettingsPage() {
           latitude: latitude !== null ? Number(latitude) : null,
           longitude: longitude !== null ? Number(longitude) : null,
           isAdaptiveHysteresisActive,
+          isDaylightOnlyActive,
           minAdaptiveThreshold: Number(minAdaptiveThreshold),
           maxAdaptiveThreshold: Number(maxAdaptiveThreshold),
           thermalWarningThreshold: Number(thermalWarningThreshold),
@@ -1850,6 +1871,68 @@ export default function SettingsPage() {
                     Corte desce para <strong>{minAdaptiveThreshold}%</strong> para máxima economia financeira.
                   </span>
                 </div>
+              </div>
+            </div>
+
+            {/* Subseção: Operação Exclusiva em Período Solar (Daylight Only) */}
+            <div className="p-4 sm:p-5 rounded-xl bg-slate-950 border border-slate-800/80 space-y-3.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                    <Sun className="w-5 h-5" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                      Operação Exclusiva em Período Solar
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Suspende automações, chamadas de API e telemetria à noite para economia máxima de rede e cotas
+                    </p>
+                  </div>
+                </div>
+
+                <label className="flex items-center gap-2 cursor-pointer self-start sm:self-auto">
+                  <input
+                    type="checkbox"
+                    checked={isDaylightOnlyActive}
+                    onChange={(e) => setIsDaylightOnlyActive(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+                  <span className="text-xs font-semibold text-slate-300">
+                    {isDaylightOnlyActive ? "Ativado" : "Desativado"}
+                  </span>
+                </label>
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-slate-900 text-xs">
+                <div className="flex items-center gap-4 text-slate-300">
+                  <div className="flex items-center gap-1.5 font-mono">
+                    <Sun className="w-4 h-4 text-amber-400" aria-hidden="true" />
+                    <span>Nascer do Sol: <strong className="text-slate-100">{formatSolarTime(solarTimes?.sunrise)}</strong></span>
+                  </div>
+                  <span className="text-slate-600">•</span>
+                  <div className="flex items-center gap-1.5 font-mono">
+                    <Moon className="w-4 h-4 text-indigo-400" aria-hidden="true" />
+                    <span>Pôr do Sol: <strong className="text-slate-100">{formatSolarTime(solarTimes?.sunset)}</strong></span>
+                  </div>
+                </div>
+
+                {isDaylightOnlyActive && (
+                  <div>
+                    {solarTimes && !solarTimes.isDaylight ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono bg-indigo-950 text-indigo-300 border border-indigo-700/60 shadow-sm">
+                        <Moon className="w-3 h-3 text-indigo-400" />
+                        Modo Noturno (Standby)
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono bg-emerald-950 text-emerald-300 border border-emerald-700/60 shadow-sm">
+                        <Sun className="w-3 h-3 text-emerald-400" />
+                        Período Solar Ativo
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>

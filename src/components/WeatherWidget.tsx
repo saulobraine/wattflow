@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   Sun,
+  Moon,
   CloudSun,
   Cloud,
   CloudRain,
@@ -29,6 +30,21 @@ export interface WeatherWidgetData extends WeatherForecastResponseData {
   peakSunHours?: number | null;
   irradianceKwhM2?: number | null;
   estimatedDailyGenerationKwh?: number | null;
+  isDaylightOnlyActive?: boolean;
+  sunrise?: string | null;
+  sunset?: string | null;
+  isDaylight?: boolean;
+}
+
+export function formatSolarTime(isoOrTime: string | null | undefined): string {
+  if (!isoOrTime) return "--:--";
+  if (isoOrTime.includes("T")) {
+    const d = new Date(isoOrTime);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    }
+  }
+  return isoOrTime;
 }
 
 export interface WeatherWidgetProps {
@@ -168,6 +184,12 @@ export function WeatherWidget({ className = "", compact = false }: WeatherWidget
   const badge = getSeverityBadge(assessment.severity, data.isStormAlertActive);
   const BadgeIcon = badge.icon;
 
+  const sunrise = data.sunrise || data.solarForecast?.sunrise;
+  const sunset = data.sunset || data.solarForecast?.sunset;
+  const isDaylight = data.isDaylight ?? data.solarForecast?.isDaylight ?? true;
+  const isDaylightOnlyActive = data.isDaylightOnlyActive ?? false;
+  const isNightStandby = isDaylightOnlyActive && !isDaylight;
+
   if (compact) {
     return (
       <div
@@ -186,6 +208,11 @@ export function WeatherWidget({ className = "", compact = false }: WeatherWidget
         {data.isStormAlertActive && (
           <span className="px-2 py-0.5 rounded-full text-[10px] font-bold font-mono bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse">
             NO-BREAK PREVENTIVO
+          </span>
+        )}
+        {isNightStandby && (
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold font-mono bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
+            🌙 STANDBY NOTURNO
           </span>
         )}
       </div>
@@ -214,7 +241,14 @@ export function WeatherWidget({ className = "", compact = false }: WeatherWidget
             </div>
           </div>
 
-          <div className="flex items-center gap-2 self-start sm:self-auto">
+          <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+            {isNightStandby && (
+              <span className="inline-flex items-center gap-1.5 text-xs font-mono font-bold px-2.5 py-1 rounded-full border shadow-sm bg-indigo-950/90 text-indigo-300 border-indigo-600/70 shadow-indigo-950/40">
+                <Moon className="w-3.5 h-3.5 text-indigo-400" aria-hidden="true" />
+                Modo Noturno (Standby)
+              </span>
+            )}
+
             <span
               className={`inline-flex items-center gap-1.5 text-xs font-mono font-bold px-2.5 py-1 rounded-full border shadow-sm ${badge.classes}`}
             >
@@ -298,6 +332,39 @@ export function WeatherWidget({ className = "", compact = false }: WeatherWidget
                 </span>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Janela Solar: Nascer e Pôr do Sol */}
+        {(sunrise || sunset) && (
+          <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1.5 text-amber-300 font-mono">
+                <Sun className="w-4 h-4 text-amber-400" aria-hidden="true" />
+                <span>Nascer: <strong className="text-slate-100">{formatSolarTime(sunrise)}</strong></span>
+              </div>
+              <span className="text-slate-600">•</span>
+              <div className="flex items-center gap-1.5 text-indigo-300 font-mono">
+                <Moon className="w-4 h-4 text-indigo-400" aria-hidden="true" />
+                <span>Pôr do Sol: <strong className="text-slate-100">{formatSolarTime(sunset)}</strong></span>
+              </div>
+            </div>
+
+            {isDaylightOnlyActive && (
+              <div>
+                {isNightStandby ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold font-mono bg-indigo-950 text-indigo-300 border border-indigo-700/60 shadow-sm">
+                    <Moon className="w-3 h-3 text-indigo-400" />
+                    Modo Noturno (Standby)
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold font-mono bg-emerald-950 text-emerald-300 border border-emerald-700/60 shadow-sm">
+                    <Sun className="w-3 h-3 text-emerald-400" />
+                    Período Solar Ativo
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         )}
 

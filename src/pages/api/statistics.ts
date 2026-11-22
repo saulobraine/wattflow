@@ -76,6 +76,10 @@ export interface SolarForecastMetrics {
   peakSunHours?: number | null;
   irradianceKwhM2?: number | null;
   estimatedDailyGenerationKwh?: number | null;
+  isDaylightOnlyActive?: boolean;
+  sunrise?: string | null;
+  sunset?: string | null;
+  isDaylight?: boolean;
 }
 
 export interface BmsAnalyticsMetrics {
@@ -376,6 +380,7 @@ async function buildSolarForecastMetrics(
     latitude?: number | null;
     longitude?: number | null;
     isAdaptiveHysteresisActive?: boolean;
+    isDaylightOnlyActive?: boolean;
     minAdaptiveThreshold?: number;
     maxAdaptiveThreshold?: number;
     lastSolarIrradianceMj?: number | null;
@@ -383,6 +388,7 @@ async function buildSolarForecastMetrics(
   } | null
 ): Promise<SolarForecastMetrics> {
   const isAdaptiveActive = configuration?.isAdaptiveHysteresisActive ?? false;
+  const isDaylightOnlyActive = configuration?.isDaylightOnlyActive ?? false;
   const minAdaptive = configuration?.minAdaptiveThreshold ?? 20;
   const maxAdaptive = configuration?.maxAdaptiveThreshold ?? 50;
 
@@ -414,6 +420,10 @@ async function buildSolarForecastMetrics(
         peakSunHours: forecast.peakSunHours,
         irradianceKwhM2: forecast.irradianceKwhM2,
         estimatedDailyGenerationKwh: forecast.estimatedDailyGenerationKwh,
+        isDaylightOnlyActive,
+        sunrise: forecast.sunrise,
+        sunset: forecast.sunset,
+        isDaylight: forecast.isDaylight,
       };
     } catch {
       // Fallback gracioso
@@ -433,6 +443,10 @@ async function buildSolarForecastMetrics(
     peakSunHours: null,
     irradianceKwhM2: null,
     estimatedDailyGenerationKwh: null,
+    isDaylightOnlyActive,
+    sunrise: null,
+    sunset: null,
+    isDaylight: true,
   };
 }
 

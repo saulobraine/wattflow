@@ -12,6 +12,7 @@ import {
 } from "../infrastructure/notifications/NotificationDispatcher";
 import {
   OpenMeteoSolarForecastService,
+  isWithinDaylightWindow,
   SolarExpectationLevel,
   WeatherRiskAssessment,
 } from "../infrastructure/services/OpenMeteoSolarForecastService";
@@ -27,6 +28,8 @@ export interface SyncExecutionResult {
   outputWatts: number;
   triggeredAction: string;
   detailMessage: string;
+  actionTaken?: string;
+  isDaylightStandby?: boolean;
 }
 
 export interface ProvidedTelemetry {
@@ -126,6 +129,55 @@ export class OrchestratorSyncUseCase {
     configurationRecord: RetrievedConfigurationRecord,
     providedTelemetry?: ProvidedTelemetry
   ): Promise<SyncExecutionResult> {
+    if (configurationRecord.isDaylightOnlyActive) {
+      let isDaylight = true;
+      let sunriseDisplay = "06:00";
+      let sunsetDisplay = "18:00";
+
+      if (
+        typeof configurationRecord.latitude === "number" &&
+        typeof configurationRecord.longitude === "number"
+      ) {
+        try {
+          const solarService = OpenMeteoSolarForecastService.getInstance();
+          const forecast = await solarService.getForecast(
+            configurationRecord.latitude,
+            configurationRecord.longitude,
+            configurationRecord.minAdaptiveThreshold,
+            configurationRecord.maxAdaptiveThreshold,
+            configurationRecord.batteryCapacityWh
+          );
+          sunriseDisplay = forecast.sunrise ?? "06:00";
+          sunsetDisplay = forecast.sunset ?? "18:00";
+          isDaylight = isWithinDaylightWindow(forecast.sunrise, forecast.sunset, new Date());
+        } catch (solarErr) {
+          console.warn(
+            "[OrchestratorSyncUseCase] Falha ao verificar janela solar para Daylight Only, usando fallback 06:00-18:00:",
+            solarErr
+          );
+          isDaylight = isWithinDaylightWindow("06:00", "18:00", new Date());
+        }
+      } else {
+        isDaylight = isWithinDaylightWindow("06:00", "18:00", new Date());
+      }
+
+      if (!isDaylight) {
+        console.log(
+          `[OrchestratorSyncUseCase] Operação Exclusiva em Período Solar ativa. Fora da janela solar (${sunriseDisplay} - ${sunsetDisplay}). Sincronização e telemetria suspensas em modo noturno (standby).`
+        );
+        return {
+          hasExecutedSuccessfully: true,
+          batteryPercentage: configurationRecord.lastBatteryPercentage ?? 0,
+          solarWatts: 0,
+          outputWatts: 0,
+          triggeredAction: "NONE",
+          actionTaken: "NONE",
+          detailMessage: `Modo Noturno (Standby): Operação suspensa fora da janela solar (${sunriseDisplay} às ${sunsetDisplay}). Economia de cota e rede ativa.`,
+          isDaylightStandby: true,
+        };
+      }
+    }
+
     const { databaseRecordId, ecoflowEndpointRegion, notificationConfig, configuration } = configurationRecord;
 
     let ecoflowCredentials: EcoFlowCredentials | undefined;

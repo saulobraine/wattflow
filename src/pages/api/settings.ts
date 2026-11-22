@@ -49,6 +49,7 @@ export interface SettingsResponseData {
   latitude: number | null;
   longitude: number | null;
   isAdaptiveHysteresisActive: boolean;
+  isDaylightOnlyActive: boolean;
   minAdaptiveThreshold: number;
   maxAdaptiveThreshold: number;
   thermalWarningThreshold: number;
@@ -225,6 +226,7 @@ export default async function handleSettings(
           latitude: existing.latitude ?? null,
           longitude: existing.longitude ?? null,
           isAdaptiveHysteresisActive: existing.isAdaptiveHysteresisActive ?? false,
+          isDaylightOnlyActive: existing.isDaylightOnlyActive ?? false,
           minAdaptiveThreshold: existing.minAdaptiveThreshold ?? 20,
           maxAdaptiveThreshold: existing.maxAdaptiveThreshold ?? 50,
           thermalWarningThreshold: existing.thermalWarningThreshold ?? 45.0,
@@ -340,6 +342,7 @@ export default async function handleSettings(
       latitude,
       longitude,
       isAdaptiveHysteresisActive,
+      isDaylightOnlyActive,
       minAdaptiveThreshold,
       maxAdaptiveThreshold,
       thermalWarningThreshold,
@@ -531,6 +534,10 @@ export default async function handleSettings(
         typeof isAdaptiveHysteresisActive === "boolean"
           ? isAdaptiveHysteresisActive
           : existingConfig?.isAdaptiveHysteresisActive ?? false;
+      const resolvedDaylightOnly =
+        typeof isDaylightOnlyActive === "boolean"
+          ? isDaylightOnlyActive
+          : existingConfig?.isDaylightOnlyActive ?? false;
       const resolvedMinAdaptive =
         typeof minAdaptiveThreshold === "number"
           ? minAdaptiveThreshold
@@ -747,6 +754,7 @@ export default async function handleSettings(
           latitude: resolvedLatitude,
           longitude: resolvedLongitude,
           isAdaptiveHysteresisActive: resolvedAdaptiveHysteresis,
+          isDaylightOnlyActive: resolvedDaylightOnly,
           minAdaptiveThreshold: resolvedMinAdaptive,
           maxAdaptiveThreshold: resolvedMaxAdaptive,
           thermalWarningThreshold: resolvedThermalWarning,
@@ -821,6 +829,7 @@ export default async function handleSettings(
           latitude: resolvedLatitude,
           longitude: resolvedLongitude,
           isAdaptiveHysteresisActive: resolvedAdaptiveHysteresis,
+          isDaylightOnlyActive: resolvedDaylightOnly,
           minAdaptiveThreshold: resolvedMinAdaptive,
           maxAdaptiveThreshold: resolvedMaxAdaptive,
           thermalWarningThreshold: resolvedThermalWarning,
