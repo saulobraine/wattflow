@@ -92,6 +92,48 @@ export interface SolarForecastResult {
   peakSunHours: number;
   irradianceKwhM2: number;
   estimatedDailyGenerationKwh: number;
+  sunrise?: string | null;
+  sunset?: string | null;
+  isDaylight?: boolean;
+}
+
+export function isWithinDaylightWindow(
+  sunriseStr: string | null | undefined,
+  sunsetStr: string | null | undefined,
+  now: Date = new Date()
+): boolean {
+  if (!sunriseStr || !sunsetStr) {
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    return currentMinutes >= 360 && currentMinutes <= 1080; // 06:00 - 18:00
+  }
+
+  // Handle format "YYYY-MM-DDTHH:mm" or "YYYY-MM-DDTHH:mm:ss"
+  if (sunriseStr.includes("T") && sunsetStr.includes("T")) {
+    const parsedSunrise = new Date(sunriseStr);
+    const parsedSunset = new Date(sunsetStr);
+    if (!isNaN(parsedSunrise.getTime()) && !isNaN(parsedSunset.getTime())) {
+      if (parsedSunrise.toDateString() === now.toDateString()) {
+        return now.getTime() >= parsedSunrise.getTime() && now.getTime() <= parsedSunset.getTime();
+      }
+      const sunriseMinutes = parsedSunrise.getHours() * 60 + parsedSunrise.getMinutes();
+      const sunsetMinutes = parsedSunset.getHours() * 60 + parsedSunset.getMinutes();
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      return currentMinutes >= sunriseMinutes && currentMinutes <= sunsetMinutes;
+    }
+  }
+
+  // Handle format "HH:mm"
+  const [riseH, riseM] = sunriseStr.split(":").map(Number);
+  const [setH, setM] = sunsetStr.split(":").map(Number);
+  if (!isNaN(riseH) && !isNaN(riseM) && !isNaN(setH) && !isNaN(setM)) {
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const sunriseMinutes = riseH * 60 + riseM;
+    const sunsetMinutes = setH * 60 + setM;
+    return currentMinutes >= sunriseMinutes && currentMinutes <= sunsetMinutes;
+  }
+
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  return currentMinutes >= 360 && currentMinutes <= 1080;
 }
 
 interface CacheEntry {
@@ -231,12 +273,13 @@ export class OpenMeteoSolarForecastService {
         peakSunHours: metrics.peakSunHours,
         irradianceKwhM2: metrics.irradianceKwhM2,
         estimatedDailyGenerationKwh: metrics.estimatedDailyGenerationKwh,
+        isDaylight: isWithinDaylightWindow(cached.result.sunrise, cached.result.sunset, new Date()),
         isCached: true,
       };
     }
 
     try {
-      const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&daily=shortwave_radiation_sum,sunshine_duration,weathercode&timezone=auto`;
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&daily=shortwave_radiation_sum,sunshine_duration,weathercode,sunrise,sunset&timezone=auto`;
       const response = await fetch(url, {
         headers: {
           "User-Agent": "WattFlow-SmartEnergy/1.0",
@@ -254,6 +297,8 @@ export class OpenMeteoSolarForecastService {
       const sunshineValues = daily?.sunshine_duration as number[] | undefined;
       const weatherCodes = daily?.weathercode as number[] | undefined;
       const dates = daily?.time as string[] | undefined;
+      const sunriseValues = daily?.sunrise as string[] | undefined;
+      const sunsetValues = daily?.sunset as string[] | undefined;
 
       const radiationMj =
         Array.isArray(radiationValues) && typeof radiationValues[0] === "number"
@@ -271,6 +316,15 @@ export class OpenMeteoSolarForecastService {
         Array.isArray(dates) && typeof dates[0] === "string"
           ? dates[0]
           : new Date().toISOString().split("T")[0];
+      const sunrise =
+        Array.isArray(sunriseValues) && typeof sunriseValues[0] === "string"
+          ? sunriseValues[0]
+          : null;
+      const sunset =
+        Array.isArray(sunsetValues) && typeof sunsetValues[0] === "string"
+          ? sunsetValues[0]
+          : null;
+      const isDaylight = isWithinDaylightWindow(sunrise, sunset, new Date());
 
       const expectationLevel = this.calculateExpectationLevel(radiationMj);
       const effectiveTurnOffThreshold = this.calculateAdaptiveThreshold(
@@ -301,6 +355,9 @@ export class OpenMeteoSolarForecastService {
         peakSunHours: metrics.peakSunHours,
         irradianceKwhM2: metrics.irradianceKwhM2,
         estimatedDailyGenerationKwh: metrics.estimatedDailyGenerationKwh,
+        sunrise,
+        sunset,
+        isDaylight,
       };
 
       this.cache.set(cacheKey, {
@@ -315,6 +372,7 @@ export class OpenMeteoSolarForecastService {
       if (cached) {
         return {
           ...cached.result,
+          isDaylight: isWithinDaylightWindow(cached.result.sunrise, cached.result.sunset, new Date()),
           isCached: true,
         };
       }
@@ -328,6 +386,9 @@ export class OpenMeteoSolarForecastService {
         fallbackRadiationMj,
         solarCapacityWatts
       );
+      const fallbackSunrise = "06:00";
+      const fallbackSunset = "18:00";
+      const fallbackIsDaylight = isWithinDaylightWindow(fallbackSunrise, fallbackSunset, new Date());
 
       return {
         irradianceMj: fallbackRadiationMj,
@@ -342,6 +403,9 @@ export class OpenMeteoSolarForecastService {
         peakSunHours: fallbackMetrics.peakSunHours,
         irradianceKwhM2: fallbackMetrics.irradianceKwhM2,
         estimatedDailyGenerationKwh: fallbackMetrics.estimatedDailyGenerationKwh,
+        sunrise: fallbackSunrise,
+        sunset: fallbackSunset,
+        isDaylight: fallbackIsDaylight,
       };
     }
   }

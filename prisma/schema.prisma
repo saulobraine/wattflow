@@ -72,6 +72,7 @@ model UserConfiguration {
   isAdaptiveHysteresisActive Boolean        @default(false)
   minAdaptiveThreshold Int                @default(20)
   maxAdaptiveThreshold Int                @default(50)
+  isDaylightOnlyActive Boolean            @default(false)
   lastSolarIrradianceMj Float?
   lastSolarForecastCheckAt DateTime?
   thermalWarningThreshold Float           @default(42.0)

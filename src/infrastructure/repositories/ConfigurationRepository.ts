@@ -34,6 +34,7 @@ export interface RetrievedConfigurationRecord {
   isAdaptiveHysteresisActive: boolean;
   minAdaptiveThreshold: number;
   maxAdaptiveThreshold: number;
+  isDaylightOnlyActive?: boolean;
   lastSolarIrradianceMj: number | null;
   lastSolarForecastCheckAt: Date | null;
   thermalWarningThreshold: number;
@@ -386,6 +387,7 @@ export class ConfigurationRepository {
       isAdaptiveHysteresisActive: rawRecord.isAdaptiveHysteresisActive ?? false,
       minAdaptiveThreshold: rawRecord.minAdaptiveThreshold ?? 20,
       maxAdaptiveThreshold: rawRecord.maxAdaptiveThreshold ?? 50,
+      isDaylightOnlyActive: rawRecord.isDaylightOnlyActive ?? false,
       lastSolarIrradianceMj: rawRecord.lastSolarIrradianceMj ?? null,
       lastSolarForecastCheckAt: rawRecord.lastSolarForecastCheckAt ?? null,
       thermalWarningThreshold: rawRecord.thermalThrottleTempThreshold ?? rawRecord.thermalWarningThreshold ?? 42.0,

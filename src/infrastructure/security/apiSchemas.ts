@@ -160,6 +160,9 @@ export const settingsPostBodySchema = z.object({
   isAdaptiveHysteresisActive: z
     .boolean({ message: "Flag isAdaptiveHysteresisActive deve ser booleana." })
     .optional(),
+  isDaylightOnlyActive: z
+    .boolean({ message: "Flag isDaylightOnlyActive deve ser booleana." })
+    .optional(),
   minAdaptiveThreshold: z
     .number({ message: "Limite adaptativo mínimo deve ser um número." })
     .int("O limite adaptativo mínimo deve ser um número inteiro.")
