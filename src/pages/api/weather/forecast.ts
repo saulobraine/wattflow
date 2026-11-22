@@ -20,6 +20,10 @@ interface WeatherForecastResponseBody {
     peakSunHours?: number | null;
     irradianceKwhM2?: number | null;
     estimatedDailyGenerationKwh?: number | null;
+    isDaylightOnlyActive?: boolean;
+    sunrise?: string | null;
+    sunset?: string | null;
+    isDaylight?: boolean;
   };
 }
 
@@ -123,6 +127,10 @@ export default async function handleWeatherForecast(
         peakSunHours: solarForecast?.peakSunHours ?? null,
         irradianceKwhM2: solarForecast?.irradianceKwhM2 ?? null,
         estimatedDailyGenerationKwh: solarForecast?.estimatedDailyGenerationKwh ?? null,
+        isDaylightOnlyActive: configuration.isDaylightOnlyActive ?? false,
+        sunrise: solarForecast?.sunrise ?? null,
+        sunset: solarForecast?.sunset ?? null,
+        isDaylight: solarForecast?.isDaylight ?? true,
       },
     });
   } catch (error: unknown) {
