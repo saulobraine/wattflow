@@ -5,6 +5,7 @@ import { OrchestratorSyncUseCase } from "../../../application/OrchestratorSyncUs
 import { DesiredDeviceAction } from "../../../domain/values/DesiredDeviceAction";
 import { DeviceSerialNumber } from "../../../domain/values/DeviceSerialNumber";
 import { encryptSecret } from "../../security/encryptionHelper";
+import { calculateAtsHealth } from "../../../pages/api/statistics";
 
 // Mock encryption key for repository decryption calls
 process.env.ENCRYPTION_KEY = "4f8a2c1e9d7b6a3f0e5c8d1a2b4c6e8f9a1b3c5d7e9f0a2b4c6d8e0f1a3b5c7d";
@@ -177,7 +178,9 @@ describe("ATS Health - Orchestrator Switching & Cycle Consumption", () => {
 
     expect(mockClient.setAcOutputState).toHaveBeenCalledWith(mockDevice, true);
     expect(mockIncrement).toHaveBeenCalledWith("cfg-id-123");
-    expect(result).toContain("Saída AC EcoFlow LIGADA");
+    expect(result.detailMessage).toContain("Saída AC EcoFlow LIGADA");
+    expect(result.actionName).toBe("ENABLE_ECOFLOW_AC");
+    expect(result.didSwitchAts).toBe(true);
   });
 
   it("increments ATS cycle when switching AC from ON to OFF (Concessionária)", async () => {
@@ -209,7 +212,9 @@ describe("ATS Health - Orchestrator Switching & Cycle Consumption", () => {
 
     expect(mockClient.setAcOutputState).toHaveBeenCalledWith(mockDevice, false);
     expect(mockIncrement).toHaveBeenCalledWith("cfg-id-456");
-    expect(result).toContain("Saída AC EcoFlow DESLIGADA");
+    expect(result.detailMessage).toContain("Saída AC EcoFlow DESLIGADA");
+    expect(result.actionName).toBe("DISABLE_ECOFLOW_AC");
+    expect(result.didSwitchAts).toBe(true);
   });
 
   it("does NOT increment ATS cycle when AC is already in the desired state (no real switching)", async () => {
@@ -239,7 +244,9 @@ describe("ATS Health - Orchestrator Switching & Cycle Consumption", () => {
 
     expect(mockClient.setAcOutputState).not.toHaveBeenCalled();
     expect(mockIncrement).not.toHaveBeenCalled();
-    expect(resultOn).toContain("já está LIGADA");
+    expect(resultOn.detailMessage).toContain("já está LIGADA");
+    expect(resultOn.actionName).toBe("HOLD_CURRENT_STATE");
+    expect(resultOn.didSwitchAts).toBe(false);
 
     // Deseja DESLIGAR AC, mas já está DESLIGADO (isCurrentlyAcEnabled = false)
     const resultOff = await (orchestrator as any).dispatchEcoFlowAcAction(
@@ -255,69 +262,15 @@ describe("ATS Health - Orchestrator Switching & Cycle Consumption", () => {
 
     expect(mockClient.setAcOutputState).not.toHaveBeenCalled();
     expect(mockIncrement).not.toHaveBeenCalled();
-    expect(resultOff).toContain("já está DESLIGADA");
+    expect(resultOff.detailMessage).toContain("já está DESLIGADA");
+    expect(resultOff.actionName).toBe("HOLD_CURRENT_STATE");
+    expect(resultOff.didSwitchAts).toBe(false);
   });
 });
 
 describe("ATS Health - Statistics Calculation & Edge Cases", () => {
-  function calculateAtsHealthTest(
-    configuration: {
-      atsLifespanCycles?: number | null;
-      atsCurrentCycles?: number | null;
-      atsLastSwitchedAt?: Date | null;
-      createdAt?: Date;
-    } | null,
-    recentSwitchCount: number,
-    spanDays: number
-  ) {
-    const lifespan = configuration?.atsLifespanCycles ?? 10000;
-    const current = configuration?.atsCurrentCycles ?? 0;
-    const remaining = Math.max(0, lifespan - current);
-    const healthPercentage =
-      lifespan > 0
-        ? Math.max(0, Math.min(100, Number(((remaining / lifespan) * 100).toFixed(1))))
-        : 0;
-
-    let status: "EXCELLENT" | "GOOD" | "ATTENTION" | "CRITICAL" = "EXCELLENT";
-    if (healthPercentage < 20) {
-      status = "CRITICAL";
-    } else if (healthPercentage < 50) {
-      status = "ATTENTION";
-    } else if (healthPercentage < 80) {
-      status = "GOOD";
-    }
-
-    let dailyRate = 2.0;
-    let isProratedEstimate = true;
-
-    if (spanDays >= 2 && recentSwitchCount > 0) {
-      dailyRate = Number((recentSwitchCount / spanDays).toFixed(2));
-      isProratedEstimate = false;
-    } else if (configuration?.createdAt) {
-      const totalDaysActive = (Date.now() - configuration.createdAt.getTime()) / (1000 * 60 * 60 * 24);
-      if (totalDaysActive >= 2 && current > 0) {
-        dailyRate = Number((current / totalDaysActive).toFixed(2));
-        isProratedEstimate = false;
-      }
-    }
-
-    const effectiveDailyRate = dailyRate > 0 ? dailyRate : 2.0;
-    const estimatedYearsRemaining = Number((remaining / (effectiveDailyRate * 365)).toFixed(1));
-
-    return {
-      lifespanCycles: lifespan,
-      currentCycles: current,
-      remainingCycles: remaining,
-      healthPercentage,
-      estimatedYearsRemaining,
-      dailyRate: Number(dailyRate.toFixed(2)),
-      status,
-      isProratedEstimate,
-    };
-  }
-
   it("calculates 100% health for fresh ATS (0 cycles consumed)", () => {
-    const health = calculateAtsHealthTest({ atsLifespanCycles: 10000, atsCurrentCycles: 0 }, 0, 0);
+    const health = calculateAtsHealth({ atsLifespanCycles: 10000, atsCurrentCycles: 0 }, 0, 0);
     expect(health.healthPercentage).toBe(100);
     expect(health.remainingCycles).toBe(10000);
     expect(health.status).toBe("EXCELLENT");
@@ -326,7 +279,7 @@ describe("ATS Health - Statistics Calculation & Edge Cases", () => {
   });
 
   it("calculates GOOD status between 50% and 80% (e.g. 2500 cycles consumed)", () => {
-    const health = calculateAtsHealthTest({ atsLifespanCycles: 10000, atsCurrentCycles: 2500 }, 0, 0);
+    const health = calculateAtsHealth({ atsLifespanCycles: 10000, atsCurrentCycles: 2500 }, 0, 0);
     expect(health.healthPercentage).toBe(75);
     expect(health.remainingCycles).toBe(7500);
     expect(health.status).toBe("GOOD");
@@ -334,7 +287,7 @@ describe("ATS Health - Statistics Calculation & Edge Cases", () => {
   });
 
   it("calculates ATTENTION status between 20% and 50% (e.g. 6000 cycles consumed)", () => {
-    const health = calculateAtsHealthTest({ atsLifespanCycles: 10000, atsCurrentCycles: 6000 }, 0, 0);
+    const health = calculateAtsHealth({ atsLifespanCycles: 10000, atsCurrentCycles: 6000 }, 0, 0);
     expect(health.healthPercentage).toBe(40);
     expect(health.remainingCycles).toBe(4000);
     expect(health.status).toBe("ATTENTION");
@@ -342,7 +295,7 @@ describe("ATS Health - Statistics Calculation & Edge Cases", () => {
   });
 
   it("calculates CRITICAL status below 20% (e.g. 9000 cycles consumed)", () => {
-    const health = calculateAtsHealthTest({ atsLifespanCycles: 10000, atsCurrentCycles: 9000 }, 0, 0);
+    const health = calculateAtsHealth({ atsLifespanCycles: 10000, atsCurrentCycles: 9000 }, 0, 0);
     expect(health.healthPercentage).toBe(10);
     expect(health.remainingCycles).toBe(1000);
     expect(health.status).toBe("CRITICAL");
@@ -350,7 +303,7 @@ describe("ATS Health - Statistics Calculation & Edge Cases", () => {
   });
 
   it("handles cycle exhaustion safely (currentCycles > lifespanCycles)", () => {
-    const health = calculateAtsHealthTest({ atsLifespanCycles: 10000, atsCurrentCycles: 10500 }, 0, 0);
+    const health = calculateAtsHealth({ atsLifespanCycles: 10000, atsCurrentCycles: 10500 }, 0, 0);
     expect(health.healthPercentage).toBe(0);
     expect(health.remainingCycles).toBe(0);
     expect(health.status).toBe("CRITICAL");
@@ -359,7 +312,7 @@ describe("ATS Health - Statistics Calculation & Edge Cases", () => {
 
   it("accurately computes real daily rate based on 30-day switching log span", () => {
     // 30 comutações ao longo de 10 dias -> 3.0 comutações/dia
-    const health = calculateAtsHealthTest(
+    const health = calculateAtsHealth(
       { atsLifespanCycles: 10000, atsCurrentCycles: 1000 },
       30,
       10
@@ -369,5 +322,66 @@ describe("ATS Health - Statistics Calculation & Edge Cases", () => {
     expect(health.remainingCycles).toBe(9000);
     // 9000 / (3 * 365) = 9000 / 1095 = 8.219 -> 8.2 anos
     expect(health.estimatedYearsRemaining).toBe(8.2);
+  });
+
+  it("calculates canonical rate based on atsCurrentCycles divided by active days", () => {
+    // 98 ciclos realizados em 30 dias ativos da configuração -> 3.27 comutações/dia
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const health = calculateAtsHealth(
+      {
+        atsLifespanCycles: 10000,
+        atsCurrentCycles: 98,
+        createdAt: thirtyDaysAgo,
+      },
+      0,
+      0
+    );
+
+    expect(health.currentCycles).toBe(98);
+    expect(health.remainingCycles).toBe(9902);
+    expect(health.healthPercentage).toBe(99);
+    expect(health.dailyRate).toBe(3.27);
+    expect(health.isProratedEstimate).toBe(false);
+    // 9902 / (3.27 * 365) = 9902 / 1193.55 = 8.296 -> 8.3 anos
+    expect(health.estimatedYearsRemaining).toBe(8.3);
+  });
+
+  it("prevents physical explosion and applies sanity guard when dailyRate > 20 (corrupted polling logs)", () => {
+    // Simulação do bug relatado por Baggute: 7896 logs em 2 dias -> 3948 comutações/dia
+    const health = calculateAtsHealth(
+      {
+        atsLifespanCycles: 10000,
+        atsCurrentCycles: 98,
+      },
+      7896,
+      2
+    );
+
+    // O guard intercepta a taxa absurda (>20) e aplica o fallback de 2.0 comutações/dia
+    expect(health.dailyRate).toBe(2);
+    expect(health.isProratedEstimate).toBe(true);
+    expect(health.remainingCycles).toBe(9902);
+    // 9902 / (2 * 365) = 9902 / 730 = 13.564 -> 13.6 anos (NUNCA ~0 anos)
+    expect(health.estimatedYearsRemaining).toBe(13.6);
+  });
+
+  it("prefers canonical rate over corrupted log counts when both are present", () => {
+    // Caso de Baggute: 98 ciclos reais, criado há 25 dias (3.92/dia), mas com 5000 logs em 2 dias
+    const twentyFiveDaysAgo = new Date(Date.now() - 25 * 24 * 60 * 60 * 1000);
+    const health = calculateAtsHealth(
+      {
+        atsLifespanCycles: 10000,
+        atsCurrentCycles: 98,
+        createdAt: twentyFiveDaysAgo,
+      },
+      5000,
+      2
+    );
+
+    // Fonte primária canônica (98 / 25 = 3.92) é usada porque está no intervalo seguro (<= 20)
+    expect(health.dailyRate).toBe(3.92);
+    expect(health.isProratedEstimate).toBe(false);
+    // 9902 / (3.92 * 365) = 9902 / 1430.8 = 6.9 anos
+    expect(health.estimatedYearsRemaining).toBe(6.9);
   });
 });
