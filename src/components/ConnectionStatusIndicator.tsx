@@ -21,6 +21,10 @@ export function ConnectionStatusIndicator({
   const status = propStatus ?? hookResult.connectionStatus;
   const handleReconnect = propReconnect ?? hookResult.reconnect;
 
+  const liveDetail = hookResult.lastUpdated
+    ? `Última atualização: ${hookResult.lastUpdated.toLocaleTimeString()}`
+    : "Transmissão contínua de telemetria ativa.";
+
   const configs: Record<
     ConnectionStatus,
     {
@@ -34,7 +38,7 @@ export function ConnectionStatusIndicator({
   > = {
     LIVE: {
       label: "Ao Vivo",
-      tooltip: "Conectado via MQTT/SSE em tempo real. Latência inferior a 100ms.",
+      tooltip: `Conectado via stream em tempo real (SSE/MQTT). ${liveDetail}`,
       dotClass: "bg-emerald-500 shadow-[0_0_8px_#10b981]",
       pingClass: "bg-emerald-400 opacity-75",
       containerClass: "bg-emerald-500/10 border-emerald-500/30 text-emerald-300",
