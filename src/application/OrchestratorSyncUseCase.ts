@@ -57,6 +57,12 @@ export interface ProvidedTelemetry {
  * - 1 ponto por linha
  * - Nomes sem abreviação
  */
+export interface EcoFlowAcDispatchResult {
+  detailMessage: string;
+  actionName: string;
+  didSwitchAts: boolean;
+}
+
 export class OrchestratorSyncUseCase {
   private readonly repository: ConfigurationRepository;
   private readonly ecoflowBaseApiUrl: string;
@@ -707,7 +713,7 @@ export class OrchestratorSyncUseCase {
             }
 
             const desiredAction = activeThresholdPair.evaluateBattery(batteryLevel);
-            actionResult = await this.dispatchEcoFlowAcAction(
+            const acDispatchResult = await this.dispatchEcoFlowAcAction(
               desiredAction,
               ecoflowDevice,
               ecoflowClient,
@@ -717,9 +723,8 @@ export class OrchestratorSyncUseCase {
               notificationConfig,
               databaseRecordId
             );
-            desiredAction.transferActionName((nameString: string) => {
-              actionName = nameString;
-            });
+            actionResult = acDispatchResult.detailMessage;
+            actionName = acDispatchResult.actionName;
           }
         }
       }
@@ -854,10 +859,7 @@ export class OrchestratorSyncUseCase {
     const isAtsAction =
       actionName === "ENABLE_ECOFLOW_AC" ||
       actionName === "DISABLE_ECOFLOW_AC" ||
-      actionName === "BATTERY_HIGH_DISCHARGE" ||
-      actionName === "BATTERY_LOW_RECHARGE" ||
       actionName === "STORM_MODE_RESERVE" ||
-      actionName === "AUTO_STORM_DEFENSE" ||
       actionName === "THERMAL_PROTECTION_DISARM";
 
     let lastState = OrchestratorSyncUseCase.lastLoggedStatesByRecordId.get(databaseRecordId);
@@ -947,11 +949,15 @@ export class OrchestratorSyncUseCase {
     solarWatts: number,
     notificationConfig: NotificationConfig,
     databaseRecordId: string
-  ): Promise<string> {
+  ): Promise<EcoFlowAcDispatchResult> {
     const isEnable = desiredAction.isEnableEcoFlowAc();
     if (isEnable) {
       if (isCurrentlyAcEnabled === true) {
-        return "Bateria Alta (atingiu limite superior): Saída AC EcoFlow já está LIGADA. Chave ATS mantida em Solar/Bateria.";
+        return {
+          detailMessage: "Bateria Alta (atingiu limite superior): Saída AC EcoFlow já está LIGADA. Chave ATS mantida em Solar/Bateria.",
+          actionName: "HOLD_CURRENT_STATE",
+          didSwitchAts: false,
+        };
       }
       const feedback = await ecoflowClient.setAcOutputState(ecoflowDevice, true);
       if (typeof this.repository.incrementAtsCycle === "function") {
@@ -971,13 +977,21 @@ export class OrchestratorSyncUseCase {
         notificationConfig
       );
 
-      return `Bateria Alta (atingiu limite superior): Saída AC EcoFlow LIGADA. A Chave ATS comutou para Solar/Bateria. [EcoFlow: ${feedback}]`;
+      return {
+        detailMessage: `Bateria Alta (atingiu limite superior): Saída AC EcoFlow LIGADA. A Chave ATS comutou para Solar/Bateria. [EcoFlow: ${feedback}]`,
+        actionName: "ENABLE_ECOFLOW_AC",
+        didSwitchAts: true,
+      };
     }
 
     const isDisable = desiredAction.isDisableEcoFlowAc();
     if (isDisable) {
       if (isCurrentlyAcEnabled === false) {
-        return "Bateria Baixa (atingiu limite inferior): Saída AC EcoFlow já está DESLIGADA. Chave ATS mantida na Concessionária.";
+        return {
+          detailMessage: "Bateria Baixa (atingiu limite inferior): Saída AC EcoFlow já está DESLIGADA. Chave ATS mantida na Concessionária.",
+          actionName: "HOLD_CURRENT_STATE",
+          didSwitchAts: false,
+        };
       }
       const feedback = await ecoflowClient.setAcOutputState(ecoflowDevice, false);
       if (typeof this.repository.incrementAtsCycle === "function") {
@@ -997,10 +1011,18 @@ export class OrchestratorSyncUseCase {
         notificationConfig
       );
 
-      return `Bateria Baixa (atingiu limite inferior): Saída AC EcoFlow DESLIGADA. A Chave ATS comutou para a Rede Concessionária. [EcoFlow: ${feedback}]`;
+      return {
+        detailMessage: `Bateria Baixa (atingiu limite inferior): Saída AC EcoFlow DESLIGADA. A Chave ATS comutou para a Rede Concessionária. [EcoFlow: ${feedback}]`,
+        actionName: "DISABLE_ECOFLOW_AC",
+        didSwitchAts: true,
+      };
     }
 
-    return "Bateria em faixa intermediária (histerese). Estados atuais mantidos.";
+    return {
+      detailMessage: "Bateria em faixa intermediária (histerese). Estados atuais mantidos.",
+      actionName: "HOLD_CURRENT_STATE",
+      didSwitchAts: false,
+    };
   }
 
   private dispatchSafeAlert(

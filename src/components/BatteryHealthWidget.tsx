@@ -146,6 +146,7 @@ export function BatteryHealthWidget({
   const isCutoff = Boolean(data?.isThermalCutoffActive);
   const isThrottle = Boolean(data?.isThermalThrottleActive);
   const isPhysicalTempAvailable = currentTemp !== null;
+  const hasFullNativeCompatibility = !data?.isAnalyticalBms && isPhysicalTempAvailable;
   const thermalConfig = getThermalBadgeConfig(
     riskLevel,
     throttleWatts,
@@ -164,6 +165,40 @@ export function BatteryHealthWidget({
   // VARIANTE COMPACTA (Para Barra Executiva / Kiosk OLED)
   // ==============================================================
   if (compact) {
+    if (!hasFullNativeCompatibility) {
+      return (
+        <Tooltip enabled={true}>
+          <TooltipTrigger asChild>
+            <div
+              role="status"
+              aria-live="polite"
+              aria-label="Telemetria de Células & BMS Integrada (River 2)"
+              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-mono font-medium transition-all select-none ${thermalConfig.badgeClass} ${className}`}
+            >
+              <div className="flex items-center gap-1.5">
+                <span className={`w-2 h-2 rounded-full ${thermalConfig.dotColor}`} aria-hidden="true" />
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
+                <strong className="font-bold text-emerald-300 text-[11px] whitespace-nowrap">
+                  Hardware EMS Integrado
+                </strong>
+              </div>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <div className="text-xs space-y-1.5 max-w-[280px] p-1 font-sans">
+              <div className="font-bold text-slate-100 flex items-center justify-between border-b border-slate-800 pb-1">
+                <span>BMS &amp; Proteção Integrada</span>
+                <span className="text-[10px] font-mono text-cyan-400">River 2</span>
+              </div>
+              <p className="text-slate-300 text-[11px] leading-relaxed">
+                A EcoFlow gerencia o balanceamento e a proteção térmica de forma autônoma pelo firmware de fábrica (sem expor as sondas de células na Open API). Telemetria aberta de células é nativa na linha DELTA.
+              </p>
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      );
+    }
+
     return (
       <Tooltip enabled={true}>
         <TooltipTrigger asChild>
@@ -409,122 +444,147 @@ export function BatteryHealthWidget({
         </div>
       )}
 
-      {/* 4. Grade de Métricas Vitais: SOH, Ciclos LiFePO4 e Grandezas Elétricas */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {/* Pilar 1: SOH % (State of Health) com Barra Volumétrica Semântica */}
-        <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800/80 flex flex-col justify-between space-y-2.5">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-              Saúde Química (SOH)
-            </span>
-            <ShieldCheck className="w-4 h-4 text-emerald-400" aria-hidden="true" />
-          </div>
-
-          <div className="flex items-center gap-3">
-            {/* Medidor Circular Compacto SVG */}
-            <div className="relative w-12 h-12 flex items-center justify-center shrink-0">
-              <svg className="w-12 h-12 transform -rotate-90" viewBox="0 0 36 36">
-                <path
-                  className="text-slate-800"
-                  strokeWidth="3.5"
-                  stroke="currentColor"
-                  fill="none"
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                />
-                <path
-                  className="text-emerald-400 transition-all duration-700 ease-out"
-                  strokeDasharray={`${Math.max(0, Math.min(100, soh))}, 100`}
-                  strokeWidth="3.5"
-                  strokeLinecap="round"
-                  stroke="currentColor"
-                  fill="none"
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                />
-              </svg>
-              <span className="absolute text-[11px] font-bold font-mono text-slate-100">
-                {soh}%
+      {/* 4. Grade de Métricas Vitais (Apenas Modelos com 100% de Compatibilidade de API) OU Painel Transparente de Compatibilidade */}
+      {hasFullNativeCompatibility ? (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* Pilar 1: SOH % (State of Health) com Barra Volumétrica Semântica */}
+          <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800/80 flex flex-col justify-between space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                Saúde Química (SOH)
               </span>
+              <ShieldCheck className="w-4 h-4 text-emerald-400" aria-hidden="true" />
             </div>
 
-            <div className="text-xs">
-              <span className="font-bold text-emerald-300 block">
-                {soh >= 90 ? "Excelente" : soh >= 80 ? "Normal" : "Degradação Leve"}
-              </span>
-              <span className="text-[10px] text-slate-400">
-                Capacidade íntegra
-              </span>
-            </div>
-          </div>
-
-          <div className="text-[10px] text-slate-500 font-mono pt-1 border-t border-slate-900">
-            Curva de retenção LiFePO4
-          </div>
-        </div>
-
-        {/* Pilar 2: Ciclos LiFePO4 e Projeção de Vida Útil em Anos */}
-        <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800/80 flex flex-col justify-between space-y-2.5">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-              Ciclos &amp; Vida Útil
-            </span>
-            <Activity className="w-4 h-4 text-cyan-400" aria-hidden="true" />
-          </div>
-
-          <div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-extrabold font-mono text-slate-100">
-                {cycles}
-              </span>
-              <span className="text-xs font-mono text-slate-400">
-                / {nominalCycles} ciclos
-              </span>
-            </div>
-            <div className="text-xs text-cyan-300 font-medium mt-0.5">
-              ~{yearsRemaining} anos de vida útil restante
-            </div>
-          </div>
-
-          <div className="text-[10px] text-slate-500 font-mono pt-1 border-t border-slate-900">
-            Restam {remainingCycles} ciclos (1 ciclo/dia)
-          </div>
-        </div>
-
-        {/* Pilar 3: Tensão e Grandezas Elétricas do BMS */}
-        <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800/80 flex flex-col justify-between space-y-2.5">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-              Grandezas Elétricas
-            </span>
-            <Zap className="w-4 h-4 text-amber-400" aria-hidden="true" />
-          </div>
-
-          <div>
-            <div className="text-2xl font-extrabold font-mono text-amber-300 flex items-baseline gap-1.5">
-              <span>
-                {data?.voltageVolts !== null && data?.voltageVolts !== undefined
-                  ? `${data.voltageVolts.toFixed(1)} V`
-                  : "-- V"}
-              </span>
-              {data?.isVoltageEstimated && (
-                <span className="text-[10px] text-cyan-400 font-sans font-normal">
-                  (Estimada LFP)
+            <div className="flex items-center gap-3">
+              {/* Medidor Circular Compacto SVG */}
+              <div className="relative w-12 h-12 flex items-center justify-center shrink-0">
+                <svg className="w-12 h-12 transform -rotate-90" viewBox="0 0 36 36">
+                  <path
+                    className="text-slate-800"
+                    strokeWidth="3.5"
+                    stroke="currentColor"
+                    fill="none"
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  />
+                  <path
+                    className="text-emerald-400 transition-all duration-700 ease-out"
+                    strokeDasharray={`${Math.max(0, Math.min(100, soh))}, 100`}
+                    strokeWidth="3.5"
+                    strokeLinecap="round"
+                    stroke="currentColor"
+                    fill="none"
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  />
+                </svg>
+                <span className="absolute text-[11px] font-bold font-mono text-slate-100">
+                  {soh}%
                 </span>
-              )}
+              </div>
+
+              <div className="text-xs">
+                <span className="font-bold text-emerald-300 block">
+                  {soh >= 90 ? "Excelente" : soh >= 80 ? "Normal" : "Degradação Leve"}
+                </span>
+                <span className="text-[10px] text-slate-400">
+                  Capacidade íntegra
+                </span>
+              </div>
             </div>
-            <div className="text-xs text-slate-400 font-mono mt-0.5">
-              Corrente: {data?.amperageAmps !== null && data?.amperageAmps !== undefined
-                ? `${data.amperageAmps.toFixed(1)} A`
-                : "-- A"}
+
+            <div className="text-[10px] text-slate-500 font-mono pt-1 border-t border-slate-900">
+              Curva de retenção LiFePO4
             </div>
           </div>
 
-          <div className="text-[10px] text-slate-500 font-mono pt-1 border-t border-slate-900">
-            Potência BMS: {data?.powerWatts !== null && data?.powerWatts !== undefined
-              ? `${data.powerWatts} W`
-              : "-- W"}
+          {/* Pilar 2: Ciclos LiFePO4 e Projeção de Vida Útil em Anos */}
+          <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800/80 flex flex-col justify-between space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                Ciclos &amp; Vida Útil
+              </span>
+              <Activity className="w-4 h-4 text-cyan-400" aria-hidden="true" />
+            </div>
+
+            <div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-extrabold font-mono text-slate-100">
+                  {cycles}
+                </span>
+                <span className="text-xs font-mono text-slate-400">
+                  / {nominalCycles} ciclos
+                </span>
+              </div>
+              <div className="text-xs text-cyan-300 font-medium mt-0.5">
+                ~{yearsRemaining} anos de vida útil restante
+              </div>
+            </div>
+
+            <div className="text-[10px] text-slate-500 font-mono pt-1 border-t border-slate-900">
+              Restam {remainingCycles} ciclos (1 ciclo/dia)
+            </div>
+          </div>
+
+          {/* Pilar 3: Tensão e Grandezas Elétricas do BMS */}
+          <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800/80 flex flex-col justify-between space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                Grandezas Elétricas
+              </span>
+              <Zap className="w-4 h-4 text-amber-400" aria-hidden="true" />
+            </div>
+
+            <div>
+              <div className="text-2xl font-extrabold font-mono text-amber-300 flex items-baseline gap-1.5">
+                <span>
+                  {data?.voltageVolts !== null && data?.voltageVolts !== undefined
+                    ? `${data.voltageVolts.toFixed(1)} V`
+                    : "-- V"}
+                </span>
+              </div>
+              <div className="text-xs text-slate-400 font-mono mt-0.5">
+                Corrente: {data?.amperageAmps !== null && data?.amperageAmps !== undefined
+                  ? `${data.amperageAmps.toFixed(1)} A`
+                  : "-- A"}
+              </div>
+            </div>
+
+            <div className="text-[10px] text-slate-500 font-mono pt-1 border-t border-slate-900">
+              Potência BMS: {data?.powerWatts !== null && data?.powerWatts !== undefined
+                ? `${data.powerWatts} W`
+                : "-- W"}
+            </div>
           </div>
         </div>
-      </div>
+      ) : (
+        <div className="p-4 sm:p-5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+              <Cpu className="w-4 h-4" aria-hidden="true" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-200">
+                Telemetria de Células &amp; BMS Integrada
+              </h3>
+              <p className="text-[11px] text-slate-400">
+                Gerenciamento autônomo pelo controlador de fábrica da EcoFlow
+              </p>
+            </div>
+          </div>
+          <p className="text-xs text-slate-300 leading-relaxed">
+            Para esta estação portátil (família EcoFlow River 2), o balanceamento das células LiFePO4, a curva de descarga e as proteções térmicas operam de forma autônoma pelo firmware de fábrica (sem expor as sondas de células na Open API para desenvolvedores). A telemetria aberta de células é nativa na linha DELTA.
+          </p>
+          <div className="p-3 rounded-lg bg-slate-900/90 border border-slate-800 text-[11px] text-slate-400 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <span className="flex items-center gap-1.5 text-slate-300">
+              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" aria-hidden="true" />
+              <span>Proteção e balanceamento ativo pelo firmware do hardware</span>
+            </span>
+            <span className="text-[10px] font-mono text-cyan-400/90 bg-cyan-950/50 px-2 py-0.5 rounded border border-cyan-800/40 self-start sm:self-auto">
+              Telemetria aberta de células: Linha DELTA
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* 5. Rodapé: Status da Telemetria & Link Rápido de Configuração */}
       <div className="pt-2 border-t border-slate-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-slate-500 font-mono">

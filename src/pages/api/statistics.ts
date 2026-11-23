@@ -316,12 +316,12 @@ function calculateAutonomyEstimate(
   };
 }
 
-function calculateAtsHealth(
+export function calculateAtsHealth(
   configuration: {
     atsLifespanCycles?: number | null;
     atsCurrentCycles?: number | null;
-    atsLastSwitchedAt?: Date | null;
-    createdAt?: Date;
+    atsLastSwitchedAt?: Date | string | null;
+    createdAt?: Date | string | null;
   } | null,
   recentSwitchCount: number,
   spanDays: number
@@ -346,19 +346,48 @@ function calculateAtsHealth(
   let dailyRate = 2.0;
   let isProratedEstimate = true;
 
-  if (spanDays >= 2 && recentSwitchCount > 0) {
-    dailyRate = Number((recentSwitchCount / spanDays).toFixed(2));
-    isProratedEstimate = false;
-  } else if (configuration?.createdAt) {
-    const totalDaysActive = (Date.now() - configuration.createdAt.getTime()) / (1000 * 60 * 60 * 24);
-    if (totalDaysActive >= 2 && current > 0) {
-      dailyRate = Number((current / totalDaysActive).toFixed(2));
+  const totalDaysActive = configuration?.createdAt
+    ? (Date.now() - new Date(configuration.createdAt).getTime()) / (1000 * 60 * 60 * 24)
+    : 0;
+
+  // 1. Fonte Primária: Contador canônico (atsCurrentCycles) dividido pelo tempo ativo da configuração
+  if (totalDaysActive >= 2 && current > 0) {
+    const canonicalRate = current / totalDaysActive;
+    if (canonicalRate > 0 && canonicalRate <= 20) {
+      dailyRate = Number(canonicalRate.toFixed(2));
       isProratedEstimate = false;
     }
   }
 
+  // 2. Fonte Secundária: Logs de comutações recentes reais dos últimos 30 dias (se a primária não foi aplicável)
+  if (isProratedEstimate && spanDays >= 2 && recentSwitchCount > 0) {
+    const recentRate = recentSwitchCount / spanDays;
+    if (recentRate > 0 && recentRate <= 20) {
+      dailyRate = Number(recentRate.toFixed(2));
+      isProratedEstimate = false;
+    }
+  }
+
+  // 3. Guard de Sanidade Física: Residencial opera tipicamente de 1 a 6 vezes/dia.
+  // Se dailyRate > 20 ou <= 0, reseta para 2.0 como estimativa conservadora.
+  if (dailyRate <= 0 || dailyRate > 20) {
+    dailyRate = 2.0;
+    isProratedEstimate = true;
+  }
+
   const effectiveDailyRate = dailyRate > 0 ? dailyRate : 2.0;
-  const estimatedYearsRemaining = Number((remaining / (effectiveDailyRate * 365)).toFixed(1));
+  const estimatedYearsRemaining =
+    remaining === 0
+      ? 0
+      : Number((remaining / (effectiveDailyRate * 365)).toFixed(1));
+
+  let lastSwitchedIso: string | null = null;
+  if (configuration?.atsLastSwitchedAt) {
+    lastSwitchedIso =
+      typeof configuration.atsLastSwitchedAt === "string"
+        ? configuration.atsLastSwitchedAt
+        : configuration.atsLastSwitchedAt.toISOString();
+  }
 
   return {
     lifespanCycles: lifespan,
@@ -367,9 +396,7 @@ function calculateAtsHealth(
     healthPercentage,
     estimatedYearsRemaining,
     dailyRate: Number(dailyRate.toFixed(2)),
-    atsLastSwitchedAt: configuration?.atsLastSwitchedAt
-      ? configuration.atsLastSwitchedAt.toISOString()
-      : null,
+    atsLastSwitchedAt: lastSwitchedIso,
     status,
     isProratedEstimate,
   };
@@ -720,10 +747,36 @@ export default async function handleStatistics(
         orderBy: { executedAt: "asc" },
       });
 
-      recentSwitchCount = switchingLogs.length;
-      if (switchingLogs.length >= 2) {
-        const firstTime = switchingLogs[0].executedAt.getTime();
-        const lastTime = switchingLogs[switchingLogs.length - 1].executedAt.getTime();
+      // Filtrar apenas comutações físicas reais, ignorando logs onde o estado foi apenas mantido (polling repetido)
+      const realSwitchingLogs = switchingLogs.filter((log) => {
+        const details = (log.executionDetails || "").toLowerCase();
+        const isMaintained =
+          details.includes("mantida") ||
+          details.includes("mantido") ||
+          details.includes("já está ligada") ||
+          details.includes("já está desligada") ||
+          details.includes("estados atuais mantidos") ||
+          log.actionTriggered === "HOLD_CURRENT_STATE";
+
+        if (isMaintained) {
+          return false;
+        }
+
+        const isRealAction =
+          log.actionTriggered === "ENABLE_ECOFLOW_AC" ||
+          log.actionTriggered === "DISABLE_ECOFLOW_AC";
+        const hasSwitchKeyword =
+          details.includes("comutou") ||
+          details.includes("transferida") ||
+          details.includes("cargas transferidas");
+
+        return isRealAction || hasSwitchKeyword;
+      });
+
+      recentSwitchCount = realSwitchingLogs.length;
+      if (realSwitchingLogs.length >= 2) {
+        const firstTime = realSwitchingLogs[0].executedAt.getTime();
+        const lastTime = realSwitchingLogs[realSwitchingLogs.length - 1].executedAt.getTime();
         switchSpanDays = Math.max(1, (lastTime - firstTime) / (1000 * 60 * 60 * 24));
       }
     }
