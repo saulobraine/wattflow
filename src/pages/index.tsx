@@ -8,6 +8,7 @@ import { StormAlertBanner } from "../components/StormAlertBanner";
 import { TariffStatusBadge } from "../components/TariffStatusBadge";
 import { BatteryHealthWidget } from "../components/BatteryHealthWidget";
 import { PaybackSummaryWidget } from "../components/PaybackSummaryWidget";
+import { formatCurrency } from "../utils/currencyFormatter";
 import {
   BatteryCharging,
   Power,
@@ -628,7 +629,7 @@ export default function DashboardPage() {
 
             <div className="text-xl sm:text-2xl font-bold font-mono text-emerald-400 truncate my-1">
               {savingsData
-                ? `${savingsData.currencySymbol} ${savingsData.todaySavings.toFixed(2)}`
+                ? formatCurrency(savingsData.todaySavings, savingsData.currencySymbol)
                 : "--"}
             </div>
 
@@ -636,7 +637,7 @@ export default function DashboardPage() {
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" aria-hidden="true" />
               <span className="truncate">
                 {savingsData
-                  ? `Hoje: ${savingsData.todayKwh.toFixed(1)} kWh | Mês: ${savingsData.currencySymbol} ${savingsData.monthSavings.toFixed(2)}`
+                  ? `Hoje: ${savingsData.todayKwh.toFixed(1)} kWh | Mês: ${formatCurrency(savingsData.monthSavings, savingsData.currencySymbol)}`
                   : "Economia Real"}
               </span>
             </div>
