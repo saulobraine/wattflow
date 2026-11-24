@@ -979,7 +979,10 @@ export default async function handleStatistics(
       const monthLogs = await prisma.syncExecutionLog.findMany({
         where: {
           userConfigurationId: configuration.id,
-          executedAt: { gte: startOfMonth },
+          executedAt: {
+            gte: startOfMonth,
+            lte: new Date(nowTimestamp),
+          },
         },
         select: {
           solarInputWatts: true,
@@ -988,7 +991,6 @@ export default async function handleStatistics(
           executedAt: true,
         },
         orderBy: { executedAt: "asc" },
-        take: 5000,
       });
 
       if (monthLogs.length > 0) {

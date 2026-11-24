@@ -252,6 +252,8 @@ export class AggregationEngine {
       let solarWatts = 0;
       let outputWatts = 0;
       let batteryPercentage = lastKnownBattery;
+      let rawAvgSolarWatts = 0;
+      let rawAvgOutputWatts = 0;
 
       if (logsInBucket.length > 0) {
         let sumSolar = 0;
@@ -270,8 +272,17 @@ export class AggregationEngine {
           }
         }
 
-        solarWatts = Math.round(sumSolar / logsInBucket.length);
-        outputWatts = Math.round(sumOutput / logsInBucket.length);
+        rawAvgSolarWatts = sumSolar / logsInBucket.length;
+        rawAvgOutputWatts = sumOutput / logsInBucket.length;
+
+        solarWatts =
+          rawAvgSolarWatts > 0 && rawAvgSolarWatts < 1
+            ? Number(rawAvgSolarWatts.toFixed(2))
+            : Math.round(rawAvgSolarWatts);
+        outputWatts =
+          rawAvgOutputWatts > 0 && rawAvgOutputWatts < 1
+            ? Number(rawAvgOutputWatts.toFixed(2))
+            : Math.round(rawAvgOutputWatts);
         batteryPercentage = Math.round(sumBattery / logsInBucket.length);
         lastKnownBattery = batteryPercentage;
 
@@ -279,9 +290,9 @@ export class AggregationEngine {
         batteryCount++;
       }
 
-      const netWatts = solarWatts - outputWatts;
-      const bucketSolarKwh = (solarWatts * bucketHours) / 1000;
-      const bucketConsumedKwh = (outputWatts * bucketHours) / 1000;
+      const netWatts = Number((solarWatts - outputWatts).toFixed(2));
+      const bucketSolarKwh = (rawAvgSolarWatts * bucketHours) / 1000;
+      const bucketConsumedKwh = (rawAvgOutputWatts * bucketHours) / 1000;
 
       totalSolarKwh += bucketSolarKwh;
       totalConsumedKwh += bucketConsumedKwh;
@@ -387,6 +398,8 @@ export class AggregationEngine {
       let solarWatts = 0;
       let outputWatts = 0;
       let batteryPercentage = lastKnownBattery;
+      let rawAvgSolarWatts = 0;
+      let rawAvgOutputWatts = 0;
 
       if (logsInMonth.length > 0) {
         let sumSolar = 0;
@@ -401,8 +414,17 @@ export class AggregationEngine {
           if (log.outputWatts > peakOutputWatts) peakOutputWatts = log.outputWatts;
         }
 
-        solarWatts = Math.round(sumSolar / logsInMonth.length);
-        outputWatts = Math.round(sumOutput / logsInMonth.length);
+        rawAvgSolarWatts = sumSolar / logsInMonth.length;
+        rawAvgOutputWatts = sumOutput / logsInMonth.length;
+
+        solarWatts =
+          rawAvgSolarWatts > 0 && rawAvgSolarWatts < 1
+            ? Number(rawAvgSolarWatts.toFixed(2))
+            : Math.round(rawAvgSolarWatts);
+        outputWatts =
+          rawAvgOutputWatts > 0 && rawAvgOutputWatts < 1
+            ? Number(rawAvgOutputWatts.toFixed(2))
+            : Math.round(rawAvgOutputWatts);
         batteryPercentage = Math.round(sumBattery / logsInMonth.length);
         lastKnownBattery = batteryPercentage;
 
@@ -412,8 +434,8 @@ export class AggregationEngine {
 
       const monthHours =
         (monthEnd.getTime() - monthStart.getTime()) / (1000 * 60 * 60);
-      const monthSolarKwh = (solarWatts * monthHours) / 1000;
-      const monthConsumedKwh = (outputWatts * monthHours) / 1000;
+      const monthSolarKwh = (rawAvgSolarWatts * monthHours) / 1000;
+      const monthConsumedKwh = (rawAvgOutputWatts * monthHours) / 1000;
 
       totalSolarKwh += monthSolarKwh;
       totalConsumedKwh += monthConsumedKwh;
@@ -432,7 +454,7 @@ export class AggregationEngine {
         label,
         solarWatts,
         outputWatts,
-        netWatts: solarWatts - outputWatts,
+        netWatts: Number((solarWatts - outputWatts).toFixed(2)),
         batteryPercentage,
       });
     }
@@ -527,6 +549,8 @@ export class AggregationEngine {
       let solarWatts = 0;
       let outputWatts = 0;
       let batteryPercentage = lastKnownYesterdayBattery;
+      let rawAvgSolarWatts = 0;
+      let rawAvgOutputWatts = 0;
 
       if (items.length > 0) {
         let sumSolar = 0;
@@ -540,13 +564,21 @@ export class AggregationEngine {
             yesterdayPeakWatts = item.solarInputWatts;
           }
         }
-        solarWatts = Math.round(sumSolar / items.length);
-        outputWatts = Math.round(sumOutput / items.length);
+        rawAvgSolarWatts = sumSolar / items.length;
+        rawAvgOutputWatts = sumOutput / items.length;
+        solarWatts =
+          rawAvgSolarWatts > 0 && rawAvgSolarWatts < 1
+            ? Number(rawAvgSolarWatts.toFixed(2))
+            : Math.round(rawAvgSolarWatts);
+        outputWatts =
+          rawAvgOutputWatts > 0 && rawAvgOutputWatts < 1
+            ? Number(rawAvgOutputWatts.toFixed(2))
+            : Math.round(rawAvgOutputWatts);
         batteryPercentage = Math.round(sumBattery / items.length);
         lastKnownYesterdayBattery = batteryPercentage;
       }
 
-      yesterdayTotalKwh += (solarWatts * 0.25) / 1000;
+      yesterdayTotalKwh += (rawAvgSolarWatts * 0.25) / 1000;
 
       yesterdayPoints.push({
         time: AggregationEngine.formatSlotTime(slot),
@@ -578,6 +610,8 @@ export class AggregationEngine {
       let solarWatts = 0;
       let outputWatts = 0;
       let batteryPercentage = lastKnownTodayBattery;
+      let rawAvgSolarWatts = 0;
+      let rawAvgOutputWatts = 0;
 
       if (items.length > 0) {
         let sumSolar = 0;
@@ -594,8 +628,16 @@ export class AggregationEngine {
             peakOutputWatts = item.outputWatts;
           }
         }
-        solarWatts = Math.round(sumSolar / items.length);
-        outputWatts = Math.round(sumOutput / items.length);
+        rawAvgSolarWatts = sumSolar / items.length;
+        rawAvgOutputWatts = sumOutput / items.length;
+        solarWatts =
+          rawAvgSolarWatts > 0 && rawAvgSolarWatts < 1
+            ? Number(rawAvgSolarWatts.toFixed(2))
+            : Math.round(rawAvgSolarWatts);
+        outputWatts =
+          rawAvgOutputWatts > 0 && rawAvgOutputWatts < 1
+            ? Number(rawAvgOutputWatts.toFixed(2))
+            : Math.round(rawAvgOutputWatts);
         batteryPercentage = Math.round(sumBattery / items.length);
         lastKnownTodayBattery = batteryPercentage;
 
@@ -603,8 +645,8 @@ export class AggregationEngine {
         batteryCount++;
       }
 
-      const slotSolarKwh = (solarWatts * 0.25) / 1000;
-      const slotConsumedKwh = (outputWatts * 0.25) / 1000;
+      const slotSolarKwh = (rawAvgSolarWatts * 0.25) / 1000;
+      const slotConsumedKwh = (rawAvgOutputWatts * 0.25) / 1000;
       todayTotalKwh += slotSolarKwh;
       todayConsumedKwh += slotConsumedKwh;
 
@@ -629,7 +671,7 @@ export class AggregationEngine {
         label: timeLabel,
         solarWatts,
         outputWatts,
-        netWatts: solarWatts - outputWatts,
+        netWatts: Number((solarWatts - outputWatts).toFixed(2)),
         batteryPercentage,
       });
     }
