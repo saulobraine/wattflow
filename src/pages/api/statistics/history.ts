@@ -99,7 +99,10 @@ export default async function handleStatisticsHistory(
     const logs = await prisma.syncExecutionLog.findMany({
       where: {
         userConfigurationId: configuration.id,
-        executedAt: { gte: windowStart },
+        executedAt: {
+          gte: windowStart,
+          lte: now,
+        },
       },
       select: {
         executedAt: true,
@@ -113,7 +116,6 @@ export default async function handleStatisticsHistory(
         batteryCycles: true,
       },
       orderBy: { executedAt: "asc" },
-      take: 10000,
     });
 
     const result = AggregationEngine.aggregate({
