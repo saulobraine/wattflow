@@ -11,6 +11,7 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { TransitionLink } from "./TransitionLink";
+import { formatCurrency } from "../utils/currencyFormatter";
 import type { PaybackAnalysisResponse } from "../domain/services/PaybackCalculatorService";
 
 export interface PaybackSummaryWidgetProps {
@@ -190,8 +191,8 @@ export function PaybackSummaryWidget({
           </div>
 
           <span className="text-xs font-mono text-slate-400">
-            <strong className="text-emerald-300">R$ {data.amortizedAmountBrl.toFixed(2)}</strong> de{" "}
-            R$ {data.totalCapexBrl.toFixed(2)}
+            <strong className="text-emerald-300">{formatCurrency(data.amortizedAmountBrl)}</strong> de{" "}
+            {formatCurrency(data.totalCapexBrl)}
           </span>
         </div>
 
@@ -223,7 +224,7 @@ export function PaybackSummaryWidget({
           </span>
           <div className="my-1.5">
             <div className="text-lg sm:text-xl font-extrabold font-mono text-slate-100">
-              R$ {data.totalCapexBrl.toFixed(2)}
+              {formatCurrency(data.totalCapexBrl)}
             </div>
             <span className="text-[11px] text-slate-500 font-mono">
               {data.daysInOperation} dias em operação
@@ -245,7 +246,7 @@ export function PaybackSummaryWidget({
                 isBreakEven ? "text-emerald-400" : "text-amber-300"
               }`}
             >
-              R$ {data.remainingBalanceBrl.toFixed(2)}
+              {formatCurrency(data.remainingBalanceBrl)}
             </div>
             <span className="text-[11px] text-slate-400 font-mono">
               {isBreakEven
@@ -265,15 +266,15 @@ export function PaybackSummaryWidget({
           </span>
           <div className="my-1.5">
             <div className="text-lg sm:text-xl font-extrabold font-mono text-emerald-400">
-              R$ {data.monthlyProjectedSavingsBrl.toFixed(2)}
+              {formatCurrency(data.monthlyProjectedSavingsBrl)}
               <span className="text-xs font-normal text-slate-400">/mês</span>
             </div>
             <span className="text-[11px] text-slate-400 font-mono">
-              ~R$ {data.dailyAverageSavingsBrl.toFixed(2)}/dia
+              ~{formatCurrency(data.dailyAverageSavingsBrl)}/dia
             </span>
           </div>
           <span className="text-[10px] text-slate-500 font-mono">
-            ~R$ {data.annualProjectedSavingsBrl.toFixed(2)}/ano
+            ~{formatCurrency(data.annualProjectedSavingsBrl)}/ano
           </span>
         </div>
       </div>
@@ -285,7 +286,9 @@ export function PaybackSummaryWidget({
           <div className="text-slate-300">
             <span>Projeção de Lucro Líquido (10 anos LiFePO4): </span>
             <strong className="text-emerald-300 font-mono font-bold">
-              +R$ {data.tenYearProjection.lifetimeNetProfitBrl.toFixed(2)}
+              {data.tenYearProjection.lifetimeNetProfitBrl >= 0
+                ? `+${formatCurrency(data.tenYearProjection.lifetimeNetProfitBrl)}`
+                : formatCurrency(data.tenYearProjection.lifetimeNetProfitBrl)}
             </strong>{" "}
             <span className="text-[11px] text-slate-400 font-mono">
               ({data.tenYearProjection.lifetimeRoiPercentage.toFixed(0)}% ROI)
