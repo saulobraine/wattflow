@@ -507,10 +507,11 @@ export class AnalyticalReportService {
       return "";
     }
 
-    let text = String(raw).trim();
+    let text = String(raw);
+    const trimmedStart = text.trimStart();
 
-    // Proteção contra CSV Injection
-    if (/^[=+\-@]/.test(text)) {
+    // Proteção contra CSV/DDE Injection
+    if (typeof raw === "string" && (/^[=+\-@\t\r|%]/.test(text) || /^[=+\-@\t\r|%]/.test(trimmedStart))) {
       text = `'${text}`;
     }
 

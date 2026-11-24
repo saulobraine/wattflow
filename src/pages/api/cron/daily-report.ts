@@ -1,7 +1,14 @@
 import crypto from "crypto";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../../infrastructure/database/prismaClient";
-import { extractUserFromRequest } from "../../../infrastructure/auth/sessionHelper";
+import {
+  enforceCsrfProtection,
+  extractUserFromRequest,
+} from "../../../infrastructure/auth/sessionHelper";
+import {
+  constantTimeSecretEquals,
+  verifyCronRequestAuthorization,
+} from "../../../infrastructure/security/cronAuthHelper";
 import { decryptAndMigrateConfigurationSecrets } from "../../../infrastructure/security/secretMigrationHelper";
 import { NotificationDispatcher } from "../../../infrastructure/notifications/NotificationDispatcher";
 import { SolarReadingCollection, SolarTelemetryPoint } from "../../../domain/models/SolarReadingCollection";
@@ -30,15 +37,8 @@ export function isAuthorizedCronRequest(
     return false;
   }
 
-  const expectedHeader = `Bearer ${cronSecret}`;
-  const actualBuffer = Buffer.from(authHeader, "utf8");
-  const expectedBuffer = Buffer.from(expectedHeader, "utf8");
-
-  if (actualBuffer.length !== expectedBuffer.length) {
-    return false;
-  }
-
-  return crypto.timingSafeEqual(actualBuffer, expectedBuffer);
+  const providedToken = authHeader.slice("Bearer ".length).trim();
+  return constantTimeSecretEquals(providedToken, cronSecret.trim());
 }
 
 function wasAlreadySentToday(lastSentAt: Date | null): boolean {
@@ -59,20 +59,18 @@ export default async function handleDailyReportCron(
 ): Promise<void> {
   response.setHeader("Cache-Control", "no-store");
 
-  if (request.method !== "GET" && request.method !== "POST") {
-    response.setHeader("Allow", ["GET", "POST"]);
+  if (request.method !== "POST") {
+    response.setHeader("Allow", ["POST"]);
     response.status(405).json({
       success: false,
-      message: "Método HTTP não permitido. Utilize GET ou POST.",
+      message: "Método HTTP não permitido. Utilize POST.",
       processedCount: 0,
       dispatchedCount: 0,
     });
     return;
   }
 
-  const cronSecret = process.env.CRON_SECRET;
-  const authHeader = request.headers.authorization;
-  const isCronAuthorized = isAuthorizedCronRequest(authHeader, cronSecret);
+  const { isAuthorized: isCronAuthorized } = verifyCronRequestAuthorization(request);
 
   let sessionUser: Awaited<ReturnType<typeof extractUserFromRequest>> = null;
   try {
@@ -90,6 +88,13 @@ export default async function handleDailyReportCron(
       dispatchedCount: 0,
     });
     return;
+  }
+
+  // Se a requisição for autenticada via sessão web (usuário interativo), exige proteção CSRF estrita
+  if (!isCronAuthorized && sessionUser) {
+    if (!enforceCsrfProtection(request, response)) {
+      return;
+    }
   }
 
   // Isolamento Multi-Tenant estrito: se a requisição for de usuário comum, força o escopo apenas para ele

@@ -288,6 +288,9 @@ describe("AnalyticalReportService - Serviço de Relatórios Analíticos", () => 
       expect(service.sanitizeCsvCell("+cmd|' /C calc'!A0")).toBe("'+cmd|' /C calc'!A0");
       expect(service.sanitizeCsvCell("-SUM(A1:A10)")).toBe("'-SUM(A1:A10)");
       expect(service.sanitizeCsvCell("@threat")).toBe("'@threat");
+      expect(service.sanitizeCsvCell("   =CMD()")).toBe("'   =CMD()");
+      expect(service.sanitizeCsvCell("|pipe")).toBe("'|pipe");
+      expect(service.sanitizeCsvCell("%percent")).toBe("'%percent");
       expect(service.sanitizeCsvCell("Operação Normal")).toBe("Operação Normal");
     });
 
