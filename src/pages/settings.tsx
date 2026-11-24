@@ -86,6 +86,8 @@ export default function SettingsPage() {
   const [energyCostPerKwh, setEnergyCostPerKwh] = useState<number>(0.92);
   const [currencySymbol, setCurrencySymbol] = useState<string>("R$");
   const [batteryCapacityWh, setBatteryCapacityWh] = useState<number>(2048);
+  const [modelSearchQuery, setModelSearchQuery] = useState<string>("");
+  const [modelCategoryFilter, setModelCategoryFilter] = useState<string>("TODOS");
   const [isDailyReportActive, setIsDailyReportActive] = useState<boolean>(true);
   const [dailyReportTime, setDailyReportTime] = useState<string>("21:00");
 
@@ -1593,37 +1595,154 @@ export default function SettingsPage() {
                 </span>
               </div>
 
-              {/* Presets Rápidos EcoFlow */}
-              <div className="space-y-2">
-                <span className="text-xs font-semibold text-slate-400 block">
-                  Modelos e Presets Comuns EcoFlow:
-                </span>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                  {[
-                    { label: "DELTA 2", wh: 1024, desc: "1.024 Wh (Base)" },
-                    { label: "DELTA 2 Max", wh: 2048, desc: "2.048 Wh (Base)" },
-                    { label: "DELTA Pro", wh: 3600, desc: "3.600 Wh (Base)" },
-                  ].map((preset) => (
-                    <button
-                      key={preset.wh}
-                      type="button"
-                      onClick={() => setBatteryCapacityWh(preset.wh)}
-                      className={`p-3 rounded-xl border text-left transition-all ${
-                        batteryCapacityWh === preset.wh
-                          ? "bg-sky-950/80 border-sky-500/70 text-sky-200 shadow-sm shadow-sky-950"
-                          : "bg-slate-950 border-slate-800 hover:border-slate-700 text-slate-300"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-bold">{preset.label}</span>
-                        {batteryCapacityWh === preset.wh && (
-                          <CheckCircle2 className="w-3.5 h-3.5 text-sky-400" aria-hidden="true" />
-                        )}
-                      </div>
-                      <span className="text-[11px] font-mono text-slate-400 block">{preset.desc}</span>
-                    </button>
-                  ))}
+              {/* Seletor Pesquisável de Modelos e Presets EcoFlow */}
+              <div className="space-y-3 pt-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-slate-300 block">
+                    Modelos e Presets EcoFlow Homologados:
+                  </span>
+                  <span className="text-[11px] font-mono text-slate-500">
+                    Selecione um preset para preencher a capacidade nominal
+                  </span>
                 </div>
+
+                {/* Barra de Busca e Filtros de Categoria */}
+                <div className="space-y-2.5">
+                  <div className="relative">
+                    <Search className="w-4 h-4 text-slate-500 absolute left-3 top-3" aria-hidden="true" />
+                    <input
+                      type="text"
+                      placeholder="Pesquisar por modelo ou capacidade (ex: RIVER 2 Pro, DELTA 2, 768, 2048)..."
+                      value={modelSearchQuery}
+                      onChange={(e) => setModelSearchQuery(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500 transition-colors"
+                    />
+                    {modelSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setModelSearchQuery("")}
+                        className="absolute right-3 top-2.5 text-xs text-slate-500 hover:text-slate-300"
+                        title="Limpar busca"
+                      >
+                        <X className="w-3.5 h-3.5" aria-hidden="true" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Filtros em Abas Compactas */}
+                  <div className="flex flex-wrap gap-1.5 text-xs font-medium">
+                    {[
+                      { id: "TODOS", label: "Todos" },
+                      { id: "RIVER", label: "Família RIVER" },
+                      { id: "DELTA23", label: "DELTA 2 & 3" },
+                      { id: "DELTAPRO", label: "DELTA Pro / Ultra" },
+                      { id: "CLASSICOS", label: "Modelos Clássicos" },
+                    ].map((cat) => (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setModelCategoryFilter(cat.id)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] border transition-all ${
+                          modelCategoryFilter === cat.id
+                            ? "bg-sky-500/20 text-sky-300 border-sky-500/50 font-semibold"
+                            : "bg-slate-950 text-slate-400 border-slate-800 hover:text-slate-200 hover:border-slate-700"
+                        }`}
+                      >
+                        {cat.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Grade Scrollável de Modelos */}
+                {(() => {
+                  const ECOFLOW_MODELS = [
+                    // Família RIVER 2 (LiFePO4)
+                    { category: "RIVER", label: "RIVER 2", wh: 256, desc: "256 Wh (LiFePO4 Base)" },
+                    { category: "RIVER", label: "RIVER 2 Max", wh: 512, desc: "512 Wh (LiFePO4 Base)" },
+                    { category: "RIVER", label: "RIVER 2 Pro", wh: 768, desc: "768 Wh (LiFePO4 Base)" },
+
+                    // Família DELTA 2 & 3 (LiFePO4)
+                    { category: "DELTA23", label: "DELTA 2", wh: 1024, desc: "1.024 Wh (LiFePO4 Base)" },
+                    { category: "DELTA23", label: "DELTA 2 + Extra", wh: 2048, desc: "2.048 Wh (Base + 1x Bat Extra)" },
+                    { category: "DELTA23", label: "DELTA 2 + Extra Max", wh: 3072, desc: "3.072 Wh (Base + Bat Extra Max)" },
+                    { category: "DELTA23", label: "DELTA 3 / 3 Plus", wh: 1024, desc: "1.024 Wh (LiFePO4 3ª Geração)" },
+                    { category: "DELTA23", label: "DELTA 2 Max", wh: 2048, desc: "2.048 Wh (LiFePO4 Base)" },
+                    { category: "DELTA23", label: "DELTA 2 Max + 1x Extra", wh: 4096, desc: "4.096 Wh (Base + 1x Extra Max)" },
+                    { category: "DELTA23", label: "DELTA 2 Max + 2x Extras", wh: 6144, desc: "6.144 Wh (Base + 2x Extras Max)" },
+
+                    // Família DELTA Pro & Ultra (LiFePO4)
+                    { category: "DELTAPRO", label: "DELTA Pro", wh: 3600, desc: "3.600 Wh (LiFePO4 Base)" },
+                    { category: "DELTAPRO", label: "DELTA Pro + 1x Extra", wh: 7200, desc: "7.200 Wh (Base + 1x Extra Pro)" },
+                    { category: "DELTAPRO", label: "DELTA Pro + 2x Extras", wh: 10800, desc: "10.800 Wh (Base + 2x Extras Pro)" },
+                    { category: "DELTAPRO", label: "DELTA Pro 3", wh: 4096, desc: "4.096 Wh (LiFePO4 Base 48V)" },
+                    { category: "DELTAPRO", label: "DELTA Pro 3 + 1x Extra", wh: 8192, desc: "8.192 Wh (Base + 1x Extra Pro 3)" },
+                    { category: "DELTAPRO", label: "DELTA Pro 3 + 2x Extras", wh: 12288, desc: "12.288 Wh (Base + 2x Extras Pro 3)" },
+                    { category: "DELTAPRO", label: "DELTA Pro Ultra (1x Pack)", wh: 6000, desc: "6.000 Wh (Inversor + 1x Bateria)" },
+                    { category: "DELTAPRO", label: "DELTA Pro Ultra (2x Packs)", wh: 12000, desc: "12.000 Wh (Inversor + 2x Baterias)" },
+                    { category: "DELTAPRO", label: "DELTA Pro Ultra (3x Packs)", wh: 18000, desc: "18.000 Wh (Inversor + 3x Baterias)" },
+                    { category: "DELTAPRO", label: "DELTA Pro Ultra (5x Packs)", wh: 30000, desc: "30.000 Wh (Sistema Completo 30 kWh)" },
+
+                    // Modelos Clássicos NCM
+                    { category: "CLASSICOS", label: "RIVER Mini", wh: 210, desc: "210 Wh (NCM Compact)" },
+                    { category: "CLASSICOS", label: "RIVER", wh: 288, desc: "288 Wh (NCM Modular Base)" },
+                    { category: "CLASSICOS", label: "RIVER Max", wh: 576, desc: "576 Wh (NCM Base + Bateria Extra)" },
+                    { category: "CLASSICOS", label: "RIVER Pro", wh: 720, desc: "720 Wh (NCM Base)" },
+                    { category: "CLASSICOS", label: "RIVER Pro + Extra", wh: 1440, desc: "1.440 Wh (NCM Base + Extra)" },
+                    { category: "CLASSICOS", label: "DELTA Mini", wh: 882, desc: "882 Wh (NCM Compact)" },
+                    { category: "CLASSICOS", label: "DELTA 1260", wh: 1260, desc: "1.260 Wh (NCM Clássico)" },
+                    { category: "CLASSICOS", label: "DELTA Max 2000", wh: 2016, desc: "2.016 Wh (NCM Base)" },
+                  ];
+
+                  const q = modelSearchQuery.trim().toLowerCase();
+                  const filtered = ECOFLOW_MODELS.filter((item) => {
+                    const matchesCategory =
+                      modelCategoryFilter === "TODOS" || item.category === modelCategoryFilter;
+                    if (!matchesCategory) return false;
+                    if (!q) return true;
+                    return (
+                      item.label.toLowerCase().includes(q) ||
+                      item.desc.toLowerCase().includes(q) ||
+                      String(item.wh).includes(q)
+                    );
+                  });
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-center text-xs text-slate-500">
+                        Nenhum modelo encontrado para &ldquo;{modelSearchQuery}&rdquo;. Digite a capacidade nominal manualmente no campo acima.
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="max-h-56 overflow-y-auto pr-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 border border-slate-850 p-2 rounded-xl bg-slate-950/60">
+                      {filtered.map((preset) => (
+                        <button
+                          key={`${preset.label}-${preset.wh}`}
+                          type="button"
+                          onClick={() => setBatteryCapacityWh(preset.wh)}
+                          className={`p-2.5 rounded-lg border text-left transition-all ${
+                            batteryCapacityWh === preset.wh
+                              ? "bg-sky-950/80 border-sky-500/80 text-sky-200 shadow-sm shadow-sky-950/50"
+                              : "bg-slate-900/80 border-slate-800/80 hover:border-slate-700 text-slate-300 hover:bg-slate-850"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-0.5">
+                            <span className="text-xs font-bold truncate pr-1">{preset.label}</span>
+                            {batteryCapacityWh === preset.wh && (
+                              <CheckCircle2 className="w-3.5 h-3.5 text-sky-400 shrink-0" aria-hidden="true" />
+                            )}
+                          </div>
+                          <div className="flex items-baseline justify-between text-[11px] font-mono">
+                            <span className="text-sky-300 font-semibold">{preset.wh.toLocaleString("pt-BR")} Wh</span>
+                            <span className="text-[10px] text-slate-500 truncate max-w-[120px]">{preset.desc}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </div>
@@ -1651,7 +1770,7 @@ export default function SettingsPage() {
                   onChange={(e) => setIsDailyReportActive(e.target.checked)}
                   className="sr-only peer"
                 />
-                <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                <div className="relative w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
                 <span className="text-xs font-semibold text-slate-300">
                   {isDailyReportActive ? "Ativado" : "Desativado"}
                 </span>
@@ -1715,7 +1834,7 @@ export default function SettingsPage() {
                   onChange={(e) => setIsAdaptiveHysteresisActive(e.target.checked)}
                   className="sr-only peer"
                 />
-                <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+                <div className="relative w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
                 <span className="text-xs font-semibold text-slate-300">
                   {isAdaptiveHysteresisActive ? "Ativado" : "Desativado"}
                 </span>
@@ -1898,7 +2017,7 @@ export default function SettingsPage() {
                     onChange={(e) => setIsDaylightOnlyActive(e.target.checked)}
                     className="sr-only peer"
                   />
-                  <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+                  <div className="relative w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
                   <span className="text-xs font-semibold text-slate-300">
                     {isDaylightOnlyActive ? "Ativado" : "Desativado"}
                   </span>
@@ -2042,7 +2161,7 @@ export default function SettingsPage() {
                   onChange={(e) => setIsDynamicTariffActive(e.target.checked)}
                   className="sr-only peer"
                 />
-                <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+                <div className="relative w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
                 <span className="text-xs font-semibold text-slate-300">
                   {isDynamicTariffActive ? "Tarifa Branca Ativa" : "Desativado"}
                 </span>
