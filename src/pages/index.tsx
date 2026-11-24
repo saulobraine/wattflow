@@ -7,6 +7,7 @@ import { WeatherWidget, formatSolarTime } from "../components/WeatherWidget";
 import { StormAlertBanner } from "../components/StormAlertBanner";
 import { TariffStatusBadge } from "../components/TariffStatusBadge";
 import { BatteryHealthWidget } from "../components/BatteryHealthWidget";
+import { AtsHealthWidget } from "../components/AtsHealthWidget";
 import { PaybackSummaryWidget } from "../components/PaybackSummaryWidget";
 import { formatCurrency } from "../utils/currencyFormatter";
 import {
@@ -52,6 +53,7 @@ import type {
   AutonomyEstimateMetrics,
   SolarForecastMetrics,
   BmsAnalyticsMetrics,
+  AtsHealthMetrics,
   SolarExpectationLevel,
   TariffPeriod,
 } from "./api/statistics";
@@ -103,6 +105,7 @@ export default function DashboardPage() {
   const [savingsData, setSavingsData] = useState<FinancialSavingsMetrics | null>(null);
   const [solarForecast, setSolarForecast] = useState<SolarForecastMetrics | null>(null);
   const [bmsAnalytics, setBmsAnalytics] = useState<BmsAnalyticsMetrics | null>(null);
+  const [atsHealth, setAtsHealth] = useState<AtsHealthMetrics | null>(null);
   const [appliances, setAppliances] = useState<ApplianceItem[]>([]);
   const [batteryCapacityWh, setBatteryCapacityWh] = useState<number>(2048);
   const [isTogglingAppliance, setIsTogglingAppliance] = useState<string | null>(null);
@@ -196,6 +199,9 @@ export default function DashboardPage() {
         }
         if (statsJson.data.bmsAnalytics) {
           setBmsAnalytics(statsJson.data.bmsAnalytics);
+        }
+        if (statsJson.data.atsHealth) {
+          setAtsHealth(statsJson.data.atsHealth);
         }
       }
 
@@ -643,15 +649,22 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Card 5: Fonte Ativa (ATS) */}
+          {/* Card 5: Fonte Ativa (ATS) & Vida Útil */}
           <div className="animate-card stagger-3 interactive-card min-h-[105px] sm:min-h-[125px] flex flex-col justify-between p-3 sm:p-4 rounded-xl border border-slate-800/80 bg-slate-900/90 hover:border-slate-700 transition-all shadow-md group">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
-                <ArrowLeftRight className="w-4 h-4" aria-hidden="true" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center shrink-0 transition-transform group-hover:scale-105">
+                  <ArrowLeftRight className="w-4 h-4" aria-hidden="true" />
+                </div>
+                <span className="text-[11px] sm:text-xs text-slate-400 font-medium truncate">
+                  Fonte ATS
+                </span>
               </div>
-              <span className="text-[11px] sm:text-xs text-slate-400 font-medium truncate">
-                Fonte ATS
-              </span>
+              {atsHealth && (
+                <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20" title={`Saúde mecânica ATS: ${atsHealth.healthPercentage.toFixed(1)}%`}>
+                  {atsHealth.healthPercentage.toFixed(0)}%
+                </span>
+              )}
             </div>
 
             <div className={`text-xl sm:text-2xl font-bold font-mono truncate my-1 ${
@@ -664,17 +677,24 @@ export default function DashboardPage() {
               {isSolarBatteryMode ? "SOLAR" : isGridMode ? "REDE" : "--"}
             </div>
 
-            <div className={`inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-medium px-2 py-0.5 rounded-md border w-fit max-w-full truncate ${
-              isSolarBatteryMode
-                ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
-                : isGridMode
-                ? "text-rose-400 bg-rose-500/10 border-rose-500/20"
-                : "text-slate-400 bg-slate-800/80 border-slate-700/60"
-            }`}>
-              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                isSolarBatteryMode ? "bg-emerald-400" : isGridMode ? "bg-rose-400" : "bg-slate-500"
-              }`} aria-hidden="true" />
-              <span className="truncate">{isSolarBatteryMode ? "Inversor ATS" : isGridMode ? "Rede ATS" : "Standby"}</span>
+            <div className="flex items-center justify-between gap-1 w-full">
+              <div className={`inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-medium px-2 py-0.5 rounded-md border truncate ${
+                isSolarBatteryMode
+                  ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
+                  : isGridMode
+                  ? "text-rose-400 bg-rose-500/10 border-rose-500/20"
+                  : "text-slate-400 bg-slate-800/80 border-slate-700/60"
+              }`}>
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                  isSolarBatteryMode ? "bg-emerald-400" : isGridMode ? "bg-rose-400" : "bg-slate-500"
+                }`} aria-hidden="true" />
+                <span className="truncate">{isSolarBatteryMode ? "Inversor ATS" : isGridMode ? "Rede ATS" : "Standby"}</span>
+              </div>
+              {atsHealth && (
+                <span className="text-[10px] text-slate-400 font-mono hidden sm:inline" title="Estimativa de vida útil restante da ATS">
+                  ~{atsHealth.estimatedYearsRemaining}a vida
+                </span>
+              )}
             </div>
           </div>
 
@@ -1106,8 +1126,13 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Card 3: Saúde da Bateria & BMS (LiFePO4) */}
+          {/* Card 4: Saúde da Bateria & BMS (LiFePO4) */}
           <BatteryHealthWidget />
+
+          {/* Card 5: Saúde Operacional da ATS (Chave de Transferência Automática) */}
+          <div className="md:col-span-2">
+            <AtsHealthWidget initialData={atsHealth} />
+          </div>
         </section>
 
         {/* Seção Etapa 4: Simulador de Autonomia por Carga & Solar Smart Charging */}

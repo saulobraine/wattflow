@@ -81,8 +81,10 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 4. Estratégia Stale-While-Revalidate para assets estáticos do Next.js e recursos de imagem/fonte
+  // 4. Estratégia Stale-While-Revalidate para assets estáticos do Next.js, fontes Google e recursos de imagem/fonte
+  const isGoogleFont = url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com';
   const isStaticAsset =
+    isGoogleFont ||
     url.pathname.startsWith('/_next/static/') ||
     url.pathname.startsWith('/icons/') ||
     url.pathname.endsWith('.js') ||
@@ -96,7 +98,7 @@ self.addEventListener('fetch', (event) => {
       caches.match(request).then((cachedResponse) => {
         const fetchPromise = fetch(request)
           .then((networkResponse) => {
-            if (networkResponse && networkResponse.status === 200) {
+            if (networkResponse && (networkResponse.status === 200 || networkResponse.type === 'opaque')) {
               const responseToCache = networkResponse.clone();
               caches.open(CACHE_NAME).then((cache) => {
                 cache.put(request, responseToCache);
@@ -104,7 +106,7 @@ self.addEventListener('fetch', (event) => {
             }
             return networkResponse;
           })
-          .catch(() => cachedResponse);
+          .catch(() => cachedResponse || (isGoogleFont ? new Response('', { status: 200, headers: { 'Content-Type': 'text/css' } }) : undefined));
 
         return cachedResponse || fetchPromise;
       })
@@ -116,7 +118,7 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(request)
       .then((response) => {
-        if (response && response.status === 200) {
+        if (response && (response.status === 200 || response.type === 'opaque')) {
           const responseToCache = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(request, responseToCache);
@@ -130,6 +132,9 @@ self.addEventListener('fetch', (event) => {
         if (request.destination === 'document') {
           const cache = await caches.open(CACHE_NAME);
           return cache.match('/offline.html');
+        }
+        if (isGoogleFont) {
+          return new Response('', { status: 200, headers: { 'Content-Type': 'text/css' } });
         }
         return new Response(null, { status: 504, statusText: 'Gateway Timeout' });
       })
