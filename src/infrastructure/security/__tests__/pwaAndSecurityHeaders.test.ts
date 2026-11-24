@@ -39,7 +39,7 @@ describe("PWA Security, Headers & Service Worker Integrity", () => {
       expect(cspValue).toContain("manifest-src 'self'");
       expect(cspValue).toContain("worker-src 'self'");
       expect(cspValue).toContain("default-src 'self'");
-      expect(cspValue).toContain("connect-src 'self'");
+      expect(cspValue).toContain("connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com");
     });
   });
 
@@ -69,6 +69,12 @@ describe("PWA Security, Headers & Service Worker Integrity", () => {
       if (!swContent) swContent = fs.readFileSync(swPath, "utf-8");
       expect(swContent).toContain("skipWaiting");
       expect(swContent).toContain("clients.claim");
+    });
+
+    it("trata fontes externas do Google Fonts com resiliência sem gerar 504", () => {
+      if (!swContent) swContent = fs.readFileSync(swPath, "utf-8");
+      expect(swContent).toContain("fonts.googleapis.com");
+      expect(swContent).toContain("fonts.gstatic.com");
     });
   });
 
