@@ -1,6 +1,6 @@
 /**
  * WattFlow Progressive Web App - Service Worker
- * Versão: wattflow-static-v1
+ * Versão: wattflow-static-v2
  *
  * Diretrizes Críticas de Segurança:
  * 1. BYPASS ESTRITO NETWORK-ONLY PARA /api/*:
@@ -13,7 +13,7 @@
  *    skipWaiting no install, clients.claim e purga de caches obsoletos no activate.
  */
 
-const CACHE_NAME = 'wattflow-static-v1';
+const CACHE_NAME = 'wattflow-static-v2';
 
 const PRECACHE_ASSETS = [
   '/',
