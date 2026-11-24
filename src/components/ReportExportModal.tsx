@@ -21,6 +21,7 @@ import type {
   ConsolidatedReport,
   ReportExecutiveSummary,
 } from "../domain/services/AnalyticalReportService";
+import { formatCurrency } from "../utils/currencyFormatter";
 
 export interface ReportExportModalProps {
   isOpen: boolean;
@@ -407,10 +408,10 @@ export function ReportExportModal({
                   </div>
                   <div className="my-1.5">
                     <div className="text-xl sm:text-2xl font-extrabold font-mono text-emerald-400">
-                      R$ {summary.totalEstimatedSavingsBrl.toFixed(2)}
+                      {formatCurrency(summary.totalEstimatedSavingsBrl)}
                     </div>
                     <span className="text-[11px] text-slate-400 font-mono">
-                      Ponta: R$ {summary.peakPeriodSavingsBrl.toFixed(2)}
+                      Ponta: {formatCurrency(summary.peakPeriodSavingsBrl)}
                     </span>
                   </div>
                   <span className="text-[10px] text-slate-500 font-mono">

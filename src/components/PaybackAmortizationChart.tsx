@@ -11,6 +11,7 @@ import {
   Flame,
 } from "lucide-react";
 import { TransitionLink } from "./TransitionLink";
+import { formatCurrency } from "../utils/currencyFormatter";
 import type { PaybackAnalysisResponse } from "../domain/services/PaybackCalculatorService";
 
 export interface PaybackAmortizationChartProps {
@@ -263,10 +264,10 @@ export function PaybackAmortizationChart({
         {/* Resumo Rápido em Badges */}
         <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
           <span className="px-3 py-1 rounded-full bg-slate-950 border border-slate-800 text-slate-300">
-            Investimento: <strong className="text-slate-100">R$ {data.totalCapexBrl.toFixed(2)}</strong>
+            Investimento: <strong className="text-slate-100">{formatCurrency(data.totalCapexBrl)}</strong>
           </span>
           <span className="px-3 py-1 rounded-full bg-slate-950 border border-slate-800 text-emerald-400">
-            Amortizado: <strong>R$ {data.amortizedAmountBrl.toFixed(2)}</strong> ({data.amortizationPercentage.toFixed(1)}%)
+            Amortizado: <strong>{formatCurrency(data.amortizedAmountBrl)}</strong> ({data.amortizationPercentage.toFixed(1)}%)
           </span>
           {isBreakEven ? (
             <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold animate-pulse">
@@ -354,7 +355,7 @@ export function PaybackAmortizationChart({
               fontFamily="monospace"
               fontWeight="bold"
             >
-              CAPEX: R$ {data.totalCapexBrl.toFixed(2)}
+              CAPEX: {formatCurrency(data.totalCapexBrl)}
             </text>
 
             {/* Área Sombreada da Economia Real */}
@@ -507,7 +508,7 @@ export function PaybackAmortizationChart({
               <div className="text-slate-300">
                 Economia:{" "}
                 <strong className="text-emerald-400">
-                  R$ {hoveredPoint.accumulatedSavingsBrl.toFixed(2)}
+                  {formatCurrency(hoveredPoint.accumulatedSavingsBrl)}
                 </strong>
               </div>
               <div className="text-slate-400 text-[11px]">
@@ -533,7 +534,7 @@ export function PaybackAmortizationChart({
             <span className="text-[11px] font-mono text-slate-400 uppercase">Economia Bruta (10 Anos)</span>
             <div className="my-1.5">
               <div className="text-xl font-extrabold font-mono text-slate-100">
-                R$ {data.tenYearProjection.lifetimeGrossSavingsBrl.toFixed(2)}
+                {formatCurrency(data.tenYearProjection.lifetimeGrossSavingsBrl)}
               </div>
               <span className="text-[11px] text-slate-400 font-mono">
                 Energia evitada da rede
@@ -549,7 +550,9 @@ export function PaybackAmortizationChart({
             <span className="text-[11px] font-mono text-slate-400 uppercase">Lucro Líquido Real</span>
             <div className="my-1.5">
               <div className="text-xl font-extrabold font-mono text-emerald-400">
-                +R$ {data.tenYearProjection.lifetimeNetProfitBrl.toFixed(2)}
+                {data.tenYearProjection.lifetimeNetProfitBrl >= 0
+                  ? `+${formatCurrency(data.tenYearProjection.lifetimeNetProfitBrl)}`
+                  : formatCurrency(data.tenYearProjection.lifetimeNetProfitBrl)}
               </div>
               <span className="text-[11px] text-slate-400 font-mono">
                 Economia (-) CAPEX pago

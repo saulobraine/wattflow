@@ -1,6 +1,7 @@
 import React, { useEffect, useState, FormEvent } from "react";
 import { Layout } from "../components/Layout";
 import { useLiveTelemetry } from "../hooks/useLiveTelemetry";
+import { formatCurrency } from "../utils/currencyFormatter";
 import {
   Sliders,
   Zap,
@@ -82,6 +83,7 @@ export default function AutomationsPage() {
   const [peakTariffPerKwh, setPeakTariffPerKwh] = useState(1.85);
   const [intermediateTariffPerKwh, setIntermediateTariffPerKwh] = useState(1.15);
   const [offPeakTariffPerKwh, setOffPeakTariffPerKwh] = useState(0.65);
+  const [currencySymbol, setCurrencySymbol] = useState<string>("R$");
 
   // Estados de Proteção Térmica & Preservação do BMS (LiFePO4)
   const [isThermalProtectionActive, setIsThermalProtectionActive] = useState<boolean>(true);
@@ -159,6 +161,7 @@ export default function AutomationsPage() {
           setPeakTariffPerKwh(s.peakTariffPerKwh ?? 1.85);
           setIntermediateTariffPerKwh(s.intermediateTariffPerKwh ?? 1.15);
           setOffPeakTariffPerKwh(s.offPeakTariffPerKwh ?? 0.65);
+          setCurrencySymbol(s.currencySymbol ?? "R$");
 
           // Proteção Térmica do BMS
           setIsThermalProtectionActive(s.isThermalProtectionActive ?? true);
@@ -273,7 +276,7 @@ export default function AutomationsPage() {
     if (peakTariffPerKwh <= 0 || intermediateTariffPerKwh <= 0 || offPeakTariffPerKwh <= 0) {
       setFeedback({
         type: "error",
-        message: "Os valores das tarifas em R$/kWh devem ser maiores que zero.",
+        message: `Os valores das tarifas em ${currencySymbol}/kWh devem ser maiores que zero.`,
       });
       setIsSaving(false);
       return;
@@ -1147,7 +1150,7 @@ export default function AutomationsPage() {
             <div className="space-y-3 pt-2 border-t border-slate-800/80">
               <div className="flex items-center gap-2 text-xs font-mono text-slate-300 uppercase tracking-wider">
                 <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Valores das Tarifas por Faixa (R$/kWh da sua Concessionária)</span>
+                <span>Valores das Tarifas por Faixa ({currencySymbol}/kWh da sua Concessionária)</span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
@@ -1155,7 +1158,7 @@ export default function AutomationsPage() {
                     🔴 Tarifa de Ponta
                   </label>
                   <div className="relative flex items-center">
-                    <span className="absolute left-3 text-xs text-slate-400 font-mono">R$</span>
+                    <span className="absolute left-3 text-xs text-slate-400 font-mono">{currencySymbol}</span>
                     <input
                       id="peak-tariff-input"
                       type="number"
@@ -1167,7 +1170,7 @@ export default function AutomationsPage() {
                       className="w-full pl-9 pr-3 py-2 min-h-[44px] rounded-lg bg-slate-900 border border-slate-700 text-slate-100 font-mono text-sm focus:border-rose-500 focus:outline-none"
                     />
                   </div>
-                  <span className="text-[10px] text-slate-500 block">Média Brasil: R$ 1,85</span>
+                  <span className="text-[10px] text-slate-500 block">Média Brasil: {formatCurrency(1.85, currencySymbol)}</span>
                 </div>
 
                 <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
@@ -1175,7 +1178,7 @@ export default function AutomationsPage() {
                     🟡 Intermediário
                   </label>
                   <div className="relative flex items-center">
-                    <span className="absolute left-3 text-xs text-slate-400 font-mono">R$</span>
+                    <span className="absolute left-3 text-xs text-slate-400 font-mono">{currencySymbol}</span>
                     <input
                       id="intermediate-tariff-input"
                       type="number"
@@ -1187,7 +1190,7 @@ export default function AutomationsPage() {
                       className="w-full pl-9 pr-3 py-2 min-h-[44px] rounded-lg bg-slate-900 border border-slate-700 text-slate-100 font-mono text-sm focus:border-amber-500 focus:outline-none"
                     />
                   </div>
-                  <span className="text-[10px] text-slate-500 block">Média Brasil: R$ 1,15</span>
+                  <span className="text-[10px] text-slate-500 block">Média Brasil: {formatCurrency(1.15, currencySymbol)}</span>
                 </div>
 
                 <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
@@ -1195,7 +1198,7 @@ export default function AutomationsPage() {
                     🟢 Fora de Ponta
                   </label>
                   <div className="relative flex items-center">
-                    <span className="absolute left-3 text-xs text-slate-400 font-mono">R$</span>
+                    <span className="absolute left-3 text-xs text-slate-400 font-mono">{currencySymbol}</span>
                     <input
                       id="offpeak-tariff-input"
                       type="number"
@@ -1207,7 +1210,7 @@ export default function AutomationsPage() {
                       className="w-full pl-9 pr-3 py-2 min-h-[44px] rounded-lg bg-slate-900 border border-slate-700 text-slate-100 font-mono text-sm focus:border-emerald-500 focus:outline-none"
                     />
                   </div>
-                  <span className="text-[10px] text-slate-500 block">Média Brasil: R$ 0,65</span>
+                  <span className="text-[10px] text-slate-500 block">Média Brasil: {formatCurrency(0.65, currencySymbol)}</span>
                 </div>
               </div>
             </div>
@@ -1221,11 +1224,11 @@ export default function AutomationsPage() {
               <p className="text-slate-400 leading-relaxed">
                 Cada 1 kWh consumido da bateria durante o horário de ponta economiza{" "}
                 <strong className="text-emerald-400 font-mono">
-                  R$ {(peakTariffPerKwh - offPeakTariffPerKwh).toFixed(2)}
+                  {formatCurrency(peakTariffPerKwh - offPeakTariffPerKwh, currencySymbol)}
                 </strong>{" "}
                 em comparação direta com a rede pública. Em uma residência consumindo 1,5 kW médios nas 3 horas de pico, a economia mensal estimada ultrapassa{" "}
                 <strong className="text-emerald-300 font-mono">
-                  R$ {((peakTariffPerKwh - offPeakTariffPerKwh) * 1.5 * 3 * 22).toFixed(2)}
+                  {formatCurrency((peakTariffPerKwh - offPeakTariffPerKwh) * 1.5 * 3 * 22, currencySymbol)}
                 </strong>.
               </p>
             </div>

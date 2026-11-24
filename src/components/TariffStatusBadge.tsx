@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Zap, Clock, ShieldCheck, AlertTriangle, ArrowRight } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "./ui/tooltip";
 import { TransitionLink } from "./TransitionLink";
+import { formatCurrency } from "../utils/currencyFormatter";
 import type { TariffStatusDetail } from "../domain/services/TariffScheduleService";
 
 export interface TariffStatusBadgeProps {
@@ -102,14 +103,14 @@ export function TariffStatusBadge({
               className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-rose-500/60 bg-rose-950/80 text-rose-200 text-xs font-mono font-bold shadow-md shadow-rose-950/50 animate-pulse select-none ${className}`}
             >
               <Zap className="w-3.5 h-3.5 text-rose-400" aria-hidden="true" />
-              <span>PONTA: {currencySymbol} {currentRate.toFixed(2)}</span>
+              <span>PONTA: {formatCurrency(currentRate, currencySymbol)}</span>
             </div>
           </TooltipTrigger>
           <TooltipContent side="bottom">
             <div className="text-xs space-y-1 max-w-[200px]">
               <p className="font-bold text-rose-300">Horário de Ponta Ativo</p>
               <p className="text-slate-200">
-                Tarifa crítica ({currencySymbol} {currentRate.toFixed(2)}/kWh). Bateria alimentando as cargas. Restam {minutesToNextTransition} min.
+                Tarifa crítica ({formatCurrency(currentRate, currencySymbol)}/kWh). Bateria alimentando as cargas. Restam {minutesToNextTransition} min.
               </p>
             </div>
           </TooltipContent>
@@ -127,14 +128,14 @@ export function TariffStatusBadge({
               className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-amber-500/50 bg-amber-950/70 text-amber-200 text-xs font-mono font-semibold select-none ${className}`}
             >
               <Clock className="w-3.5 h-3.5 text-amber-400" aria-hidden="true" />
-              <span>INTER: {currencySymbol} {currentRate.toFixed(2)}</span>
+              <span>INTER: {formatCurrency(currentRate, currencySymbol)}</span>
             </div>
           </TooltipTrigger>
           <TooltipContent side="bottom">
             <div className="text-xs space-y-1 max-w-[200px]">
               <p className="font-bold text-amber-300">Horário Intermediário</p>
               <p className="text-slate-200">
-                Tarifa de transição ({currencySymbol} {currentRate.toFixed(2)}/kWh). Mudança em {minutesToNextTransition} min.
+                Tarifa de transição ({formatCurrency(currentRate, currencySymbol)}/kWh). Mudança em {minutesToNextTransition} min.
               </p>
             </div>
           </TooltipContent>
@@ -151,14 +152,14 @@ export function TariffStatusBadge({
             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-emerald-500/40 bg-emerald-950/60 text-emerald-200 text-xs font-mono font-medium select-none ${className}`}
           >
             <span className="w-2 h-2 rounded-full bg-emerald-400" />
-            <span>FORA PONTA: {currencySymbol} {currentRate.toFixed(2)}</span>
+            <span>FORA PONTA: {formatCurrency(currentRate, currencySymbol)}</span>
           </div>
         </TooltipTrigger>
         <TooltipContent side="bottom">
           <div className="text-xs space-y-1 max-w-[200px]">
             <p className="font-bold text-emerald-300">Horário Fora de Ponta</p>
             <p className="text-slate-200">
-              Tarifa econômica ({currencySymbol} {currentRate.toFixed(2)}/kWh). {isWeekend ? "Fim de semana (100% Fora de Ponta)." : `Próximo pico às ${nextTransitionTime}.`}
+              Tarifa econômica ({formatCurrency(currentRate, currencySymbol)}/kWh). {isWeekend ? "Fim de semana (100% Fora de Ponta)." : `Próximo pico às ${nextTransitionTime}.`}
             </p>
           </div>
         </TooltipContent>
@@ -184,7 +185,7 @@ export function TariffStatusBadge({
                 ⚡ HORÁRIO DE PONTA ATIVO
               </span>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-rose-500/30 text-rose-200 border border-rose-500/50 animate-pulse">
-                {currencySymbol} {currentRate.toFixed(2)}/kWh
+                {formatCurrency(currentRate, currencySymbol)}/kWh
               </span>
             </div>
             <p className="text-rose-200/90 text-xs mt-0.5">
@@ -222,7 +223,7 @@ export function TariffStatusBadge({
                 ⏳ Horário Intermediário
               </span>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                {currencySymbol} {currentRate.toFixed(2)}/kWh
+                {formatCurrency(currentRate, currencySymbol)}/kWh
               </span>
             </div>
             <p className="text-slate-400 text-xs mt-0.5">
@@ -259,7 +260,7 @@ export function TariffStatusBadge({
               🟢 Fora de Ponta (Econômico)
             </span>
             <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-              {currencySymbol} {currentRate.toFixed(2)}/kWh
+              {formatCurrency(currentRate, currencySymbol)}/kWh
             </span>
           </div>
           <p className="text-slate-400 text-[11px] mt-0.5">

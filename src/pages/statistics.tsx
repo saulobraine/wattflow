@@ -4,6 +4,7 @@ import { useVisibilityPolling } from "../hooks/useVisibilityPolling";
 import { useLiveTelemetry } from "../hooks/useLiveTelemetry";
 import { ReportExportModal } from "../components/ReportExportModal";
 import { PaybackAmortizationChart } from "../components/PaybackAmortizationChart";
+import { formatCurrency } from "../utils/currencyFormatter";
 import {
   Sun,
   Zap,
@@ -697,7 +698,7 @@ export default function StatisticsPage() {
                 })()}
                 <span className="inline-flex items-center gap-1.5 text-xs font-mono font-bold px-3 py-1 rounded-full bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 shadow-sm">
                   <Zap className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
-                  Tarifa: {data.financialSavings.currencySymbol} {(data.financialSavings.currentTariffRate ?? data.financialSavings.energyCostPerKwh).toFixed(2)} / kWh
+                  Tarifa: {formatCurrency(data.financialSavings.currentTariffRate ?? data.financialSavings.energyCostPerKwh, data.financialSavings.currencySymbol)} / kWh
                 </span>
                 {data.autonomyEstimate && (
                   <span className="inline-flex items-center gap-1 text-[11px] font-mono px-2.5 py-1 rounded-full bg-slate-950 text-sky-300 border border-slate-800">
@@ -726,7 +727,7 @@ export default function StatisticsPage() {
                   </div>
                   <div className="pt-2">
                     <div className="text-2xl sm:text-3xl font-extrabold text-emerald-400 font-mono tracking-tight">
-                      {data.financialSavings.currencySymbol} {data.financialSavings.todaySavings.toFixed(2)}
+                      {formatCurrency(data.financialSavings.todaySavings, data.financialSavings.currencySymbol)}
                     </div>
                     <div className="text-xs text-slate-400 font-mono mt-0.5">
                       {data.financialSavings.todayKwh.toFixed(2)} kWh gerados no dia
@@ -753,7 +754,7 @@ export default function StatisticsPage() {
                   </div>
                   <div className="pt-2">
                     <div className="text-2xl sm:text-3xl font-extrabold text-emerald-300 font-mono tracking-tight">
-                      {data.financialSavings.currencySymbol} {data.financialSavings.monthSavings.toFixed(2)}
+                      {formatCurrency(data.financialSavings.monthSavings, data.financialSavings.currencySymbol)}
                     </div>
                     <div className="text-xs text-slate-400 font-mono mt-0.5">
                       {data.financialSavings.monthKwh.toFixed(1)} kWh economizados
@@ -780,7 +781,7 @@ export default function StatisticsPage() {
                   </div>
                   <div className="pt-2">
                     <div className="text-2xl sm:text-3xl font-extrabold text-slate-100 font-mono tracking-tight">
-                      {data.financialSavings.currencySymbol} {data.financialSavings.totalSavings.toFixed(2)}
+                      {formatCurrency(data.financialSavings.totalSavings, data.financialSavings.currencySymbol)}
                     </div>
                     <div className="text-xs text-slate-400 font-mono mt-0.5">
                       {data.financialSavings.totalKwh.toFixed(1)} kWh desde a ativação
@@ -819,8 +820,7 @@ export default function StatisticsPage() {
                   </div>
                   <div className="my-1">
                     <span className="text-lg sm:text-xl font-bold font-mono text-rose-300">
-                      {data.financialSavings.currencySymbol}{" "}
-                      {(data.financialSavings.peakSavingsToday ?? 0).toFixed(2)}
+                      {formatCurrency(data.financialSavings.peakSavingsToday ?? 0, data.financialSavings.currencySymbol)}
                     </span>
                   </div>
                   <span className="text-[10px] text-slate-500">
@@ -836,8 +836,7 @@ export default function StatisticsPage() {
                   </div>
                   <div className="my-1">
                     <span className="text-lg sm:text-xl font-bold font-mono text-emerald-300">
-                      {data.financialSavings.currencySymbol}{" "}
-                      {(data.financialSavings.offPeakSavingsToday ?? 0).toFixed(2)}
+                      {formatCurrency(data.financialSavings.offPeakSavingsToday ?? 0, data.financialSavings.currencySymbol)}
                     </span>
                   </div>
                   <span className="text-[10px] text-slate-500">
@@ -863,8 +862,7 @@ export default function StatisticsPage() {
                     </span>
                   </div>
                   <span className="text-[10px] text-slate-400 font-mono">
-                    {data.financialSavings.currencySymbol}{" "}
-                    {(data.financialSavings.currentTariffRate ?? data.financialSavings.energyCostPerKwh).toFixed(2)} / kWh
+                    {formatCurrency(data.financialSavings.currentTariffRate ?? data.financialSavings.energyCostPerKwh, data.financialSavings.currencySymbol)} / kWh
                   </span>
                 </div>
               </div>
