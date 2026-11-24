@@ -40,9 +40,8 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 ENV PATH="/app/node_modules/.bin:$PATH"
 
-# Ferramentas úteis para healthcheck e rede + Prisma CLI global para sincronização
-RUN apk add --no-cache curl openssl && \
-    npm install -g prisma@6.4.1
+# Ferramentas úteis para healthcheck e rede
+RUN apk add --no-cache curl openssl
 
 # Criação de usuário não-root por segurança
 RUN addgroup --system --gid 1001 nodejs && \
@@ -53,6 +52,9 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
+COPY --from=deps /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
+COPY --from=deps /app/node_modules/prisma ./node_modules/prisma
+COPY --from=deps /app/node_modules/@prisma ./node_modules/@prisma
 
 # Mantém gravável para o usuário nextjs apenas o diretório de cache do Next.js
 RUN mkdir -p .next/cache && chown -R nextjs:nodejs .next/cache

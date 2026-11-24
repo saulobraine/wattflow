@@ -4,15 +4,24 @@ set -e
 echo "=== [WattFlow] Inicializando Container ==="
 
 if [ -n "$DATABASE_URL" ]; then
-  echo ">>> Sincronizando schema do banco de dados (Prisma db push)..."
+  PRISMA_BIN=""
   if [ -f "./node_modules/.bin/prisma" ]; then
-    ./node_modules/.bin/prisma db push --skip-generate
+    PRISMA_BIN="./node_modules/.bin/prisma"
   elif command -v prisma >/dev/null 2>&1; then
-    prisma db push --skip-generate
+    PRISMA_BIN="prisma"
   else
     echo "ERRO: Prisma CLI não encontrado no container."
     exit 1
   fi
+
+  if [ -d "./prisma/migrations" ]; then
+    echo ">>> Aplicando migrações de produção do Prisma (prisma migrate deploy)..."
+    "$PRISMA_BIN" migrate deploy
+  else
+    echo ">>> Diretório prisma/migrations não encontrado. Sincronizando schema via fallback seguro (prisma db push)..."
+    "$PRISMA_BIN" db push --skip-generate
+  fi
+
   echo ">>> Schema do banco de dados sincronizado com sucesso!"
 fi
 

@@ -6,6 +6,15 @@ services:
     image: postgres:16-alpine
     container_name: wattflow_postgres
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
     networks:
       - wattflow_isolated_net
     environment:
@@ -26,6 +35,7 @@ services:
     deploy:
       resources:
         limits:
+          cpus: "1.0"
           memory: 512M
 
   # -------------------------------------------------------------------------
@@ -37,6 +47,14 @@ services:
       dockerfile: Dockerfile
     container_name: wattflow_app
     restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+      - /app/.next/cache:rw,nosuid,size=128m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     networks:
       - wattflow_isolated_net
     depends_on:
@@ -53,6 +71,7 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
       CRON_SECRET_TOKEN: ${CRON_SECRET_TOKEN:?CRON_SECRET_TOKEN is required}
       DISABLE_LOCAL_CRON: ${DISABLE_LOCAL_CRON:-false}
+      TRUST_PROXY: "true"
       PORT: 3000
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
@@ -63,6 +82,7 @@ services:
     deploy:
       resources:
         limits:
+          cpus: "2.0"
           memory: 1024M
 
   # -------------------------------------------------------------------------
@@ -75,6 +95,8 @@ services:
     user: "65534:65534"
     security_opt:
       - no-new-privileges:true
+    cap_drop:
+      - ALL
     networks:
       - wattflow_isolated_net
     depends_on:
@@ -104,6 +126,7 @@ services:
     deploy:
       resources:
         limits:
+          cpus: "0.25"
           memory: 64M
 
 networks:
