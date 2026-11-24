@@ -108,6 +108,52 @@ describe("AggregationEngine (Motor de Downsampling & Exportação Multitemporal)
       expect(result.summary.peakSolarWatts).toBe(1500);
       expect(result.points[0].label).toMatch(/^\d{2}\/\d{2} \d{2}:\d{2}$/);
     });
+
+    it("integra energia contínua e preserva watts fracionários sem truncar para 0 em logs diluídos", () => {
+      // Cenário do bug relatado por Baggute:
+      // Em 1 hora (1 bucket), temos 1 leitura com consumo real (266W) e centenas de logs ociosos (0W).
+      // Anteriormente: Math.round(266 / 600) = 0W, forçando bucketConsumedKwh = 0.00 e ponto = 0W.
+      const bucketTime = new Date(fixedRefDate.getTime() - 2 * 60 * 60 * 1000); // 2h atrás
+      const dilutedLogs: RawTelemetryLog[] = [
+        {
+          executedAt: new Date(bucketTime.getTime() + 10 * 1000),
+          solarInputWatts: 0,
+          outputWatts: 266,
+          batteryPercentage: 80,
+        },
+      ];
+
+      // Adiciona 599 amostras de 0W no mesmo bucket de 1 hora
+      for (let i = 1; i < 600; i++) {
+        dilutedLogs.push({
+          executedAt: new Date(bucketTime.getTime() + (i * 5 + 10) * 1000),
+          solarInputWatts: 0,
+          outputWatts: 0,
+          batteryPercentage: 80,
+        });
+      }
+
+      const result = AggregationEngine.aggregate({
+        logs: dilutedLogs,
+        range: "7d",
+        referenceDate: fixedRefDate,
+      });
+
+      expect(result.summary.peakOutputWatts).toBe(266);
+
+      // Encontra o ponto correspondente ao bucket com as leituras
+      const activePoint = result.points.find((p) => p.outputWatts > 0);
+      expect(activePoint).toBeDefined();
+
+      // Média real: 266 / 600 = 0.4433... W
+      // Deve preservar 0.44W no ponto em vez de arredondar para 0W
+      expect(activePoint!.outputWatts).toBe(0.44);
+      expect(activePoint!.netWatts).toBe(-0.44);
+
+      // E a energia acumulada no bucket não pode ter sido descartada para zero
+      // (0.4433 W * 1h) / 1000 = ~0.00044 kWh
+      expect(result.summary.peakOutputWatts).toBe(266);
+    });
   });
 
   describe("Downsampling Janela 30 Dias ('30d')", () => {

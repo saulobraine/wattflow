@@ -139,6 +139,21 @@ describe("Endpoints REST de Estatísticas Avançadas (history.ts & export.ts)", 
       expect(responseObj.body.points).toHaveLength(96);
       expect(responseObj.body.summary).toBeDefined();
       expect(responseObj.body.summary.peakSolarWatts).toBe(900);
+
+      // Garante que a query no Prisma busca até o momento atual sem limite truncador de take
+      expect(mockFindManyLogs).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            userConfigurationId: "config-history-1",
+            executedAt: expect.objectContaining({
+              gte: expect.any(Date),
+              lte: expect.any(Date),
+            }),
+          }),
+        })
+      );
+      const queryCall = mockFindManyLogs.mock.calls[0][0];
+      expect(queryCall.take).toBeUndefined();
     });
 
     it("retorna 200 com bloco comparison para range today-vs-yesterday", async () => {
