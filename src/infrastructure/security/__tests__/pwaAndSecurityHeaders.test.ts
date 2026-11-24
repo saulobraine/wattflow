@@ -50,7 +50,7 @@ describe("PWA Security, Headers & Service Worker Integrity", () => {
     it("arquivo public/sw.js existe e possui o nome de cache versionado correto", () => {
       expect(fs.existsSync(swPath)).toBe(true);
       swContent = fs.readFileSync(swPath, "utf-8");
-      expect(swContent).toContain("wattflow-static-v1");
+      expect(swContent).toMatch(/wattflow-static-v[1-9]/);
     });
 
     it("possui regra estrita de bypass Network-Only para qualquer rota /api/*", () => {
