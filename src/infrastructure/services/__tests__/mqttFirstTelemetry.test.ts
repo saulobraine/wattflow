@@ -195,6 +195,112 @@ describe("MQTT-First Telemetry & Throttled Database Writes", () => {
         })
       );
     });
+
+    it("pauses all database log persistence at night when isDaylightOnlyActive is true", async () => {
+      const fakeClient = createFakeMqttClient();
+      mockMqttConnect.mockReturnValue(fakeClient);
+      mockFetchMqttCertification.mockResolvedValue({
+        protocol: "mqtts",
+        url: "mqtt.ecoflow.com",
+        port: 8883,
+        certificateAccount: "acct-daylight",
+        certificatePassword: "pass-daylight",
+      });
+
+      const mockSyncExecutionLogCreate = vi.fn().mockResolvedValue({});
+      const mockDatabaseClient = {
+        syncExecutionLog: {
+          create: mockSyncExecutionLogCreate,
+        },
+      } as unknown as PrismaClient;
+
+      // 1. Simula horário noturno: 22:30
+      vi.setSystemTime(new Date("2026-11-21T22:30:00"));
+
+      const service = EcoFlowMqttStreamService.getInstance();
+      await service.startStream({
+        userId: "user-daylight-night",
+        credentials: new EcoFlowCredentials(new AccessKey("ak-1234"), new AccessSecret("as-1234")),
+        serialNumber: new DeviceSerialNumber("SNDAYLIGHT"),
+        baseApiUrl: "https://api.ecoflow.com",
+        databaseClient: mockDatabaseClient,
+        userConfigurationId: "cfg-daylight",
+        isDaylightOnlyActive: true,
+        sunrise: "06:00",
+        sunset: "18:00",
+      });
+
+      // 2. Telemetria chega pelo MQTT no meio da noite
+      fakeClient.emitEvent(
+        "message",
+        "/open/acct-daylight/SNDAYLIGHT/quota",
+        Buffer.from(JSON.stringify({
+          params: {
+            "bmsMaster.soc": 85,
+            "mppt.inWatts": 0,
+            "pd.wattsOutSum": 80,
+            "inv.cfgAcEnabled": 1,
+          },
+        }))
+      );
+
+      // ZERO logs devem ser gravados no banco à noite!
+      expect(mockSyncExecutionLogCreate).toHaveBeenCalledTimes(0);
+
+      // Snapshot em memória para a UI/SSE DEVE continuar atualizado
+      const snapshot = service.getLatestTelemetry("user-daylight-night");
+      expect(snapshot).not.toBeNull();
+      expect(snapshot?.batteryPercentage).toBe(85);
+      expect(snapshot?.outputWatts).toBe(80);
+
+      // 3. Simula transição para horário diurno: 10:00 da manhã
+      vi.setSystemTime(new Date("2026-11-22T10:00:00"));
+
+      // Nova mensagem MQTT recebida de dia
+      fakeClient.emitEvent(
+        "message",
+        "/open/acct-daylight/SNDAYLIGHT/quota",
+        Buffer.from(JSON.stringify({
+          params: {
+            "bmsMaster.soc": 88,
+            "mppt.inWatts": 250,
+            "pd.wattsOutSum": 60,
+            "inv.cfgAcEnabled": 1,
+          },
+        }))
+      );
+
+      // Agora de dia, a persistência ocorre normalmente!
+      expect(mockSyncExecutionLogCreate).toHaveBeenCalledTimes(1);
+      expect(mockSyncExecutionLogCreate).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            batteryPercentage: 88,
+            actionTriggered: "MQTT_STREAM",
+          }),
+        })
+      );
+
+      // 4. Volta para a noite e desativa isDaylightOnlyActive dinamicamente
+      vi.setSystemTime(new Date("2026-11-22T23:00:00"));
+      service.updateDaylightConfig("user-daylight-night", false);
+
+      fakeClient.emitEvent(
+        "message",
+        "/open/acct-daylight/SNDAYLIGHT/quota",
+        Buffer.from(JSON.stringify({
+          params: {
+            "bmsMaster.soc": 82,
+            "mppt.inWatts": 0,
+            "pd.wattsOutSum": 50,
+            "inv.cfgAcEnabled": 0, // Transição de AC
+          },
+        }))
+      );
+
+      // Com isDaylightOnlyActive = false, volta a persistir logs à noite
+      expect(mockSyncExecutionLogCreate).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe("LiveTelemetryService MQTT-First short-circuit", () => {

@@ -19,6 +19,7 @@ import { OrchestratorConfiguration } from "../../../domain/models/OrchestratorCo
 import { BatteryLevel } from "../../../domain/values/BatteryLevel";
 import { SolarGenerationWatts } from "../../../domain/values/SolarGenerationWatts";
 import type { RetrievedConfigurationRecord } from "../../repositories/ConfigurationRepository";
+import { EcoFlowMqttStreamService } from "../EcoFlowMqttStreamService";
 
 const {
   mockFetchDeviceTelemetry,
@@ -377,6 +378,66 @@ describe("Operação Exclusiva em Período Solar (Daylight Only Automation)", ()
       expect(mockFetchDeviceTelemetry).toHaveBeenCalled();
 
       vi.useRealTimers();
+    });
+  });
+
+  describe("EcoFlowMqttStreamService - Daylight Only Night Log Pause", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+      EcoFlowMqttStreamService.getInstance().stopStream();
+    });
+
+    it("isDaylightNow identifica corretamente noite e suspende logs quando isDaylightOnlyActive = true", () => {
+      const service = EcoFlowMqttStreamService.getInstance();
+      const mockUserState = {
+        client: null,
+        latestTelemetry: null,
+        subscribedTopic: null,
+        lastPersistTimeMs: 0,
+        lastPersistedAcState: null,
+        isConnecting: false,
+        lastEvaluatedSoc: null,
+        lastEvaluatedAcState: null,
+        lastEvaluationTimeMs: 0,
+        isEvaluatingAutomation: false,
+        isDaylightOnlyActive: true,
+        latitude: -23.55,
+        longitude: -46.63,
+        sunrise: "06:00",
+        sunset: "18:00",
+        lastSolarCheckTimeMs: 0,
+      };
+
+      // À noite (22:00)
+      vi.setSystemTime(new Date("2026-11-21T22:00:00"));
+      expect(service.isDaylightNow(mockUserState as any)).toBe(false);
+
+      // De dia (12:00)
+      vi.setSystemTime(new Date("2026-11-21T12:00:00"));
+      expect(service.isDaylightNow(mockUserState as any)).toBe(true);
+
+      // À noite mas com isDaylightOnlyActive = false (deve liberar logs normalmente)
+      mockUserState.isDaylightOnlyActive = false;
+      vi.setSystemTime(new Date("2026-11-21T22:00:00"));
+      expect(service.isDaylightNow(mockUserState as any)).toBe(true);
+    });
+
+    it("updateDaylightConfig atualiza dinamicamente as flags no userState", () => {
+      const service = EcoFlowMqttStreamService.getInstance();
+      const userId = "user-dyn-daylight";
+
+      // Cria o estado interno chamando updateDaylightConfig
+      service.updateDaylightConfig(userId, true, -23.55, -46.63, "05:45", "18:45");
+
+      // Simula horário noturno (20:00)
+      vi.setSystemTime(new Date("2026-11-21T20:00:00"));
+      const userState = (service as any).streamsByUser?.get(userId);
+      expect(userState).toBeDefined();
+      expect(service.isDaylightNow(userState)).toBe(false);
+
+      // Desliga dinamicamente
+      service.updateDaylightConfig(userId, false);
+      expect(service.isDaylightNow(userState)).toBe(true);
     });
   });
 });

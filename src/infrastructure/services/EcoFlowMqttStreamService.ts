@@ -13,6 +13,10 @@ import { decryptAndMigrateConfigurationSecrets } from "../security/secretMigrati
 import { OrchestratorSyncUseCase } from "../../application/OrchestratorSyncUseCase";
 import { ConfigurationRepository } from "../repositories/ConfigurationRepository";
 import { isManualAcOverrideActive } from "../security/rateLimiter";
+import {
+  OpenMeteoSolarForecastService,
+  isWithinDaylightWindow,
+} from "./OpenMeteoSolarForecastService";
 
 export interface LiveTelemetrySnapshot {
   batteryPercentage: number | null;
@@ -38,6 +42,11 @@ export interface MqttStreamConfig {
   baseApiUrl: string;
   databaseClient?: PrismaClient;
   userConfigurationId?: string;
+  isDaylightOnlyActive?: boolean;
+  latitude?: number | null;
+  longitude?: number | null;
+  sunrise?: string | null;
+  sunset?: string | null;
 }
 
 interface UserMqttStreamState {
@@ -51,6 +60,12 @@ interface UserMqttStreamState {
   lastEvaluatedAcState: boolean | null;
   lastEvaluationTimeMs: number;
   isEvaluatingAutomation: boolean;
+  isDaylightOnlyActive: boolean;
+  latitude: number | null;
+  longitude: number | null;
+  sunrise: string | null;
+  sunset: string | null;
+  lastSolarCheckTimeMs: number;
 }
 
 /**
@@ -208,11 +223,41 @@ export class EcoFlowMqttStreamService {
     }
 
     const userState = this.getOrCreateUserState(normalizedUserId);
+
+    if (streamConfig.isDaylightOnlyActive !== undefined) {
+      userState.isDaylightOnlyActive = streamConfig.isDaylightOnlyActive;
+      userState.latitude = streamConfig.latitude ?? null;
+      userState.longitude = streamConfig.longitude ?? null;
+      if (streamConfig.sunrise !== undefined) userState.sunrise = streamConfig.sunrise;
+      if (streamConfig.sunset !== undefined) userState.sunset = streamConfig.sunset;
+    } else if (
+      streamConfig.databaseClient &&
+      typeof streamConfig.databaseClient.userConfiguration?.findUnique === "function"
+    ) {
+      try {
+        const configRecord = await streamConfig.databaseClient.userConfiguration.findUnique({
+          where: { userId: normalizedUserId },
+          select: { isDaylightOnlyActive: true, latitude: true, longitude: true },
+        });
+        if (configRecord) {
+          userState.isDaylightOnlyActive = configRecord.isDaylightOnlyActive ?? false;
+          userState.latitude = configRecord.latitude ?? null;
+          userState.longitude = configRecord.longitude ?? null;
+        }
+      } catch {
+        // Fallback gracioso
+      }
+    }
+
     if (
       userState.client !== null &&
       (userState.client.connected || Boolean(userState.client.reconnecting))
     ) {
       return;
+    }
+
+    if (userState.isDaylightOnlyActive && !userState.sunrise) {
+      await this.refreshSolarWindow(userState);
     }
 
     if (userState.isConnecting) {
@@ -321,6 +366,62 @@ export class EcoFlowMqttStreamService {
     return this.getConnectedStreamsCount() > 0;
   }
 
+  /**
+   * Atualiza dinamicamente as preferências de janela solar e coordenadas de um usuário no stream MQTT.
+   */
+  public updateDaylightConfig(
+    userId: string,
+    isDaylightOnlyActive: boolean,
+    latitude?: number | null,
+    longitude?: number | null,
+    sunrise?: string | null,
+    sunset?: string | null
+  ): void {
+    const normalizedUserId = userId?.trim();
+    if (!normalizedUserId) return;
+    const userState = this.getOrCreateUserState(normalizedUserId);
+    userState.isDaylightOnlyActive = isDaylightOnlyActive;
+    if (latitude !== undefined) userState.latitude = latitude;
+    if (longitude !== undefined) userState.longitude = longitude;
+    if (sunrise !== undefined) userState.sunrise = sunrise;
+    if (sunset !== undefined) userState.sunset = sunset;
+  }
+
+  /**
+   * Verifica de forma síncrona se o momento atual está dentro da janela solar para o usuário.
+   * Se isDaylightOnlyActive estiver desativado, retorna true imediatamente (sem bloqueio).
+   */
+  public isDaylightNow(userState: UserMqttStreamState): boolean {
+    if (!userState.isDaylightOnlyActive) {
+      return true;
+    }
+    return isWithinDaylightWindow(userState.sunrise ?? "06:00", userState.sunset ?? "18:00", new Date());
+  }
+
+  /**
+   * Resolve e atualiza a previsão solar de nascer/pôr do sol para o usuário de forma assíncrona.
+   */
+  public async refreshSolarWindow(userState: UserMqttStreamState): Promise<void> {
+    if (
+      !userState.isDaylightOnlyActive ||
+      typeof userState.latitude !== "number" ||
+      typeof userState.longitude !== "number"
+    ) {
+      return;
+    }
+
+    try {
+      const solarService = OpenMeteoSolarForecastService.getInstance();
+      const forecast = await solarService.getForecast(userState.latitude, userState.longitude);
+      userState.sunrise = forecast.sunrise ?? "06:00";
+      userState.sunset = forecast.sunset ?? "18:00";
+      userState.lastSolarCheckTimeMs = Date.now();
+    } catch {
+      if (!userState.sunrise) userState.sunrise = "06:00";
+      if (!userState.sunset) userState.sunset = "18:00";
+    }
+  }
+
   public getConnectedStreamsCount(): number {
     let connectedCount = 0;
     for (const state of this.streamsByUser.values()) {
@@ -348,6 +449,12 @@ export class EcoFlowMqttStreamService {
       lastEvaluatedAcState: null,
       lastEvaluationTimeMs: 0,
       isEvaluatingAutomation: false,
+      isDaylightOnlyActive: false,
+      latitude: null,
+      longitude: null,
+      sunrise: null,
+      sunset: null,
+      lastSolarCheckTimeMs: 0,
     };
     this.streamsByUser.set(userId, created);
     return created;
@@ -371,6 +478,9 @@ export class EcoFlowMqttStreamService {
       baseApiUrl,
       databaseClient,
       userConfigurationId: record.id,
+      isDaylightOnlyActive: record.isDaylightOnlyActive ?? false,
+      latitude: record.latitude ?? null,
+      longitude: record.longitude ?? null,
     });
   }
 
@@ -458,6 +568,11 @@ export class EcoFlowMqttStreamService {
   ): Promise<void> {
     const currentSnapshot = userState.latestTelemetry;
     if (!currentSnapshot || !streamConfig.databaseClient) {
+      return;
+    }
+
+    // Se Operação Exclusiva em Período Solar estiver ativa e for noite, suspende a avaliação de automação
+    if (!this.isDaylightNow(userState)) {
       return;
     }
 
@@ -658,6 +773,11 @@ export class EcoFlowMqttStreamService {
     userConfigurationId: string
   ): void {
     if (!userState.latestTelemetry) {
+      return;
+    }
+
+    // Se Operação Exclusiva em Período Solar estiver ativa e for noite, NUNCA gravar logs no banco
+    if (!this.isDaylightNow(userState)) {
       return;
     }
 
