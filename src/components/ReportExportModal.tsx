@@ -22,6 +22,7 @@ import type {
   ReportExecutiveSummary,
 } from "../domain/services/AnalyticalReportService";
 import { formatCurrency } from "../utils/currencyFormatter";
+import { toast } from "../hooks/use-toast";
 
 export interface ReportExportModalProps {
   isOpen: boolean;
@@ -168,13 +169,24 @@ export function ReportExportModal({
       document.body.removeChild(link);
       window.URL.revokeObjectURL(downloadUrl);
 
+      const successMessage = "Arquivo CSV baixado com sucesso!";
       setFeedback({
         type: "success",
-        message: "Arquivo CSV baixado com sucesso!",
+        message: successMessage,
+      });
+      toast({
+        title: "Exportação concluída",
+        description: successMessage,
+        variant: "success",
       });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Falha ao exportar CSV.";
       setFeedback({ type: "error", message: msg });
+      toast({
+        title: "Erro na exportação",
+        description: msg,
+        variant: "destructive",
+      });
     } finally {
       setIsExportingCsv(false);
     }

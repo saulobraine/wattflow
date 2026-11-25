@@ -4,6 +4,7 @@ import { useRouter } from "next/router";
 import { GetServerSideProps } from "next";
 import { Zap, Lock, Mail, User, AlertCircle, ArrowRight, ShieldOff } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { toast } from "../hooks/use-toast";
 import { TransitionLink } from "../components/TransitionLink";
 import { transitionNavigate } from "../utils/transitionNavigate";
 
@@ -33,7 +34,9 @@ export default function RegisterPage({ isRegistrationEnabled }: RegisterPageProp
     setErrorMessage(null);
 
     if (password.length < 12 || password.length > 128) {
-      setErrorMessage("A senha deve possuir entre 12 e 128 caracteres.");
+      const message = "A senha deve possuir entre 12 e 128 caracteres.";
+      setErrorMessage(message);
+      toast({ title: "Senha inválida", description: message, variant: "destructive" });
       return;
     }
 
@@ -49,21 +52,34 @@ export default function RegisterPage({ isRegistrationEnabled }: RegisterPageProp
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.success) {
         if (response.status === 403) {
-          setErrorMessage(data.message || "O cadastro público de novas contas está desabilitado neste servidor.");
+          const message = data.message || "O cadastro público de novas contas está desabilitado neste servidor.";
+          setErrorMessage(message);
+          toast({ title: "Cadastro desabilitado", description: message, variant: "destructive" });
           return;
         }
         if (response.status === 429) {
-          setErrorMessage(data.message || "Muitas tentativas de cadastro. Aguarde alguns instantes e tente novamente.");
+          const message = data.message || "Muitas tentativas de cadastro. Aguarde alguns instantes e tente novamente.";
+          setErrorMessage(message);
+          toast({ title: "Muitas tentativas", description: message, variant: "destructive" });
           return;
         }
-        setErrorMessage(data.message || "Erro ao criar conta.");
+        const message = data.message || "Erro ao criar conta.";
+        setErrorMessage(message);
+        toast({ title: "Erro no cadastro", description: message, variant: "destructive" });
         return;
       }
 
+      toast({
+        title: "Conta criada",
+        description: "Cadastro realizado com sucesso.",
+        variant: "success",
+      });
       await refreshUser();
       transitionNavigate(router, "/");
     } catch {
-      setErrorMessage("Erro ao conectar com o servidor.");
+      const message = "Erro ao conectar com o servidor.";
+      setErrorMessage(message);
+      toast({ title: "Erro de conexão", description: message, variant: "destructive" });
     } finally {
       setIsLoading(false);
     }

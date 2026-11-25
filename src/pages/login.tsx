@@ -3,6 +3,7 @@ import Head from "next/head";
 import { useRouter } from "next/router";
 import { Zap, Lock, Mail, AlertCircle, ArrowRight, ShieldCheck, ArrowLeft } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { toast } from "../hooks/use-toast";
 import { TransitionLink } from "../components/TransitionLink";
 import { transitionNavigate } from "../utils/transitionNavigate";
 
@@ -32,25 +33,40 @@ export default function LoginPage() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.success) {
         if (response.status === 429) {
-          setErrorMessage(
-            data.message || "Muitas tentativas de login. Aguarde alguns instantes e tente novamente."
-          );
+          const message =
+            data.message || "Muitas tentativas de login. Aguarde alguns instantes e tente novamente.";
+          setErrorMessage(message);
+          toast({ title: "Muitas tentativas", description: message, variant: "destructive" });
           return;
         }
-        setErrorMessage(data.message || "Credenciais inválidas.");
+        const message = data.message || "Credenciais inválidas.";
+        setErrorMessage(message);
+        toast({ title: "Falha no login", description: message, variant: "destructive" });
         return;
       }
 
       if (data.requiresTwoFactor && data.challengeToken) {
         setChallengeToken(data.challengeToken);
         setTotpToken("");
+        toast({
+          title: "Verificação 2FA",
+          description: "Informe o código TOTP de 6 dígitos do seu autenticador.",
+          variant: "default",
+        });
         return;
       }
 
+      toast({
+        title: "Login realizado",
+        description: "Bem-vindo de volta ao WattFlow.",
+        variant: "success",
+      });
       await refreshUser();
       transitionNavigate(router, "/");
     } catch {
-      setErrorMessage("Erro ao conectar com o servidor.");
+      const message = "Erro ao conectar com o servidor.";
+      setErrorMessage(message);
+      toast({ title: "Erro de conexão", description: message, variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -76,19 +92,29 @@ export default function LoginPage() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.success) {
         if (response.status === 429) {
-          setErrorMessage(
-            data.message || "Muitas tentativas de verificação. Aguarde alguns instantes e tente novamente."
-          );
+          const message =
+            data.message || "Muitas tentativas de verificação. Aguarde alguns instantes e tente novamente.";
+          setErrorMessage(message);
+          toast({ title: "Muitas tentativas", description: message, variant: "destructive" });
           return;
         }
-        setErrorMessage(data.message || "Código 2FA inválido ou expirado.");
+        const message = data.message || "Código 2FA inválido ou expirado.";
+        setErrorMessage(message);
+        toast({ title: "Falha na verificação 2FA", description: message, variant: "destructive" });
         return;
       }
 
+      toast({
+        title: "Autenticação confirmada",
+        description: "Verificação em duas etapas concluída com sucesso.",
+        variant: "success",
+      });
       await refreshUser();
       transitionNavigate(router, "/");
     } catch {
-      setErrorMessage("Erro ao validar o código de autenticação.");
+      const message = "Erro ao validar o código de autenticação.";
+      setErrorMessage(message);
+      toast({ title: "Erro de conexão", description: message, variant: "destructive" });
     } finally {
       setIsLoading(false);
     }

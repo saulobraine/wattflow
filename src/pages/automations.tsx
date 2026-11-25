@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, FormEvent } from "react";
 import { Layout } from "../components/Layout";
 import { useLiveTelemetry } from "../hooks/useLiveTelemetry";
+import { toast } from "../hooks/use-toast";
 import { formatCurrency } from "../utils/currencyFormatter";
 import {
   Sliders,
@@ -107,6 +108,11 @@ export default function AutomationsPage() {
   const showFormFeedback = (next: { type: "success" | "error"; message: string }) => {
     setAtsFeedback(null);
     setFeedback(next);
+    toast({
+      title: next.type === "success" ? "Automações salvas" : "Erro nas automações",
+      description: next.message,
+      variant: next.type === "success" ? "success" : "destructive",
+    });
     if (next.type === "error" && typeof window !== "undefined") {
       window.requestAnimationFrame(() => {
         bottomFeedbackRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -262,9 +268,15 @@ export default function AutomationsPage() {
     setFeedback(null);
 
     if (turnOffThreshold >= turnOnThreshold) {
+      const message = "O limite mínimo de bateria deve ser pelo menos 1% menor que o limite máximo.";
       setAtsFeedback({
         type: "error",
-        message: "O limite mínimo de bateria deve ser pelo menos 1% menor que o limite máximo.",
+        message,
+      });
+      toast({
+        title: "Limites ATS inválidos",
+        description: message,
+        variant: "destructive",
       });
       return;
     }
@@ -284,22 +296,40 @@ export default function AutomationsPage() {
 
       const autoJson = await autoRes.json().catch(() => ({}));
       if (!autoRes.ok || !autoJson.success) {
+        const message = autoJson.message || `Erro ao salvar limites ATS (HTTP ${autoRes.status}).`;
         setAtsFeedback({
           type: "error",
-          message: autoJson.message || `Erro ao salvar limites ATS (HTTP ${autoRes.status}).`,
+          message,
+        });
+        toast({
+          title: "Erro ao salvar limites ATS",
+          description: message,
+          variant: "destructive",
         });
         return;
       }
 
+      const successMessage = autoJson.message || "Limites de carga, corte e disjuntor ATS salvos com sucesso!";
       setAtsFeedback({
         type: "success",
-        message: autoJson.message || "Limites de carga, corte e disjuntor ATS salvos com sucesso!",
+        message: successMessage,
+      });
+      toast({
+        title: "Limites ATS salvos",
+        description: successMessage,
+        variant: "success",
       });
     } catch (err) {
       console.error("Erro ao salvar limites ATS:", err);
+      const message = "Falha na comunicação com o servidor ao salvar os limites ATS.";
       setAtsFeedback({
         type: "error",
-        message: "Falha na comunicação com o servidor ao salvar os limites ATS.",
+        message,
+      });
+      toast({
+        title: "Erro de comunicação",
+        description: message,
+        variant: "destructive",
       });
     } finally {
       setIsSavingAts(false);

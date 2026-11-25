@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Layout } from "../components/Layout";
 import { useAuth } from "../context/AuthContext";
+import { toast } from "../hooks/use-toast";
 import {
   User,
   Mail,
@@ -115,10 +116,12 @@ export default function ProfilePage() {
     setProfileFeedback(null);
 
     if (isEmailChanged && !profileCurrentPassword) {
+      const message = "Informe sua senha atual para confirmar a alteração do endereço de e-mail.";
       setProfileFeedback({
         type: "error",
-        message: "Informe sua senha atual para confirmar a alteração do endereço de e-mail.",
+        message,
       });
+      toast({ title: "Confirmação necessária", description: message, variant: "destructive" });
       return;
     }
 
@@ -138,14 +141,19 @@ export default function ProfilePage() {
 
       if (response.ok && result.success) {
         setProfileFeedback({ type: "success", message: result.message });
+        toast({ title: "Perfil atualizado", description: result.message, variant: "success" });
         setProfileCurrentPassword("");
         await refreshUser();
         await fetchProfile();
       } else {
-        setProfileFeedback({ type: "error", message: result.message || "Falha ao atualizar perfil." });
+        const message = result.message || "Falha ao atualizar perfil.";
+        setProfileFeedback({ type: "error", message });
+        toast({ title: "Erro ao atualizar perfil", description: message, variant: "destructive" });
       }
     } catch {
-      setProfileFeedback({ type: "error", message: "Erro de rede ao conectar com o servidor." });
+      const message = "Erro de rede ao conectar com o servidor.";
+      setProfileFeedback({ type: "error", message });
+      toast({ title: "Erro de rede", description: message, variant: "destructive" });
     } finally {
       setIsUpdatingProfile(false);
     }
@@ -157,12 +165,16 @@ export default function ProfilePage() {
     setPasswordFeedback(null);
 
     if (newPassword.length < 12 || newPassword.length > 128) {
-      setPasswordFeedback({ type: "error", message: "A nova senha deve possuir entre 12 e 128 caracteres." });
+      const message = "A nova senha deve possuir entre 12 e 128 caracteres.";
+      setPasswordFeedback({ type: "error", message });
+      toast({ title: "Senha inválida", description: message, variant: "destructive" });
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setPasswordFeedback({ type: "error", message: "A confirmação da nova senha não coincide." });
+      const message = "A confirmação da nova senha não coincide.";
+      setPasswordFeedback({ type: "error", message });
+      toast({ title: "Senhas divergentes", description: message, variant: "destructive" });
       return;
     }
 
@@ -177,14 +189,19 @@ export default function ProfilePage() {
 
       if (result.success) {
         setPasswordFeedback({ type: "success", message: result.message });
+        toast({ title: "Senha alterada", description: result.message, variant: "success" });
         setCurrentPassword("");
         setNewPassword("");
         setConfirmPassword("");
       } else {
-        setPasswordFeedback({ type: "error", message: result.message || "Erro ao alterar senha." });
+        const message = result.message || "Erro ao alterar senha.";
+        setPasswordFeedback({ type: "error", message });
+        toast({ title: "Erro ao alterar senha", description: message, variant: "destructive" });
       }
     } catch {
-      setPasswordFeedback({ type: "error", message: "Erro de conexão ao alterar a senha." });
+      const message = "Erro de conexão ao alterar a senha.";
+      setPasswordFeedback({ type: "error", message });
+      toast({ title: "Erro de conexão", description: message, variant: "destructive" });
     } finally {
       setIsChangingPassword(false);
     }
@@ -207,10 +224,14 @@ export default function ProfilePage() {
         setTotpToken("");
         setEnableTwoFactorPassword("");
       } else {
-        setTwoFactorFeedback({ type: "error", message: result.message || "Falha ao gerar segredo 2FA." });
+        const message = result.message || "Falha ao gerar segredo 2FA.";
+        setTwoFactorFeedback({ type: "error", message });
+        toast({ title: "Erro no 2FA", description: message, variant: "destructive" });
       }
     } catch {
-      setTwoFactorFeedback({ type: "error", message: "Erro ao comunicar com o servidor de 2FA." });
+      const message = "Erro ao comunicar com o servidor de 2FA.";
+      setTwoFactorFeedback({ type: "error", message });
+      toast({ title: "Erro de comunicação", description: message, variant: "destructive" });
     }
   };
 
@@ -234,6 +255,7 @@ export default function ProfilePage() {
 
       if (result.success) {
         setTwoFactorFeedback({ type: "success", message: result.message });
+        toast({ title: "2FA ativado", description: result.message, variant: "success" });
         setIsSettingUp2FA(false);
         setTotpSecret("");
         setQrCodeUrl("");
@@ -241,10 +263,14 @@ export default function ProfilePage() {
         setEnableTwoFactorPassword("");
         await fetchProfile();
       } else {
-        setTwoFactorFeedback({ type: "error", message: result.message || "Código inválido." });
+        const message = result.message || "Código inválido.";
+        setTwoFactorFeedback({ type: "error", message });
+        toast({ title: "Erro ao ativar 2FA", description: message, variant: "destructive" });
       }
     } catch {
-      setTwoFactorFeedback({ type: "error", message: "Erro ao validar código de autenticação." });
+      const message = "Erro ao validar código de autenticação.";
+      setTwoFactorFeedback({ type: "error", message });
+      toast({ title: "Erro de conexão", description: message, variant: "destructive" });
     } finally {
       setIsVerifying2FA(false);
     }
@@ -269,14 +295,19 @@ export default function ProfilePage() {
 
       if (result.success) {
         setTwoFactorFeedback({ type: "success", message: result.message });
+        toast({ title: "2FA desativado", description: result.message, variant: "success" });
         setShowDisableModal(false);
         setDisablePassword("");
         await fetchProfile();
       } else {
-        setTwoFactorFeedback({ type: "error", message: result.message || "Senha incorreta." });
+        const message = result.message || "Senha incorreta.";
+        setTwoFactorFeedback({ type: "error", message });
+        toast({ title: "Erro ao desativar 2FA", description: message, variant: "destructive" });
       }
     } catch {
-      setTwoFactorFeedback({ type: "error", message: "Erro de conexão ao desativar o 2FA." });
+      const message = "Erro de conexão ao desativar o 2FA.";
+      setTwoFactorFeedback({ type: "error", message });
+      toast({ title: "Erro de conexão", description: message, variant: "destructive" });
     } finally {
       setIsDisabling2FA(false);
     }
@@ -285,10 +316,12 @@ export default function ProfilePage() {
   // Criar Passkey nativa WebAuthn
   const handleCreatePasskey = async () => {
     if (!isPasskeySupported) {
+      const message = "Seu navegador ou dispositivo atual não possui suporte a chaves biométricas WebAuthn.";
       setPasskeyFeedback({
         type: "error",
-        message: "Seu navegador ou dispositivo atual não possui suporte a chaves biométricas WebAuthn.",
+        message,
       });
+      toast({ title: "WebAuthn indisponível", description: message, variant: "destructive" });
       return;
     }
 
@@ -371,15 +404,19 @@ export default function ProfilePage() {
 
       if (registerResult.success) {
         setPasskeyFeedback({ type: "success", message: registerResult.message });
+        toast({ title: "Passkey registrada", description: registerResult.message, variant: "success" });
         setPasskeyName("");
         await fetchProfile();
       } else {
-        setPasskeyFeedback({ type: "error", message: registerResult.message || "Erro ao registrar chave." });
+        const message = registerResult.message || "Erro ao registrar chave.";
+        setPasskeyFeedback({ type: "error", message });
+        toast({ title: "Erro ao registrar passkey", description: message, variant: "destructive" });
       }
     } catch (err: unknown) {
       console.error("Erro no fluxo de passkey:", err);
       const msg = err instanceof Error ? err.message : "Ocorreu um erro ao criar a chave de acesso.";
       setPasskeyFeedback({ type: "error", message: msg });
+      toast({ title: "Erro no fluxo de passkey", description: msg, variant: "destructive" });
     } finally {
       setIsCreatingPasskey(false);
     }
@@ -400,12 +437,17 @@ export default function ProfilePage() {
 
       if (result.success) {
         setPasskeyFeedback({ type: "success", message: result.message });
+        toast({ title: "Passkey removida", description: result.message, variant: "success" });
         await fetchProfile();
       } else {
-        setPasskeyFeedback({ type: "error", message: result.message || "Erro ao excluir chave." });
+        const message = result.message || "Erro ao excluir chave.";
+        setPasskeyFeedback({ type: "error", message });
+        toast({ title: "Erro ao remover passkey", description: message, variant: "destructive" });
       }
     } catch {
-      setPasskeyFeedback({ type: "error", message: "Erro de conexão ao remover passkey." });
+      const message = "Erro de conexão ao remover passkey.";
+      setPasskeyFeedback({ type: "error", message });
+      toast({ title: "Erro de conexão", description: message, variant: "destructive" });
     } finally {
       setDeletingPasskeyId(null);
     }
