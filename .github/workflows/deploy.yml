@@ -68,7 +68,7 @@ jobs:
             echo "🔨 Compilando e atualizando contêineres Docker..."
             docker compose config -q
             docker compose build app
-            docker compose up -d --remove-orphans --wait
+            docker compose up -d --remove-orphans --wait || (docker compose ps; docker logs --tail 80 wattflow_app; exit 1)
 
             # 5. Limpar imagens antigas para poupar espaço em disco da VPS
             echo "🧹 Limpando imagens Docker órfãs..."
