@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 import type { AppProps } from "next/app";
 import Head from "next/head";
 import { AuthProvider } from "../context/AuthContext";
-import { Toaster } from "../components/ui/toaster";
+import { Toaster } from "../components/ui/toast";
 import "../styles/globals.css";
 
 export default function App({ Component, pageProps }: AppProps) {

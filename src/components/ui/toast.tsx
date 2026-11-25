@@ -1,93 +1,224 @@
-import React from "react";
-import { X } from "lucide-react";
+"use client";
 
-export type ToastVariant = "default" | "success" | "destructive";
+import * as React from "react";
+import { Toast as ToastPrimitive } from "@base-ui/react/toast";
+import {
+  AlertCircle,
+  AlertTriangle,
+  CircleCheck,
+  Info,
+  Loader2,
+  X,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 
-export interface ToastProps extends React.HTMLAttributes<HTMLDivElement> {
-  variant?: ToastVariant;
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
+const toast = ToastPrimitive.createToastManager();
+const { createToastManager, useToastManager } = ToastPrimitive;
+
+function mergeClassName<State>(
+  base: string,
+  className?: string | ((state: State) => string | undefined)
+) {
+  if (typeof className === "function") {
+    return (state: State) => cn(base, className(state));
+  }
+  return cn(base, className);
 }
 
-const variantClasses: Record<ToastVariant, string> = {
-  default:
-    "border-slate-700/80 bg-slate-900/95 text-slate-100 shadow-black/60",
-  success:
-    "border-emerald-500/40 bg-slate-900/95 text-emerald-100 shadow-emerald-950/40",
-  destructive:
-    "border-rose-500/40 bg-slate-900/95 text-rose-100 shadow-rose-950/40",
-};
+function ToastProvider({
+  ...props
+}: React.ComponentProps<typeof ToastPrimitive.Provider>) {
+  return <ToastPrimitive.Provider {...props} />;
+}
 
-export const ToastViewport = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className = "", ...props }, ref) => (
-  <div
-    ref={ref}
-    aria-label="Notificações"
-    className={`pointer-events-none fixed bottom-0 right-0 z-[100] flex max-h-screen w-full flex-col-reverse gap-2 p-4 sm:bottom-4 sm:right-4 sm:top-auto sm:flex-col md:max-w-[420px] ${className}`}
-    {...props}
-  />
-));
-ToastViewport.displayName = "ToastViewport";
+function ToastPortal({
+  ...props
+}: React.ComponentProps<typeof ToastPrimitive.Portal>) {
+  return <ToastPrimitive.Portal data-slot="toast-portal" {...props} />;
+}
 
-export const Toast = React.forwardRef<HTMLDivElement, ToastProps>(
-  ({ className = "", variant = "default", open = true, children, ...props }, ref) => {
-    if (!open) return null;
+function ToastViewport({
+  className,
+  ...props
+}: React.ComponentProps<typeof ToastPrimitive.Viewport>) {
+  return (
+    <ToastPrimitive.Viewport
+      data-slot="toast-viewport"
+      className={mergeClassName(
+        "pointer-events-none fixed inset-x-4 bottom-4 z-[100] mx-auto w-auto max-w-sm outline-none sm:right-4 sm:left-auto sm:mx-0 sm:w-full",
+        className
+      )}
+      {...props}
+    />
+  );
+}
 
-    return (
-      <div
-        ref={ref}
-        role={variant === "destructive" ? "alert" : "status"}
-        aria-live={variant === "destructive" ? "assertive" : "polite"}
-        data-variant={variant}
-        className={`pointer-events-auto group relative flex w-full items-start gap-3 overflow-hidden rounded-xl border p-4 pr-9 shadow-2xl backdrop-blur-md transition-all duration-200 animate-fade-in ${variantClasses[variant]} ${className}`}
-        {...props}
-      >
-        {children}
-      </div>
-    );
+function Toast({
+  className,
+  ...props
+}: React.ComponentProps<typeof ToastPrimitive.Root>) {
+  return (
+    <ToastPrimitive.Root
+      data-slot="toast"
+      className={mergeClassName(
+        "cn-toast group/toast pointer-events-auto absolute right-0 bottom-0 z-[calc(1000-var(--toast-index))] w-full origin-bottom rounded-xl border border-slate-800 bg-slate-900/95 text-slate-100 shadow-xl backdrop-blur-md transition-all duration-300 ease-out select-none [transform:translateX(var(--toast-swipe-movement-x))_translateY(calc(var(--toast-swipe-movement-y)-var(--toast-index)*0.75rem))_scale(calc(1-var(--toast-index)*0.04))] data-[starting-style]:translate-y-4 data-[starting-style]:opacity-0 data-[ending-style]:opacity-0 data-[ending-style]:[transform:translateY(1rem)] data-[limited]:opacity-0 data-[expanded]:[transform:translateX(var(--toast-swipe-movement-x))_translateY(calc(var(--toast-offset-y)*-1+var(--toast-index)*-0.75rem+var(--toast-swipe-movement-y)))]",
+        className
+      )}
+      {...props}
+    />
+  );
+}
+
+function ToastContent({
+  className,
+  ...props
+}: React.ComponentProps<typeof ToastPrimitive.Content>) {
+  return (
+    <ToastPrimitive.Content
+      data-slot="toast-content"
+      className={mergeClassName(
+        "flex h-full items-center gap-3 overflow-hidden p-4 transition-opacity duration-200 data-[behind]:opacity-0 data-[expanded]:opacity-100",
+        className
+      )}
+      {...props}
+    />
+  );
+}
+
+function ToastTitle({
+  className,
+  ...props
+}: React.ComponentProps<typeof ToastPrimitive.Title>) {
+  return (
+    <ToastPrimitive.Title
+      data-slot="toast-title"
+      className={mergeClassName("text-sm font-semibold text-slate-100", className)}
+      {...props}
+    />
+  );
+}
+
+function ToastDescription({
+  className,
+  ...props
+}: React.ComponentProps<typeof ToastPrimitive.Description>) {
+  return (
+    <ToastPrimitive.Description
+      data-slot="toast-description"
+      className={mergeClassName(
+        "text-xs leading-relaxed text-slate-400",
+        className
+      )}
+      {...props}
+    />
+  );
+}
+
+function ToastAction({
+  className,
+  ...props
+}: React.ComponentProps<typeof ToastPrimitive.Action>) {
+  return (
+    <ToastPrimitive.Action
+      data-slot="toast-action"
+      className={mergeClassName(
+        "inline-flex shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs font-medium text-slate-100 transition-colors hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 cursor-pointer",
+        className
+      )}
+      {...props}
+    />
+  );
+}
+
+function ToastClose({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<typeof ToastPrimitive.Close>) {
+  return (
+    <ToastPrimitive.Close
+      data-slot="toast-close"
+      aria-label="Fechar notificação"
+      className={mergeClassName(
+        "ml-auto inline-flex shrink-0 items-center justify-center rounded-lg p-1 text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-500/50 cursor-pointer",
+        className
+      )}
+      {...props}
+    >
+      {children ?? (
+        <X className="h-4 w-4 text-slate-400 transition-colors hover:text-slate-100" />
+      )}
+    </ToastPrimitive.Close>
+  );
+}
+
+function ToastIcon({ type }: { type?: string }) {
+  switch (type) {
+    case "success":
+      return <CircleCheck className="h-5 w-5 shrink-0 text-emerald-400" />;
+    case "error":
+      return <AlertCircle className="h-5 w-5 shrink-0 text-rose-400" />;
+    case "warning":
+      return <AlertTriangle className="h-5 w-5 shrink-0 text-amber-400" />;
+    case "info":
+      return <Info className="h-5 w-5 shrink-0 text-cyan-400" />;
+    case "loading":
+      return (
+        <Loader2 className="h-5 w-5 shrink-0 animate-spin text-cyan-400" />
+      );
+    default:
+      return null;
   }
-);
-Toast.displayName = "Toast";
+}
 
-export const ToastTitle = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className = "", ...props }, ref) => (
-  <div
-    ref={ref}
-    className={`text-sm font-semibold leading-tight tracking-tight ${className}`}
-    {...props}
-  />
-));
-ToastTitle.displayName = "ToastTitle";
+function ToastList() {
+  const { toasts } = useToastManager();
 
-export const ToastDescription = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className = "", ...props }, ref) => (
-  <div
-    ref={ref}
-    className={`text-xs leading-relaxed opacity-90 ${className}`}
-    {...props}
-  />
-));
-ToastDescription.displayName = "ToastDescription";
+  return toasts.map((toastItem) => (
+    <Toast key={toastItem.id} toast={toastItem}>
+      <ToastContent>
+        <ToastIcon type={toastItem.type} />
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          {toastItem.title && <ToastTitle>{toastItem.title}</ToastTitle>}
+          {toastItem.description && (
+            <ToastDescription>{toastItem.description}</ToastDescription>
+          )}
+        </div>
+        {toastItem.actionProps && <ToastAction {...toastItem.actionProps} />}
+        <ToastClose />
+      </ToastContent>
+    </Toast>
+  ));
+}
 
-export const ToastClose = React.forwardRef<
-  HTMLButtonElement,
-  React.ButtonHTMLAttributes<HTMLButtonElement>
->(({ className = "", onClick, ...props }, ref) => (
-  <button
-    ref={ref}
-    type="button"
-    aria-label="Fechar notificação"
-    onClick={onClick}
-    className={`absolute right-2.5 top-2.5 rounded-lg p-1 text-slate-400 transition-colors hover:bg-slate-800/80 hover:text-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-500/50 cursor-pointer ${className}`}
-    {...props}
-  >
-    <X className="h-4 w-4" aria-hidden="true" />
-  </button>
-));
-ToastClose.displayName = "ToastClose";
+export function Toaster({
+  children,
+  toastManager = toast,
+  ...props
+}: ToastPrimitive.Provider.Props) {
+  return (
+    <ToastProvider toastManager={toastManager} {...props}>
+      {children}
+      <ToastPortal>
+        <ToastViewport>
+          <ToastList />
+        </ToastViewport>
+      </ToastPortal>
+    </ToastProvider>
+  );
+}
+
+export {
+  Toast,
+  ToastAction,
+  ToastClose,
+  ToastContent,
+  ToastDescription,
+  ToastPortal,
+  ToastProvider,
+  ToastTitle,
+  ToastViewport,
+  createToastManager,
+  toast,
+  useToastManager,
+};
