@@ -1,7 +1,7 @@
 import * as React from "react";
-import { toast as sonnerToast } from "sonner";
+import { toast as toastManager } from "@/components/ui/toast";
 
-export type ToastVariant = "default" | "success" | "destructive";
+export type ToastVariant = "default" | "destructive" | "success";
 
 export interface ToastInput {
   title?: React.ReactNode;
@@ -10,42 +10,44 @@ export interface ToastInput {
   duration?: number;
 }
 
-const DEFAULT_TOAST_DURATION = 5000;
-
-export function toast({
+function dispatchToast({
   title,
   description,
   variant = "default",
-  duration = DEFAULT_TOAST_DURATION,
+  duration,
 }: ToastInput) {
-  const message = title ?? description ?? "";
-  const options = {
-    description: title !== undefined ? description : undefined,
-    duration,
-  };
+  const type =
+    variant === "destructive"
+      ? "error"
+      : variant === "success"
+        ? "success"
+        : undefined;
 
-  let id: string | number;
-  switch (variant) {
-    case "success":
-      id = sonnerToast.success(message, options);
-      break;
-    case "destructive":
-      id = sonnerToast.error(message, options);
-      break;
-    default:
-      id = sonnerToast(message, options);
-      break;
-  }
+  const id = toastManager.add({
+    title,
+    description,
+    type,
+    timeout: duration,
+  });
 
   return {
-    id: String(id),
-    dismiss: () => sonnerToast.dismiss(id),
+    id,
+    dismiss: () => toastManager.close(id),
   };
 }
 
+export const toast = Object.assign(dispatchToast, {
+  add: toastManager.add,
+  close: toastManager.close,
+  update: toastManager.update,
+  promise: toastManager.promise,
+});
+
 export function useToast() {
   return {
-    toast,
-    dismiss: (toastId?: string | number) => sonnerToast.dismiss(toastId),
+    toast: dispatchToast,
+    dismiss: (id?: string) => {
+      if (id) toastManager.close(id);
+    },
   };
 }
