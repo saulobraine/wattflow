@@ -6,6 +6,16 @@ services:
     image: postgres:16-alpine
     container_name: wattflow_postgres
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - FOWNER
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
     networks:
       - wattflow_isolated_net
     environment:
@@ -26,6 +36,7 @@ services:
     deploy:
       resources:
         limits:
+          cpus: "1.0"
           memory: 512M
 
   # -------------------------------------------------------------------------
@@ -37,6 +48,14 @@ services:
       dockerfile: Dockerfile
     container_name: wattflow_app
     restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,mode=1777,size=64m
+      - /app/.next/cache:rw,nosuid,uid=1001,gid=1001,mode=0755,size=128m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     networks:
       - wattflow_isolated_net
     depends_on:
@@ -47,12 +66,14 @@ services:
       - "${APP_BIND_IP:-127.0.0.1}:${APP_HOST_PORT:-3050}:3000"
     environment:
       NODE_ENV: production
+      HOME: /tmp
       DATABASE_URL: postgresql://${POSTGRES_USER:-wattflow}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-wattflow}?schema=public
       DIRECT_URL: postgresql://${POSTGRES_USER:-wattflow}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-wattflow}?schema=public
       AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET is required}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
       CRON_SECRET_TOKEN: ${CRON_SECRET_TOKEN:?CRON_SECRET_TOKEN is required}
       DISABLE_LOCAL_CRON: ${DISABLE_LOCAL_CRON:-false}
+      TRUST_PROXY: "true"
       PORT: 3000
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
@@ -63,6 +84,7 @@ services:
     deploy:
       resources:
         limits:
+          cpus: "2.0"
           memory: 1024M
 
   # -------------------------------------------------------------------------
@@ -75,6 +97,8 @@ services:
     user: "65534:65534"
     security_opt:
       - no-new-privileges:true
+    cap_drop:
+      - ALL
     networks:
       - wattflow_isolated_net
     depends_on:
@@ -104,6 +128,7 @@ services:
     deploy:
       resources:
         limits:
+          cpus: "0.25"
           memory: 64M
 
 networks:

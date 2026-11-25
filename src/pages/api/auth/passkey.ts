@@ -1,4 +1,12 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: "64kb",
+    },
+  },
+};
 import { prisma } from "../../../infrastructure/database/prismaClient";
 import {
   enforceCsrfProtection,

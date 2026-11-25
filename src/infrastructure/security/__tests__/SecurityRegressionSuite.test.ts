@@ -97,7 +97,7 @@ describe("Security Regression Suite - CRON Hardening & Timing-Safe Verification"
     delete process.env.CRON_SECRET;
 
     const req = {
-      method: "GET",
+      method: "POST",
       headers: {
         authorization: "Bearer unauthorized-token",
       },
@@ -146,6 +146,8 @@ describe("Security Regression Suite - CRON Hardening & Timing-Safe Verification"
     const req = {
       method: "POST",
       headers: {
+        host: "localhost:3000",
+        origin: "http://localhost:3000",
         cookie: buildSessionCookieHeader("user-tenant-1"),
       },
       query: { force: "true" },
@@ -171,6 +173,43 @@ describe("Security Regression Suite - CRON Hardening & Timing-Safe Verification"
 
     if (originalAuthSecret) process.env.AUTH_SECRET = originalAuthSecret;
     if (originalCronSecret) process.env.CRON_SECRET = originalCronSecret;
+  });
+
+  it("rejeita requisições GET com status 405 Method Not Allowed", async () => {
+    const req = {
+      method: "GET",
+      headers: {},
+      query: {},
+    } as unknown as NextApiRequest;
+
+    const res = createMockApiResponse();
+    await handleDailyReportCron(req, res);
+
+    expect(res.statusCode).toBe(405);
+    expect(res.body.success).toBe(false);
+  });
+
+  it("rejeita requisição de sessão sem proteção CSRF válida com 403 Forbidden", async () => {
+    const originalAuthSecret = process.env.AUTH_SECRET;
+    process.env.AUTH_SECRET = VALID_AUTH_SECRET;
+
+    const req = {
+      method: "POST",
+      headers: {
+        cookie: buildSessionCookieHeader("user-tenant-1"),
+        // Sem headers host/origin válidos
+      },
+      query: { force: "true" },
+      body: { force: true },
+    } as unknown as NextApiRequest;
+
+    const res = createMockApiResponse();
+    await handleDailyReportCron(req, res);
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body.success).toBe(false);
+
+    if (originalAuthSecret) process.env.AUTH_SECRET = originalAuthSecret;
   });
 });
 

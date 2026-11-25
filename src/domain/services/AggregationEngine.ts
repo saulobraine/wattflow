@@ -744,9 +744,12 @@ export class AggregationEngine {
     const str = String(val);
     let sanitized = str;
 
-    // Se o valor for string textual e iniciar com =, +, -, @ ou \t, prefixa com apóstrofo '
-    if (typeof val === "string" && /^[=+\-@\t\r]/.test(str)) {
-      sanitized = `'${str}`;
+    // Se o valor for string textual e iniciar com =, +, -, @, \t, \r, | ou % (inclusive após trimStart)
+    if (typeof val === "string") {
+      const trimmedStart = str.trimStart();
+      if (/^[=+\-@\t\r|%]/.test(str) || /^[=+\-@\t\r|%]/.test(trimmedStart)) {
+        sanitized = `'${str}`;
+      }
     }
 
     // RFC 4180: envolve em aspas se contiver vírgula, aspas ou quebras de linha

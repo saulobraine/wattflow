@@ -52,19 +52,43 @@ function pruneExpiredEntries(nowMs: number): void {
   }
 }
 
+function isDockerBridgeOrPrivateIp(ip: string): boolean {
+  let normalized = ip;
+  if (normalized.startsWith("::ffff:")) {
+    normalized = normalized.slice(7);
+  }
+
+  // 10.0.0.0/8 (10.0.0.0 a 10.255.255.255)
+  if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(normalized)) {
+    const parts = normalized.split(".").map(Number);
+    return parts.every((p) => p >= 0 && p <= 255);
+  }
+
+  // 172.16.0.0/12 (172.16.0.0 a 172.31.255.255 - sub-redes Docker bridge padrão)
+  if (/^172\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(normalized)) {
+    const parts = normalized.split(".").map(Number);
+    if (parts.length === 4 && parts.every((p) => p >= 0 && p <= 255)) {
+      return parts[1] >= 16 && parts[1] <= 31;
+    }
+  }
+
+  return false;
+}
+
 /**
  * Extrai o endereço IP do cliente de forma segura.
- * Só confia em headers X-Forwarded-For / X-Real-IP quando a conexão vem de proxy reverso loopback
- * (ex.: CloudPanel local) ou quando TRUST_PROXY === "true", ou em ambiente de teste sem socket.
+ * Só confia em headers X-Forwarded-For / X-Real-IP quando a conexão vem de proxy reverso loopback,
+ * sub-redes Docker bridge (172.16.0.0/12 e 10.0.0.0/8) ou quando TRUST_PROXY === "true", ou em teste sem socket.
  */
 export function extractClientIp(request: NextApiRequest): string {
   const socketIp = request.socket?.remoteAddress?.trim();
-  const isLoopbackOrTest =
+  const isTrustedHop =
     !socketIp ||
     TRUSTED_LOOPBACK_IPS.has(socketIp) ||
+    isDockerBridgeOrPrivateIp(socketIp) ||
     process.env.TRUST_PROXY === "true";
 
-  if (isLoopbackOrTest) {
+  if (isTrustedHop) {
     const realIpHeader = request.headers?.["x-real-ip"];
     const realIp = Array.isArray(realIpHeader) ? realIpHeader[0] : realIpHeader;
     if (typeof realIp === "string" && realIp.trim().length > 0) {

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, FormEvent } from "react";
 import { Layout } from "../components/Layout";
+import { toast } from "../hooks/use-toast";
 import {
   KeyRound,
   Cpu,
@@ -454,7 +455,9 @@ export default function SettingsPage() {
   const handleCreateAppliance = async (e: FormEvent) => {
     e.preventDefault();
     if (!newApplianceName.trim() || newApplianceWatts <= 0) {
-      setApplianceActionFeedback("Informe um nome e potência em Watts válidos.");
+      const message = "Informe um nome e potência em Watts válidos.";
+      setApplianceActionFeedback(message);
+      toast({ title: "Dados inválidos", description: message, variant: "destructive" });
       return;
     }
     setIsCreatingAppliance(true);
@@ -475,13 +478,19 @@ export default function SettingsPage() {
       if (json.success) {
         setNewApplianceName("");
         setNewApplianceWatts(100);
-        setApplianceActionFeedback("Aparelho cadastrado com sucesso!");
+        const message = "Aparelho cadastrado com sucesso!";
+        setApplianceActionFeedback(message);
+        toast({ title: "Aparelho cadastrado", description: message, variant: "success" });
         await loadAppliances();
       } else {
-        setApplianceActionFeedback(json.message || "Erro ao cadastrar aparelho.");
+        const message = json.message || "Erro ao cadastrar aparelho.";
+        setApplianceActionFeedback(message);
+        toast({ title: "Erro ao cadastrar", description: message, variant: "destructive" });
       }
     } catch {
-      setApplianceActionFeedback("Falha na comunicação com o servidor.");
+      const message = "Falha na comunicação com o servidor.";
+      setApplianceActionFeedback(message);
+      toast({ title: "Erro de comunicação", description: message, variant: "destructive" });
     } finally {
       setIsCreatingAppliance(false);
     }
@@ -497,12 +506,18 @@ export default function SettingsPage() {
       const json = await response.json();
       if (json.success) {
         setAppliancesList((prev) => prev.filter((a) => a.id !== id));
-        setApplianceActionFeedback("Aparelho excluído com sucesso.");
+        const message = "Aparelho excluído com sucesso.";
+        setApplianceActionFeedback(message);
+        toast({ title: "Aparelho excluído", description: message, variant: "success" });
       } else {
-        setApplianceActionFeedback(json.message || "Erro ao excluir aparelho.");
+        const message = json.message || "Erro ao excluir aparelho.";
+        setApplianceActionFeedback(message);
+        toast({ title: "Erro ao excluir", description: message, variant: "destructive" });
       }
     } catch {
-      setApplianceActionFeedback("Falha ao comunicar com o servidor.");
+      const message = "Falha ao comunicar com o servidor.";
+      setApplianceActionFeedback(message);
+      toast({ title: "Erro de comunicação", description: message, variant: "destructive" });
     } finally {
       setDeletingApplianceId(null);
     }
@@ -581,13 +596,19 @@ export default function SettingsPage() {
 
       const json = await response.json();
       if (json.success) {
-        setFeedback({ type: "success", message: "Credenciais e configurações salvas com sucesso!" });
+        const message = "Credenciais e configurações salvas com sucesso!";
+        setFeedback({ type: "success", message });
+        toast({ title: "Configurações salvas", description: message, variant: "success" });
         await loadSettings();
       } else {
-        setFeedback({ type: "error", message: json.message || "Erro ao salvar credenciais." });
+        const message = json.message || "Erro ao salvar credenciais.";
+        setFeedback({ type: "error", message });
+        toast({ title: "Erro ao salvar", description: message, variant: "destructive" });
       }
     } catch {
-      setFeedback({ type: "error", message: "Falha na comunicação com o servidor." });
+      const message = "Falha na comunicação com o servidor.";
+      setFeedback({ type: "error", message });
+      toast({ title: "Erro de comunicação", description: message, variant: "destructive" });
     } finally {
       setIsSaving(false);
     }
@@ -620,19 +641,28 @@ export default function SettingsPage() {
           solarWatts: json.data.solarWatts,
           isAcOutputEnabled: json.data.isAcOutputEnabled,
         });
+        toast({
+          title: json.data.isSuccess ? "Teste EcoFlow concluído" : "Falha no teste EcoFlow",
+          description: json.data.summaryMessage,
+          variant: json.data.isSuccess ? "success" : "destructive",
+        });
       } else {
+        const summary = json.message || "Falha na execução do teste.";
         setTestFeedback({
           isSuccess: false,
-          summary: json.message || "Falha na execução do teste.",
+          summary,
           ecoflowMessage: "Verifique suas credenciais e conexão de rede.",
         });
+        toast({ title: "Falha no teste EcoFlow", description: summary, variant: "destructive" });
       }
     } catch {
+      const summary = "Erro ao comunicar com a rota de testes.";
       setTestFeedback({
         isSuccess: false,
-        summary: "Erro ao comunicar com a rota de testes.",
+        summary,
         ecoflowMessage: "Falha de rede local.",
       });
+      toast({ title: "Erro de rede", description: summary, variant: "destructive" });
     } finally {
       setIsTestingEcoFlow(false);
     }
@@ -654,15 +684,23 @@ export default function SettingsPage() {
       });
 
       const json = await response.json();
+      const message = json.message || "Resposta do teste Telegram recebida.";
       setTelegramFeedback({
         isSuccess: json.success,
-        message: json.message || "Resposta do teste Telegram recebida.",
+        message,
+      });
+      toast({
+        title: json.success ? "Teste Telegram enviado" : "Falha no teste Telegram",
+        description: message,
+        variant: json.success ? "success" : "destructive",
       });
     } catch {
+      const message = "Erro de rede ao disparar teste para o Telegram.";
       setTelegramFeedback({
         isSuccess: false,
-        message: "Erro de rede ao disparar teste para o Telegram.",
+        message,
       });
+      toast({ title: "Erro de rede", description: message, variant: "destructive" });
     } finally {
       setIsTestingTelegram(false);
     }
@@ -684,15 +722,23 @@ export default function SettingsPage() {
       });
 
       const json = await response.json();
+      const message = json.message || "Resposta do teste WhatsApp recebida.";
       setWhatsappFeedback({
         isSuccess: json.success,
-        message: json.message || "Resposta do teste WhatsApp recebida.",
+        message,
+      });
+      toast({
+        title: json.success ? "Teste WhatsApp enviado" : "Falha no teste WhatsApp",
+        description: message,
+        variant: json.success ? "success" : "destructive",
       });
     } catch {
+      const message = "Erro de rede ao disparar teste para o WhatsApp.";
       setWhatsappFeedback({
         isSuccess: false,
-        message: "Erro de rede ao disparar teste para o WhatsApp.",
+        message,
       });
+      toast({ title: "Erro de rede", description: message, variant: "destructive" });
     } finally {
       setIsTestingWhatsApp(false);
     }
@@ -727,10 +773,12 @@ export default function SettingsPage() {
       setDiscoveredDevices(devices);
 
       if (devices.length === 0) {
+        const text = "Nenhum dispositivo encontrado vinculado a esta conta EcoFlow.";
         setDiscoveryMessage({
           isSuccess: false,
-          text: "Nenhum dispositivo encontrado vinculado a esta conta EcoFlow.",
+          text,
         });
+        toast({ title: "Nenhum dispositivo", description: text, variant: "destructive" });
         setActiveDetectedBadge(null);
       } else if (devices.length === 1) {
         const singleDevice = devices[0];
@@ -739,15 +787,19 @@ export default function SettingsPage() {
           productName: singleDevice.productName,
           online: singleDevice.online,
         });
+        const text = `Estação detectada e pareada: ${singleDevice.productName} (${singleDevice.sn}).`;
         setDiscoveryMessage({
           isSuccess: true,
-          text: `Estação detectada e pareada: ${singleDevice.productName} (${singleDevice.sn}).`,
+          text,
         });
+        toast({ title: "Estação pareada", description: text, variant: "success" });
       } else {
+        const text = `${devices.length} dispositivos encontrados. Selecione qual deseja parear abaixo.`;
         setDiscoveryMessage({
           isSuccess: true,
-          text: `${devices.length} dispositivos encontrados. Selecione qual deseja parear abaixo.`,
+          text,
         });
+        toast({ title: "Dispositivos encontrados", description: text, variant: "success" });
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Erro ao buscar dispositivos.";
@@ -755,6 +807,7 @@ export default function SettingsPage() {
         isSuccess: false,
         text: msg,
       });
+      toast({ title: "Erro na descoberta", description: msg, variant: "destructive" });
     } finally {
       setIsDiscoveringDevices(false);
     }

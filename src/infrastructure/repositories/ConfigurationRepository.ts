@@ -15,6 +15,7 @@ import { decryptAndMigrateConfigurationSecrets } from "../security/secretMigrati
 
 export interface RetrievedConfigurationRecord {
   databaseRecordId: string;
+  userId?: string;
   ecoflowEndpointRegion: string;
   isAutomationActive: boolean;
   notificationConfig: NotificationConfig;
@@ -119,24 +120,6 @@ export class ConfigurationRepository {
 
   constructor(databaseClient: PrismaClient) {
     this.databaseClient = databaseClient;
-  }
-
-  public async findActiveConfiguration(): Promise<RetrievedConfigurationRecord | null> {
-    getEncryptionKey();
-
-    const rawRecord = await this.databaseClient.userConfiguration.findFirst({
-      where: {
-        isAutomationActive: true,
-        ecoflowAccessKey: { not: "" },
-        ecoflowSerialNumber: { not: "" },
-      },
-    });
-
-    if (!rawRecord) {
-      return null;
-    }
-
-    return this.mapRecordToConfiguration(rawRecord);
   }
 
   public async findActiveConfigurationByUserId(userId: string): Promise<RetrievedConfigurationRecord | null> {
@@ -362,6 +345,7 @@ export class ConfigurationRepository {
 
     return {
       databaseRecordId: rawRecord.id,
+      userId: rawRecord.userId,
       ecoflowEndpointRegion: rawRecord.ecoflowEndpointRegion,
       isAutomationActive: rawRecord.isAutomationActive,
       notificationConfig: {

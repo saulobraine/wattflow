@@ -275,6 +275,9 @@ describe("AggregationEngine (Motor de Downsampling & Exportação Multitemporal)
       expect(AggregationEngine.sanitizeCsvValue("@SUM(A1:B10)")).toBe("'@SUM(A1:B10)");
       expect(AggregationEngine.sanitizeCsvValue("@SUM(1,2)")).toBe("\"'@SUM(1,2)\"");
       expect(AggregationEngine.sanitizeCsvValue("\tTabInjection")).toBe("'\tTabInjection");
+      expect(AggregationEngine.sanitizeCsvValue("   =SUM(A1)")).toBe("'   =SUM(A1)");
+      expect(AggregationEngine.sanitizeCsvValue("|cmd.exe")).toBe("'|cmd.exe");
+      expect(AggregationEngine.sanitizeCsvValue("%TOTAL%")).toBe("'%TOTAL%");
     });
 
     it("preserva números puros e textos seguros sem prefixar apóstrofo desnecessário", () => {

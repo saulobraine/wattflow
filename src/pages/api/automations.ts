@@ -25,7 +25,7 @@ export default async function handleAutomations(
   request: NextApiRequest,
   response: NextApiResponse<AutomationsResponseBody>
 ): Promise<void> {
-  response.setHeader("Cache-Control", "no-store");
+  response.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
 
   let sessionUser: Awaited<ReturnType<typeof extractUserFromRequest>> = null;
   try {
@@ -128,20 +128,29 @@ export default async function handleAutomations(
       return;
     }
 
-    await prisma.userConfiguration.upsert({
-      where: { userId: extractedUserId },
-      update: {
-        turnOnThreshold,
-        turnOffThreshold,
-        isAutomationActive,
-      },
-      create: {
-        userId: extractedUserId,
-        turnOnThreshold,
-        turnOffThreshold,
-        isAutomationActive,
-      },
-    });
+    try {
+      await prisma.userConfiguration.upsert({
+        where: { userId: extractedUserId },
+        update: {
+          turnOnThreshold,
+          turnOffThreshold,
+          isAutomationActive,
+        },
+        create: {
+          userId: extractedUserId,
+          turnOnThreshold,
+          turnOffThreshold,
+          isAutomationActive,
+        },
+      });
+    } catch (dbError: unknown) {
+      console.error("[API /automations] Erro ao persistir configuração no banco:", dbError);
+      response.status(500).json({
+        success: false,
+        message: "Erro interno ao salvar configurações de automação no banco de dados.",
+      });
+      return;
+    }
 
     response.status(200).json({
       success: true,

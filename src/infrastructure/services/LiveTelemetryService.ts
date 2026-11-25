@@ -109,6 +109,8 @@ export class LiveTelemetryService {
         batteryTempCelsius: memoryTelemetry.batteryTempCelsius,
         batterySoh: memoryTelemetry.batterySoh,
         batteryCycles: memoryTelemetry.batteryCycles,
+        deviceMaxChargeSoc: memoryTelemetry.deviceMaxChargeSoc,
+        deviceMinDsgSoc: memoryTelemetry.deviceMinDsgSoc,
       });
 
       const safePromise = executionPromise.catch((error) => {

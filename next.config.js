@@ -26,13 +26,17 @@ const securityHeaders = [
   },
   {
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=()",
+    value: "camera=(), microphone=(), geolocation=(self)",
   },
   { key: "Content-Security-Policy", value: ContentSecurityPolicy },
 ];
 
 const nextConfig = {
   reactStrictMode: true,
+  poweredByHeader: false,
+  images: {
+    unoptimized: true,
+  },
   output: "standalone",
   experimental: {
     viewTransition: true,

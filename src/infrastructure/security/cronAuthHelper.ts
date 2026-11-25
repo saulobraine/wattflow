@@ -37,7 +37,7 @@ export function extractCronTokenFromHeaders(request: NextApiRequest): string | n
 
 export function verifyCronRequestAuthorization(
   request: NextApiRequest,
-  configuredSecret: string | undefined
+  configuredSecret: string | undefined = process.env.CRON_SECRET || process.env.CRON_SECRET_TOKEN
 ): { hasValidSecretConfigured: boolean; isAuthorized: boolean } {
   const hasValidSecretConfigured = Boolean(
     typeof configuredSecret === "string" &&
