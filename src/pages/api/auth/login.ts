@@ -1,4 +1,12 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: "64kb",
+    },
+  },
+};
 import { prisma } from "../../../infrastructure/database/prismaClient";
 import { UserEmail } from "../../../domain/values/UserEmail";
 import { HashedPassword } from "../../../domain/values/HashedPassword";

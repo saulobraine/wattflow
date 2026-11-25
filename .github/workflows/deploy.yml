@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Executar Deploy Remoto na VPS
-        uses: appleboy/ssh-action@v1.2.0
+        uses: appleboy/ssh-action@7eaf766715f9fa35d9f96717cac38575007909cf # v1.2.0
         env:
           VPS_TARGET_DIR: ${{ secrets.VPS_TARGET_DIR }}
         with:
@@ -57,17 +57,18 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
-            # 3. Garantir existência do arquivo .env
+            # 3. Garantir existência e permissões estritas do arquivo .env
             if [ ! -f .env ]; then
               echo "❌ Arquivo .env não encontrado em $TARGET_DIR. Configure o .env antes do deploy."
               exit 1
             fi
+            chmod 600 .env
 
-            # 4. Reconstruir e subir os contêineres isolados (aguardando healthchecks)
-            echo "🔨 Compilando e iniciando contêineres Docker..."
+            # 4. Reconstruir e subir os contêineres de forma graciosa (sem matar o banco de dados postgres)
+            echo "🔨 Compilando e atualizando contêineres Docker..."
             docker compose config -q
-            docker rm -f wattflow_postgres wattflow_app wattflow_cron 2>/dev/null || true
-            docker compose up -d --build --remove-orphans --wait
+            docker compose build app
+            docker compose up -d --remove-orphans --wait
 
             # 5. Limpar imagens antigas para poupar espaço em disco da VPS
             echo "🧹 Limpando imagens Docker órfãs..."

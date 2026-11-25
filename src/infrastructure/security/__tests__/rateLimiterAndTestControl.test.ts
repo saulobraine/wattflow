@@ -133,6 +133,18 @@ describe("rateLimiter & /api/test-control cooldown (SEC-05)", () => {
       } as unknown as NextApiRequest;
       expect(extractClientIp(loopbackReq)).toBe("198.51.100.22");
 
+      const dockerBridgeReq172 = {
+        socket: { remoteAddress: "172.18.0.2" },
+        headers: { "x-forwarded-for": "198.51.100.33, 172.18.0.2" },
+      } as unknown as NextApiRequest;
+      expect(extractClientIp(dockerBridgeReq172)).toBe("198.51.100.33");
+
+      const dockerBridgeReq10 = {
+        socket: { remoteAddress: "10.0.1.5" },
+        headers: { "x-real-ip": "198.51.100.44" },
+      } as unknown as NextApiRequest;
+      expect(extractClientIp(dockerBridgeReq10)).toBe("198.51.100.44");
+
       process.env.TRUST_PROXY = "true";
       expect(extractClientIp(untrustedReq)).toBe("5.6.7.8");
     });

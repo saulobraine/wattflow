@@ -1,4 +1,12 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: "64kb",
+    },
+  },
+};
 import QRCode from "qrcode";
 import { prisma } from "../../../infrastructure/database/prismaClient";
 import { DEFAULT_SESSION_VALIDITY_DAYS } from "../../../domain/services/AuthenticationTokenService";

@@ -116,19 +116,19 @@ export class OrchestratorSyncUseCase {
     const results: SyncExecutionResult[] = [];
 
     for (const record of activeRecords) {
-      const syncResult = await this.executeSyncForRecord(record);
+      const targetUserId = record.userId || record.databaseRecordId;
+      const syncResult = await this.executeSyncForUser(targetUserId);
       results.push(syncResult);
     }
 
     return results;
   }
 
-  public async executeSync(providedTelemetry?: ProvidedTelemetry): Promise<SyncExecutionResult> {
-    const configurationRecord = await this.repository.findActiveConfiguration();
-    if (!configurationRecord) {
-      return this.buildEmptyConfigurationResult();
+  public async executeSync(userId?: string, providedTelemetry?: ProvidedTelemetry): Promise<SyncExecutionResult> {
+    if (userId) {
+      return this.executeSyncForUser(userId, providedTelemetry);
     }
-    return this.executeSyncForRecord(configurationRecord, providedTelemetry);
+    return this.buildEmptyConfigurationResult();
   }
 
   private async executeSyncForRecord(
