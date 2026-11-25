@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Executar Deploy Remoto na VPS
-        uses: appleboy/ssh-action@7eaf766715f9fa35d9f96717cac38575007909cf # v1.2.0
+        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17 # v1.2.0
         env:
           VPS_TARGET_DIR: ${{ secrets.VPS_TARGET_DIR }}
         with:
