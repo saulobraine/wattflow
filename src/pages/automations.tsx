@@ -1,4 +1,4 @@
-import React, { useEffect, useState, FormEvent } from "react";
+import React, { useEffect, useRef, useState, FormEvent } from "react";
 import { Layout } from "../components/Layout";
 import { useLiveTelemetry } from "../hooks/useLiveTelemetry";
 import { formatCurrency } from "../utils/currencyFormatter";
@@ -97,97 +97,134 @@ export default function AutomationsPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSavingAts, setIsSavingAts] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [atsFeedback, setAtsFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  const hasUserEditedAtsRef = useRef(false);
+  const bottomFeedbackRef = useRef<HTMLDivElement | null>(null);
+
+  const showFormFeedback = (next: { type: "success" | "error"; message: string }) => {
+    setAtsFeedback(null);
+    setFeedback(next);
+    if (next.type === "error" && typeof window !== "undefined") {
+      window.requestAnimationFrame(() => {
+        bottomFeedbackRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    }
+  };
 
   useEffect(() => {
-    async function loadAutomations() {
+    let isMounted = true;
+
+    async function loadConfigurations() {
       try {
-        const [autoRes, settingsRes, weatherRes] = await Promise.all([
-          fetch("/api/automations"),
-          fetch("/api/settings"),
-          fetch("/api/weather/forecast").catch(() => null),
+        const [autoRes, settingsRes] = await Promise.all([
+          fetch("/api/automations", { cache: "no-store" }),
+          fetch("/api/settings", { cache: "no-store" }),
         ]);
 
-        const autoJson = await autoRes.json();
-        if (autoJson.success && autoJson.data) {
-          setTurnOnThreshold(autoJson.data.turnOnThreshold ?? 90);
-          setTurnOffThreshold(autoJson.data.turnOffThreshold ?? 30);
-          setIsAutomationActive(autoJson.data.isAutomationActive ?? true);
-          if (autoJson.data.deviceMaxChargeSoc !== undefined && autoJson.data.deviceMaxChargeSoc !== null) {
-            setDeviceMaxChargeSoc(autoJson.data.deviceMaxChargeSoc);
-          }
-          if (autoJson.data.deviceMinDsgSoc !== undefined && autoJson.data.deviceMinDsgSoc !== null) {
-            setDeviceMinDsgSoc(autoJson.data.deviceMinDsgSoc);
-          }
-        }
-
-        if (weatherRes && weatherRes.ok) {
-          const weatherJson = await weatherRes.json();
-          if (weatherJson.success && weatherJson.data) {
-            setSolarProjection({
-              estimatedDailyGenerationKwh: weatherJson.data.estimatedDailyGenerationKwh ?? null,
-              peakSunHours: weatherJson.data.peakSunHours ?? null,
-              irradianceKwhM2: weatherJson.data.irradianceKwhM2 ?? null,
-              irradianceMj: weatherJson.data.solarForecast?.irradianceMj ?? null,
-              expectationLevel: weatherJson.data.solarForecast?.expectationLevel ?? null,
-            });
+        if (autoRes.ok) {
+          const autoJson = await autoRes.json().catch(() => null);
+          if (isMounted && autoJson?.success && autoJson.data) {
+            if (!hasUserEditedAtsRef.current) {
+              setTurnOnThreshold(autoJson.data.turnOnThreshold ?? 90);
+              setTurnOffThreshold(autoJson.data.turnOffThreshold ?? 30);
+              setIsAutomationActive(autoJson.data.isAutomationActive ?? true);
+            }
+            if (autoJson.data.deviceMaxChargeSoc !== undefined && autoJson.data.deviceMaxChargeSoc !== null) {
+              setDeviceMaxChargeSoc(autoJson.data.deviceMaxChargeSoc);
+            }
+            if (autoJson.data.deviceMinDsgSoc !== undefined && autoJson.data.deviceMinDsgSoc !== null) {
+              setDeviceMinDsgSoc(autoJson.data.deviceMinDsgSoc);
+            }
           }
         }
 
-        const settingsJson = await settingsRes.json();
-        if (settingsJson.success && settingsJson.data) {
-          const s = settingsJson.data;
-          setEcoflowAccessKey(s.ecoflowAccessKey || "");
-          setEcoflowSerialNumber(s.ecoflowSerialNumber || "");
-          setIsAutoStormActive(s.isAutoStormActive ?? false);
-          setAutoStormReserveThreshold(s.autoStormReserveThreshold ?? 85);
-          setAutoStormRainThresholdMm(s.autoStormRainThresholdMm ?? 20.0);
-          setAutoStormPrechargeAc(s.autoStormPrechargeAc ?? true);
-          setIsStormAlertActive(s.isStormAlertActive ?? false);
-          setLastStormAlertCode(s.lastStormAlertCode ?? null);
-          setLastStormAlertDescription(s.lastStormAlertDescription ?? null);
-          setLastStormAlertTriggeredAt(s.lastStormAlertTriggeredAt ?? null);
-          setLastStormAlertEndedAt(s.lastStormAlertEndedAt ?? null);
+        if (settingsRes.ok) {
+          const settingsJson = await settingsRes.json().catch(() => null);
+          if (isMounted && settingsJson?.success && settingsJson.data) {
+            const s = settingsJson.data;
+            setEcoflowAccessKey(s.ecoflowAccessKey || "");
+            setEcoflowSerialNumber(s.ecoflowSerialNumber || "");
+            setIsAutoStormActive(s.isAutoStormActive ?? false);
+            setAutoStormReserveThreshold(s.autoStormReserveThreshold ?? 85);
+            setAutoStormRainThresholdMm(s.autoStormRainThresholdMm ?? 20.0);
+            setAutoStormPrechargeAc(s.autoStormPrechargeAc ?? true);
+            setIsStormAlertActive(s.isStormAlertActive ?? false);
+            setLastStormAlertCode(s.lastStormAlertCode ?? null);
+            setLastStormAlertDescription(s.lastStormAlertDescription ?? null);
+            setLastStormAlertTriggeredAt(s.lastStormAlertTriggeredAt ?? null);
+            setLastStormAlertEndedAt(s.lastStormAlertEndedAt ?? null);
 
-          // Time-of-Use / Tarifa Branca
-          setIsTimeOfUseActive(s.isTimeOfUseActive ?? s.isDynamicTariffActive ?? false);
-          setTimeOfUseWeekdaysOnly(s.timeOfUseWeekdaysOnly ?? true);
-          setPeakStartTime(s.peakStartTime || "17:30");
-          setPeakEndTime(s.peakEndTime || "20:30");
-          setIntermediateStartTime(s.intermediateStartTime || "16:30");
-          setIntermediateEndTime(s.intermediateEndTime || "21:30");
-          setPeakDischargeReserveLimit(s.peakDischargeReserveLimit ?? s.peakReserveThreshold ?? 20);
-          setBlockAcChargingDuringPeak(s.blockAcChargingDuringPeak ?? true);
-          setPeakTariffPerKwh(s.peakTariffPerKwh ?? 1.85);
-          setIntermediateTariffPerKwh(s.intermediateTariffPerKwh ?? 1.15);
-          setOffPeakTariffPerKwh(s.offPeakTariffPerKwh ?? 0.65);
-          setCurrencySymbol(s.currencySymbol ?? "R$");
+            // Time-of-Use / Tarifa Branca
+            setIsTimeOfUseActive(s.isTimeOfUseActive ?? s.isDynamicTariffActive ?? false);
+            setTimeOfUseWeekdaysOnly(s.timeOfUseWeekdaysOnly ?? true);
+            setPeakStartTime(s.peakStartTime || "17:30");
+            setPeakEndTime(s.peakEndTime || "20:30");
+            setIntermediateStartTime(s.intermediateStartTime || "16:30");
+            setIntermediateEndTime(s.intermediateEndTime || "21:30");
+            setPeakDischargeReserveLimit(s.peakDischargeReserveLimit ?? s.peakReserveThreshold ?? 20);
+            setBlockAcChargingDuringPeak(s.blockAcChargingDuringPeak ?? true);
+            setPeakTariffPerKwh(s.peakTariffPerKwh ?? 1.85);
+            setIntermediateTariffPerKwh(s.intermediateTariffPerKwh ?? 1.15);
+            setOffPeakTariffPerKwh(s.offPeakTariffPerKwh ?? 0.65);
+            setCurrencySymbol(s.currencySymbol ?? "R$");
 
-          // Proteção Térmica do BMS
-          setIsThermalProtectionActive(s.isThermalProtectionActive ?? true);
-          setThermalThrottleTempThreshold(s.thermalThrottleTempThreshold ?? 42);
-          setThermalCutoffTempThreshold(s.thermalCutoffTempThreshold ?? 48);
-          setThermalThrottleSpeedWatts(s.thermalThrottleSpeedWatts ?? 200);
-          setIsThermalThrottleActive(s.isThermalThrottleActive ?? false);
-          setIsThermalCutoffActive(s.isThermalCutoffActive ?? false);
-          setLastThermalActionMessage(s.lastThermalActionMessage ?? null);
-          setLastThermalEventAt(s.lastThermalEventAt ?? null);
+            // Proteção Térmica do BMS
+            setIsThermalProtectionActive(s.isThermalProtectionActive ?? true);
+            setThermalThrottleTempThreshold(s.thermalThrottleTempThreshold ?? 42);
+            setThermalCutoffTempThreshold(s.thermalCutoffTempThreshold ?? 48);
+            setThermalThrottleSpeedWatts(s.thermalThrottleSpeedWatts ?? 200);
+            setIsThermalThrottleActive(s.isThermalThrottleActive ?? false);
+            setIsThermalCutoffActive(s.isThermalCutoffActive ?? false);
+            setLastThermalActionMessage(s.lastThermalActionMessage ?? null);
+            setLastThermalEventAt(s.lastThermalEventAt ?? null);
 
-          // Otimização Climática de Níveis de Energia (Previsão Solar)
-          setIsAdaptiveHysteresisActive(s.isAdaptiveHysteresisActive ?? false);
-          setMinAdaptiveThreshold(s.minAdaptiveThreshold ?? 20);
-          setMaxAdaptiveThreshold(s.maxAdaptiveThreshold ?? 50);
+            // Otimização Climática de Níveis de Energia (Previsão Solar)
+            setIsAdaptiveHysteresisActive(s.isAdaptiveHysteresisActive ?? false);
+            setMinAdaptiveThreshold(s.minAdaptiveThreshold ?? 20);
+            setMaxAdaptiveThreshold(Math.max(30, s.maxAdaptiveThreshold ?? 50));
+          }
         }
       } catch (err) {
         console.error("Erro ao carregar automações:", err);
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     }
-    loadAutomations();
+
+    async function loadWeatherProjection() {
+      try {
+        const weatherRes = await fetch("/api/weather/forecast", { cache: "no-store" });
+        if (!weatherRes.ok) return;
+        const weatherJson = await weatherRes.json().catch(() => null);
+        if (isMounted && weatherJson?.success && weatherJson.data) {
+          setSolarProjection({
+            estimatedDailyGenerationKwh: weatherJson.data.estimatedDailyGenerationKwh ?? null,
+            peakSunHours: weatherJson.data.peakSunHours ?? null,
+            irradianceKwhM2: weatherJson.data.irradianceKwhM2 ?? null,
+            irradianceMj: weatherJson.data.solarForecast?.irradianceMj ?? null,
+            expectationLevel: weatherJson.data.solarForecast?.expectationLevel ?? null,
+          });
+        }
+      } catch {
+        // Projeção climática não deve bloquear o carregamento nem sobrescrever controles
+      }
+    }
+
+    loadConfigurations();
+    loadWeatherProjection();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleUpperThresholdChange = (newValue: number) => {
+    hasUserEditedAtsRef.current = true;
     const clampedUpper = Math.max(2, Math.min(100, newValue));
     if (clampedUpper <= turnOffThreshold) {
       setTurnOffThreshold(clampedUpper - 1);
@@ -196,6 +233,7 @@ export default function AutomationsPage() {
   };
 
   const handleLowerThresholdChange = (newValue: number) => {
+    hasUserEditedAtsRef.current = true;
     const clampedLower = Math.max(1, Math.min(99, newValue));
     if (clampedLower >= turnOnThreshold) {
       setTurnOnThreshold(clampedLower + 1);
@@ -206,123 +244,36 @@ export default function AutomationsPage() {
   const handleMinAdaptiveChange = (newValue: number) => {
     const clamped = Math.max(10, Math.min(50, newValue));
     if (clamped >= maxAdaptiveThreshold) {
-      setMaxAdaptiveThreshold(clamped + 5);
+      setMaxAdaptiveThreshold(Math.min(70, Math.max(30, clamped + 5)));
     }
     setMinAdaptiveThreshold(clamped);
   };
 
   const handleMaxAdaptiveChange = (newValue: number) => {
-    const clamped = Math.max(20, Math.min(70, newValue));
+    const clamped = Math.max(30, Math.min(70, newValue));
     if (clamped <= minAdaptiveThreshold) {
-      setMinAdaptiveThreshold(clamped - 5);
+      setMinAdaptiveThreshold(Math.max(10, clamped - 5));
     }
     setMaxAdaptiveThreshold(clamped);
   };
 
-  const handleSubmit = async (event: FormEvent) => {
-    event.preventDefault();
-    setIsSaving(true);
+  const handleSaveAtsLimits = async () => {
+    setAtsFeedback(null);
     setFeedback(null);
 
-    // Validação ATS
     if (turnOffThreshold >= turnOnThreshold) {
-      setFeedback({
+      setAtsFeedback({
         type: "error",
         message: "O limite mínimo de bateria deve ser pelo menos 1% menor que o limite máximo.",
       });
-      setIsSaving(false);
       return;
     }
 
-    // Validação Otimização Climática
-    if (isAdaptiveHysteresisActive && minAdaptiveThreshold >= maxAdaptiveThreshold) {
-      setFeedback({
-        type: "error",
-        message: "O limite adaptativo em dia ensolarado deve ser menor que o limite em dia nublado.",
-      });
-      setIsSaving(false);
-      return;
-    }
-
-    // Validação Auto-Storm
-    if (autoStormReserveThreshold < 50 || autoStormReserveThreshold > 100) {
-      setFeedback({
-        type: "error",
-        message: "O SOC de reserva emergencial do Auto-Storm deve estar entre 50% e 100%.",
-      });
-      setIsSaving(false);
-      return;
-    }
-
-    if (autoStormRainThresholdMm < 5 || autoStormRainThresholdMm > 150) {
-      setFeedback({
-        type: "error",
-        message: "O limiar de chuva do Auto-Storm deve estar entre 5mm e 150mm.",
-      });
-      setIsSaving(false);
-      return;
-    }
-
-    // Validação Tarifa Branca / Time-of-Use
-    if (peakDischargeReserveLimit < 10 || peakDischargeReserveLimit > 50) {
-      setFeedback({
-        type: "error",
-        message: "A reserva de segurança na ponta deve estar entre 10% e 50%.",
-      });
-      setIsSaving(false);
-      return;
-    }
-
-    if (peakTariffPerKwh <= 0 || intermediateTariffPerKwh <= 0 || offPeakTariffPerKwh <= 0) {
-      setFeedback({
-        type: "error",
-        message: `Os valores das tarifas em ${currencySymbol}/kWh devem ser maiores que zero.`,
-      });
-      setIsSaving(false);
-      return;
-    }
-
-    // Validação Proteção Térmica do BMS
-    if (thermalThrottleTempThreshold >= thermalCutoffTempThreshold) {
-      setFeedback({
-        type: "error",
-        message: "O limiar de início do Throttling deve ser menor que o limiar de Corte de Emergência.",
-      });
-      setIsSaving(false);
-      return;
-    }
-
-    if (thermalThrottleTempThreshold < 30 || thermalThrottleTempThreshold > 50) {
-      setFeedback({
-        type: "error",
-        message: "O limiar de throttling térmico deve estar entre 30°C e 50°C.",
-      });
-      setIsSaving(false);
-      return;
-    }
-
-    if (thermalCutoffTempThreshold < 40 || thermalCutoffTempThreshold > 60) {
-      setFeedback({
-        type: "error",
-        message: "O limiar de corte de emergência deve estar entre 40°C e 60°C.",
-      });
-      setIsSaving(false);
-      return;
-    }
-
-    if (thermalThrottleSpeedWatts < 100 || thermalThrottleSpeedWatts > 1000) {
-      setFeedback({
-        type: "error",
-        message: "A potência de recarga em throttling deve estar entre 100W e 1.000W.",
-      });
-      setIsSaving(false);
-      return;
-    }
-
+    setIsSavingAts(true);
     try {
-      // 1. Executa primeiro /api/automations de forma sequencial segura
       const autoRes = await fetch("/api/automations", {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           turnOnThreshold,
@@ -331,31 +282,276 @@ export default function AutomationsPage() {
         }),
       });
 
-      const autoJson = await autoRes.json();
+      const autoJson = await autoRes.json().catch(() => ({}));
       if (!autoRes.ok || !autoJson.success) {
-        setFeedback({
+        setAtsFeedback({
           type: "error",
-          message: autoJson.message || "Erro ao salvar regras de automação.",
+          message: autoJson.message || `Erro ao salvar limites ATS (HTTP ${autoRes.status}).`,
+        });
+        return;
+      }
+
+      setAtsFeedback({
+        type: "success",
+        message: autoJson.message || "Limites de carga, corte e disjuntor ATS salvos com sucesso!",
+      });
+    } catch (err) {
+      console.error("Erro ao salvar limites ATS:", err);
+      setAtsFeedback({
+        type: "error",
+        message: "Falha na comunicação com o servidor ao salvar os limites ATS.",
+      });
+    } finally {
+      setIsSavingAts(false);
+    }
+  };
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    setIsSaving(true);
+    setAtsFeedback(null);
+    setFeedback(null);
+
+    // Validação ATS
+    if (turnOffThreshold >= turnOnThreshold) {
+      showFormFeedback({
+        type: "error",
+        message: "O limite mínimo de bateria deve ser pelo menos 1% menor que o limite máximo.",
+      });
+      setIsSaving(false);
+      return;
+    }
+
+    // Validação Otimização Climática (apenas quando ativa)
+    if (isAdaptiveHysteresisActive) {
+      if (minAdaptiveThreshold < 10 || minAdaptiveThreshold > 50) {
+        showFormFeedback({
+          type: "error",
+          message: "O limite adaptativo em dia ensolarado deve estar entre 10% e 50%.",
         });
         setIsSaving(false);
         return;
       }
 
+      if (maxAdaptiveThreshold < 30 || maxAdaptiveThreshold > 80) {
+        showFormFeedback({
+          type: "error",
+          message: "O limite adaptativo em dia nublado deve estar entre 30% e 80%.",
+        });
+        setIsSaving(false);
+        return;
+      }
+
+      if (minAdaptiveThreshold >= maxAdaptiveThreshold) {
+        showFormFeedback({
+          type: "error",
+          message: "O limite adaptativo em dia ensolarado deve ser menor que o limite em dia nublado.",
+        });
+        setIsSaving(false);
+        return;
+      }
+    }
+
+    // Validação Auto-Storm (apenas quando ativo)
+    if (isAutoStormActive) {
+      if (autoStormReserveThreshold < 50 || autoStormReserveThreshold > 100) {
+        showFormFeedback({
+          type: "error",
+          message: "O SOC de reserva emergencial do Auto-Storm deve estar entre 50% e 100%.",
+        });
+        setIsSaving(false);
+        return;
+      }
+
+      if (autoStormRainThresholdMm < 5 || autoStormRainThresholdMm > 150) {
+        showFormFeedback({
+          type: "error",
+          message: "O limiar de chuva do Auto-Storm deve estar entre 5mm e 150mm.",
+        });
+        setIsSaving(false);
+        return;
+      }
+    }
+
+    // Validação Tarifa Branca / Time-of-Use (apenas quando ativa)
+    if (isTimeOfUseActive) {
+      if (peakDischargeReserveLimit < 10 || peakDischargeReserveLimit > 50) {
+        showFormFeedback({
+          type: "error",
+          message: "A reserva de segurança na ponta deve estar entre 10% e 50%.",
+        });
+        setIsSaving(false);
+        return;
+      }
+
+      if (
+        !Number.isFinite(peakTariffPerKwh) ||
+        !Number.isFinite(intermediateTariffPerKwh) ||
+        !Number.isFinite(offPeakTariffPerKwh) ||
+        peakTariffPerKwh <= 0 ||
+        intermediateTariffPerKwh <= 0 ||
+        offPeakTariffPerKwh <= 0
+      ) {
+        showFormFeedback({
+          type: "error",
+          message: `Os valores das tarifas em ${currencySymbol}/kWh devem ser maiores que zero.`,
+        });
+        setIsSaving(false);
+        return;
+      }
+
+      if (
+        peakTariffPerKwh > 50 ||
+        intermediateTariffPerKwh > 50 ||
+        offPeakTariffPerKwh > 50
+      ) {
+        showFormFeedback({
+          type: "error",
+          message: `Os valores das tarifas em ${currencySymbol}/kWh não podem ultrapassar 50.`,
+        });
+        setIsSaving(false);
+        return;
+      }
+    }
+
+    // Validação Proteção Térmica do BMS (apenas quando ativa)
+    if (isThermalProtectionActive) {
+      if (thermalThrottleTempThreshold >= thermalCutoffTempThreshold) {
+        showFormFeedback({
+          type: "error",
+          message: "O limiar de início do Throttling deve ser menor que o limiar de Corte de Emergência.",
+        });
+        setIsSaving(false);
+        return;
+      }
+
+      if (thermalThrottleTempThreshold < 30 || thermalThrottleTempThreshold > 50) {
+        showFormFeedback({
+          type: "error",
+          message: "O limiar de throttling térmico deve estar entre 30°C e 50°C.",
+        });
+        setIsSaving(false);
+        return;
+      }
+
+      if (thermalCutoffTempThreshold < 40 || thermalCutoffTempThreshold > 60) {
+        showFormFeedback({
+          type: "error",
+          message: "O limiar de corte de emergência deve estar entre 40°C e 60°C.",
+        });
+        setIsSaving(false);
+        return;
+      }
+
+      if (thermalThrottleSpeedWatts < 100 || thermalThrottleSpeedWatts > 1000) {
+        showFormFeedback({
+          type: "error",
+          message: "A potência de recarga em throttling deve estar entre 100W e 1.000W.",
+        });
+        setIsSaving(false);
+        return;
+      }
+    }
+
+    try {
+      // 1. Executa primeiro /api/automations de forma sequencial segura
+      const autoRes = await fetch("/api/automations", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          turnOnThreshold,
+          turnOffThreshold,
+          isAutomationActive,
+        }),
+      });
+
+      const autoJson = await autoRes.json().catch(() => ({}));
+      if (!autoRes.ok || !autoJson.success) {
+        showFormFeedback({
+          type: "error",
+          message: autoJson.message || `Erro ao salvar regras de automação (HTTP ${autoRes.status}).`,
+        });
+        setIsSaving(false);
+        return;
+      }
+
+      const validPeakReserve =
+        peakDischargeReserveLimit >= 10 && peakDischargeReserveLimit <= 50
+          ? peakDischargeReserveLimit
+          : undefined;
+      const validPeakDischargeReserveLimit =
+        peakDischargeReserveLimit >= 10 && peakDischargeReserveLimit <= 50
+          ? peakDischargeReserveLimit
+          : undefined;
+      const validMinAdaptive =
+        isAdaptiveHysteresisActive || (minAdaptiveThreshold >= 10 && minAdaptiveThreshold <= 50)
+          ? minAdaptiveThreshold
+          : undefined;
+      const validMaxAdaptive =
+        isAdaptiveHysteresisActive || (maxAdaptiveThreshold >= 30 && maxAdaptiveThreshold <= 80)
+          ? maxAdaptiveThreshold
+          : undefined;
+      const validAutoStormReserve =
+        isAutoStormActive || (autoStormReserveThreshold >= 50 && autoStormReserveThreshold <= 100)
+          ? autoStormReserveThreshold
+          : undefined;
+      const validAutoStormRain =
+        isAutoStormActive || (autoStormRainThresholdMm >= 5 && autoStormRainThresholdMm <= 150)
+          ? autoStormRainThresholdMm
+          : undefined;
+      const validPeakTariff =
+        Number.isFinite(peakTariffPerKwh) && peakTariffPerKwh > 0 && peakTariffPerKwh <= 50
+          ? peakTariffPerKwh
+          : undefined;
+      const validIntermediateTariff =
+        Number.isFinite(intermediateTariffPerKwh) &&
+        intermediateTariffPerKwh > 0 &&
+        intermediateTariffPerKwh <= 50
+          ? intermediateTariffPerKwh
+          : undefined;
+      const validOffPeakTariff =
+        Number.isFinite(offPeakTariffPerKwh) && offPeakTariffPerKwh > 0 && offPeakTariffPerKwh <= 50
+          ? offPeakTariffPerKwh
+          : undefined;
+      const computedThermalRecovery = Math.max(30, thermalCutoffTempThreshold - 4);
+      const validThermalThrottleTemp =
+        isThermalProtectionActive ||
+        (thermalThrottleTempThreshold >= 30 && thermalThrottleTempThreshold <= 50)
+          ? thermalThrottleTempThreshold
+          : undefined;
+      const validThermalCutoffTemp =
+        isThermalProtectionActive ||
+        (thermalCutoffTempThreshold >= 40 && thermalCutoffTempThreshold <= 60)
+          ? thermalCutoffTempThreshold
+          : undefined;
+      const validThermalRecoveryTemp =
+        isThermalProtectionActive ||
+        (computedThermalRecovery >= 30 && computedThermalRecovery <= 50)
+          ? computedThermalRecovery
+          : undefined;
+      const validThermalSpeedWatts =
+        isThermalProtectionActive ||
+        (thermalThrottleSpeedWatts >= 100 && thermalThrottleSpeedWatts <= 1000)
+          ? thermalThrottleSpeedWatts
+          : undefined;
+
       // 2. Em seguida, executa /api/settings evitando split-brain / corridas no banco
       const settingsRes = await fetch("/api/settings", {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ecoflowAccessKey: ecoflowAccessKey || undefined,
           ecoflowSerialNumber: ecoflowSerialNumber || undefined,
           isAutoStormActive,
-          autoStormReserveThreshold,
-          autoStormRainThresholdMm,
+          autoStormReserveThreshold: validAutoStormReserve,
+          autoStormRainThresholdMm: validAutoStormRain,
           autoStormPrechargeAc,
           // Otimização Climática (Previsão Solar)
           isAdaptiveHysteresisActive,
-          minAdaptiveThreshold,
-          maxAdaptiveThreshold,
+          minAdaptiveThreshold: validMinAdaptive,
+          maxAdaptiveThreshold: validMaxAdaptive,
           // Time-of-Use
           isTimeOfUseActive,
           isDynamicTariffActive: isTimeOfUseActive,
@@ -364,37 +560,40 @@ export default function AutomationsPage() {
           peakEndTime,
           intermediateStartTime: intermediateStartTime || null,
           intermediateEndTime: intermediateEndTime || null,
-          peakDischargeReserveLimit,
-          peakReserveThreshold: peakDischargeReserveLimit,
+          peakDischargeReserveLimit: validPeakDischargeReserveLimit,
+          peakReserveThreshold: validPeakReserve,
           blockAcChargingDuringPeak,
-          peakTariffPerKwh,
-          intermediateTariffPerKwh,
-          offPeakTariffPerKwh,
+          peakTariffPerKwh: validPeakTariff,
+          intermediateTariffPerKwh: validIntermediateTariff,
+          offPeakTariffPerKwh: validOffPeakTariff,
           // Proteção Térmica do BMS
           isThermalProtectionActive,
-          thermalThrottleTempThreshold,
-          thermalCutoffTempThreshold,
-          thermalRecoveryTempThreshold: Math.max(30, thermalCutoffTempThreshold - 4),
-          thermalThrottleSpeedWatts,
+          thermalThrottleTempThreshold: validThermalThrottleTemp,
+          thermalCutoffTempThreshold: validThermalCutoffTemp,
+          thermalRecoveryTempThreshold: validThermalRecoveryTemp,
+          thermalThrottleSpeedWatts: validThermalSpeedWatts,
         }),
       });
 
-      const settingsJson = await settingsRes.json();
+      const settingsJson = await settingsRes.json().catch(() => ({}));
       if (!settingsRes.ok || !settingsJson.success) {
-        setFeedback({
+        showFormFeedback({
           type: "error",
-          message: settingsJson.message || "Erro ao salvar configurações complementares.",
+          message:
+            settingsJson.message ||
+            `Erro ao salvar configurações complementares (HTTP ${settingsRes.status}).`,
         });
         setIsSaving(false);
         return;
       }
 
-      setFeedback({
+      showFormFeedback({
         type: "success",
         message: "Regras de automação, Auto-Storm, Tarifa Branca e Proteção Térmica salvas com sucesso!",
       });
-    } catch {
-      setFeedback({ type: "error", message: "Falha na comunicação com o servidor." });
+    } catch (err) {
+      console.error("Erro ao salvar regras de automação:", err);
+      showFormFeedback({ type: "error", message: "Falha na comunicação com o servidor." });
     } finally {
       setIsSaving(false);
     }
@@ -440,7 +639,7 @@ export default function AutomationsPage() {
           </div>
         </section>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} noValidate className="space-y-6">
           {/* Card: Limites Operacionais Nativos da EcoFlow */}
           <div className="animate-card stagger-1 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
@@ -474,11 +673,21 @@ export default function AutomationsPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    if (deviceMaxChargeSoc !== null && deviceMaxChargeSoc > 0) {
-                      setTurnOnThreshold(deviceMaxChargeSoc);
-                    }
-                    if (deviceMinDsgSoc !== null && deviceMinDsgSoc > 0) {
-                      setTurnOffThreshold(deviceMinDsgSoc);
+                    hasUserEditedAtsRef.current = true;
+                    const nextUpper =
+                      deviceMaxChargeSoc !== null && deviceMaxChargeSoc > 0
+                        ? Math.max(2, Math.min(100, Math.round(deviceMaxChargeSoc)))
+                        : turnOnThreshold;
+                    const nextLower =
+                      deviceMinDsgSoc !== null && deviceMinDsgSoc > 0
+                        ? Math.max(1, Math.min(99, Math.round(deviceMinDsgSoc)))
+                        : turnOffThreshold;
+                    if (nextLower >= nextUpper) {
+                      setTurnOnThreshold(nextUpper);
+                      setTurnOffThreshold(Math.max(1, nextUpper - 1));
+                    } else {
+                      setTurnOnThreshold(nextUpper);
+                      setTurnOffThreshold(nextLower);
                     }
                   }}
                   disabled={deviceMaxChargeSoc === null && deviceMinDsgSoc === null}
@@ -559,7 +768,10 @@ export default function AutomationsPage() {
                   id="automation-active-checkbox"
                   type="checkbox"
                   checked={isAutomationActive}
-                  onChange={(e) => setIsAutomationActive(e.target.checked)}
+                  onChange={(e) => {
+                    hasUserEditedAtsRef.current = true;
+                    setIsAutomationActive(e.target.checked);
+                  }}
                   className="w-5 h-5 accent-emerald-500 rounded cursor-pointer transition-transform active:scale-90"
                 />
               </label>
@@ -647,6 +859,44 @@ export default function AutomationsPage() {
                   <div className="text-slate-200">• Chave ATS: <span className="text-emerald-400 font-bold">POSIÇÃO B (SOLAR/BAT)</span></div>
                 </div>
               </div>
+            </div>
+
+            {atsFeedback && (
+              <div
+                role="status"
+                aria-live="polite"
+                className={`p-3.5 rounded-xl border flex items-center gap-3 text-xs sm:text-sm transition-all duration-200 ${
+                  atsFeedback.type === "success"
+                    ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-300"
+                    : "bg-rose-500/10 border-rose-500/40 text-rose-300"
+                }`}
+              >
+                {atsFeedback.type === "success" ? (
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" aria-hidden="true" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" aria-hidden="true" />
+                )}
+                <span className="font-medium">{atsFeedback.message}</span>
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-slate-800/80">
+              <span className="text-[11px] text-slate-400">
+                Salva imediatamente Limite Superior, Limite Inferior e Disjuntor Geral sem depender dos demais cards.
+              </span>
+              <button
+                id="save-ats-limits-button"
+                type="button"
+                onClick={handleSaveAtsLimits}
+                disabled={isSavingAts || isSaving || isLoading}
+                className="w-full sm:w-auto py-2.5 px-5 min-h-[44px] rounded-xl font-semibold text-xs sm:text-sm bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all duration-150 shadow-md shadow-emerald-950/60 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed flex items-center justify-center shrink-0"
+              >
+                {isLoading
+                  ? "Carregando limites..."
+                  : isSavingAts
+                  ? "Salvando Limites ATS..."
+                  : "Salvar Limites ATS"}
+              </button>
             </div>
           </div>
 
@@ -792,7 +1042,7 @@ export default function AutomationsPage() {
                   <input
                     id="max-adaptive-slider"
                     type="range"
-                    min="20"
+                    min="30"
                     max="70"
                     value={maxAdaptiveThreshold}
                     aria-describedby="max-adaptive-desc"
@@ -1433,13 +1683,37 @@ export default function AutomationsPage() {
             </div>
           </div>
 
+          {feedback && (
+            <div
+              ref={bottomFeedbackRef}
+              role="status"
+              aria-live="assertive"
+              className={`p-4 rounded-xl border flex items-center gap-3 text-sm transition-all duration-200 shadow-md ${
+                feedback.type === "success"
+                  ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-300 shadow-emerald-950/30"
+                  : "bg-rose-500/10 border-rose-500/40 text-rose-300 shadow-rose-950/30"
+              }`}
+            >
+              {feedback.type === "success" ? (
+                <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-400" aria-hidden="true" />
+              ) : (
+                <AlertCircle className="w-5 h-5 shrink-0 text-rose-400" aria-hidden="true" />
+              )}
+              <span className="font-medium">{feedback.message}</span>
+            </div>
+          )}
+
           <div className="flex justify-end">
             <button
               type="submit"
-              disabled={isSaving || isLoading}
+              disabled={isSaving || isSavingAts || isLoading}
               className="w-full sm:w-auto py-3 px-6 min-h-[44px] rounded-xl font-semibold text-sm bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all duration-150 shadow-lg shadow-emerald-950 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed flex items-center justify-center"
             >
-              {isSaving ? "Salvando..." : "Salvar Regras de Automação"}
+              {isLoading
+                ? "Carregando configurações..."
+                : isSaving
+                ? "Salvando..."
+                : "Salvar Regras de Automação"}
             </button>
           </div>
         </form>

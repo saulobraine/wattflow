@@ -53,6 +53,8 @@ export default async function handleDashboardStatus(
     return;
   }
 
+  response.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+
   let sessionUser: Awaited<ReturnType<typeof extractUserFromRequest>> = null;
   try {
     sessionUser = await extractUserFromRequest(request);
