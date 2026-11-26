@@ -140,3 +140,74 @@ self.addEventListener('fetch', (event) => {
       })
   );
 });
+
+// ==========================================
+// 6. Notificações Web Push & Interação
+// ==========================================
+self.addEventListener('push', (event) => {
+  let notificationData = {
+    title: '⚡ WattFlow - Notificação',
+    body: 'Atualização de status do sistema e comutação ATS.',
+    icon: '/icons/icon-192.png',
+    badge: '/favicon.svg',
+    tag: 'wattflow-ats-switch',
+    data: {
+      url: '/',
+    },
+  };
+
+  if (event.data) {
+    try {
+      const parsedJson = event.data.json();
+      notificationData = {
+        ...notificationData,
+        ...parsedJson,
+        data: {
+          ...notificationData.data,
+          ...(parsedJson.data || {}),
+        },
+      };
+    } catch (_err) {
+      const textMessage = event.data.text();
+      if (textMessage) {
+        notificationData.body = textMessage;
+      }
+    }
+  }
+
+  const notificationTitle = notificationData.title || '⚡ WattFlow';
+  const notificationOptions = {
+    body: notificationData.body || notificationData.message,
+    icon: notificationData.icon || '/icons/icon-192.png',
+    badge: notificationData.badge || '/favicon.svg',
+    tag: notificationData.tag || 'wattflow-ats-switch',
+    renotify: true,
+    vibrate: [200, 100, 200],
+    data: notificationData.data || { url: '/' },
+    actions: [
+      { action: 'open_dashboard', title: 'Abrir Painel' },
+    ],
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(notificationTitle, notificationOptions)
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = (event.notification.data && event.notification.data.url) || '/';
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      for (const client of windowClients) {
+        if (client.url.includes(targetUrl) && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
+      }
+    })
+  );
+});

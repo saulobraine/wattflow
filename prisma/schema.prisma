@@ -23,6 +23,7 @@ model User {
   updatedAt               DateTime           @updatedAt
   userConfiguration       UserConfiguration?
   passkeys                UserPasskey[]
+  webPushSubscriptions    WebPushSubscription[]
 
   @@map("users")
 }
@@ -142,6 +143,7 @@ model UserConfiguration {
   whatsappPhoneNumber  String             @default("")
   whatsappApiKey       String             @default("")
   isNotificationActive Boolean            @default(true)
+  isWebPushActive      Boolean            @default(true)
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
   syncExecutionLogs    SyncExecutionLog[]
@@ -181,4 +183,18 @@ model SyncExecutionLog {
   @@index([userConfigurationId, executedAt])
   @@index([executedAt])
   @@map("sync_execution_logs")
+}
+
+model WebPushSubscription {
+  id         String   @id @default(uuid())
+  userId     String?
+  endpoint   String   @unique
+  p256dh     String
+  auth       String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("web_push_subscriptions")
 }

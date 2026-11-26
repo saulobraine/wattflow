@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { EventEmitter } from "events";
+import liveTelemetryFixture from "../../../../e2e/fixtures/live-telemetry.json";
 
 const { mockExtractUser } = vi.hoisted(() => ({
   mockExtractUser: vi.fn(),
@@ -136,14 +137,8 @@ describe("Endpoint SSE (GET /api/telemetry/stream)", () => {
     expect(streamService.getActiveListenersCount("user-sse-test")).toBe(1);
 
     const liveSnapshot: LiveTelemetrySnapshot = {
-      batteryPercentage: 95,
-      solarInputWatts: 1400,
-      outputWatts: 420,
-      isAcOutputEnabled: true,
+      ...liveTelemetryFixture,
       updatedAt: new Date(),
-      batteryTempCelsius: 32.0,
-      batterySoh: 100,
-      batteryCycles: 50,
     };
 
     streamService.broadcastTelemetry("user-sse-test", liveSnapshot);

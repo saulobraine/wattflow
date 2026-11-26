@@ -631,7 +631,7 @@ export default function AutomationsPage() {
 
   return (
     <Layout title="Gatilhos de Automação (EcoFlow + ATS)">
-      <div className="space-y-6">
+      <div className="space-y-4 md:space-y-6">
         {feedback && (
           <div
             role="alert"
@@ -669,9 +669,9 @@ export default function AutomationsPage() {
           </div>
         </section>
 
-        <form onSubmit={handleSubmit} noValidate className="space-y-6">
+        <form onSubmit={handleSubmit} noValidate className="space-y-4 md:space-y-6">
           {/* Card: Limites Operacionais Nativos da EcoFlow */}
-          <div className="animate-card stagger-1 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4">
+          <div className="animate-card stagger-1 interactive-card p-3 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
@@ -771,7 +771,7 @@ export default function AutomationsPage() {
           </div>
 
           {/* Card 1: Limites de Carga e Corte */}
-          <div className="animate-card stagger-2 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+          <div className="animate-card stagger-2 interactive-card p-3 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
@@ -931,7 +931,7 @@ export default function AutomationsPage() {
           </div>
 
           {/* Card: Otimização Climática de Níveis de Energia (Previsão Solar) */}
-          <div className="animate-card stagger-2 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+          <div className="animate-card stagger-2 interactive-card p-3 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20">
@@ -1085,7 +1085,7 @@ export default function AutomationsPage() {
           </div>
 
           {/* Card 2: Modo No-Break Preventivo & Defesa Meteorológica (Auto-Storm) */}
-          <div className="animate-card stagger-3 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+          <div className="animate-card stagger-3 interactive-card p-3 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20">
@@ -1247,7 +1247,7 @@ export default function AutomationsPage() {
           </div>
 
           {/* Card 3: Tarifação Horária & Arbitragem na Ponta (Tarifa Branca ANEEL) */}
-          <div className="animate-card stagger-4 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+          <div className="animate-card stagger-4 interactive-card p-3 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
@@ -1515,7 +1515,7 @@ export default function AutomationsPage() {
           </div>
 
           {/* Card 4: Proteção Térmica & Preservação do BMS (LiFePO4) */}
-          <div className="animate-card stagger-5 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+          <div className="animate-card stagger-5 interactive-card p-3 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 rounded-xl bg-rose-500/10 text-rose-400 shrink-0 border border-rose-500/20">

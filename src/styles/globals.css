@@ -343,3 +343,137 @@ body {
     break-inside: avoid !important;
   }
 }
+
+:root {
+  --app-nav-height: 3.5rem;
+}
+
+.app-shell {
+  --app-gutter: 1rem;
+  --app-bottom-inset: env(safe-area-inset-bottom, 0px);
+  min-height: 100dvh;
+}
+
+.app-gutter {
+  padding-left: max(var(--app-gutter), env(safe-area-inset-left, 0px));
+  padding-right: max(var(--app-gutter), env(safe-area-inset-right, 0px));
+}
+
+.app-shell .site-header {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.app-shell .mobile-navigation {
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+.app-footer {
+  padding-bottom: calc(1.25rem + var(--app-bottom-inset));
+}
+
+@media screen and (max-width: 767px), screen and (max-width: 1023px) and (pointer: coarse) {
+  html:has(.app-shell) {
+    scroll-padding-block-start: calc(3rem + env(safe-area-inset-top, 0px));
+    scroll-padding-block-end: calc(var(--app-nav-height) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .app-shell {
+    --app-gutter: 0.75rem;
+    --app-control-scroll-margin: 0.25rem;
+  }
+
+  .app-shell .app-header-row {
+    height: 3rem;
+  }
+
+  .app-shell .mobile-navigation {
+    display: block;
+  }
+
+  .app-shell .desktop-navigation {
+    display: none;
+  }
+
+  .app-footer {
+    padding-bottom: calc(1.25rem + var(--app-nav-height) + var(--app-bottom-inset));
+  }
+
+  .app-shell .page-content {
+    padding-bottom: 0.75rem;
+  }
+}
+
+@media screen and (max-width: 767px), screen and (pointer: coarse) {
+  .app-shell :is(button, select, textarea, input:not([type="hidden"], [type="checkbox"], [type="radio"], .sr-only),
+    a[class*="rounded"], .site-header a, .app-touch-target,
+    label[for$="-checkbox"], label:has(> input[type="checkbox"], > input[type="radio"])) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .app-shell .app-touch-target {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .app-shell .app-connection-status.cursor-pointer {
+    min-width: 44px;
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  .app-shell label:has(> input[type="checkbox"], > input[type="radio"]) {
+    align-content: center;
+  }
+
+  .app-shell :is(input, select, textarea) {
+    max-width: 100%;
+    scroll-margin-block: var(--app-control-scroll-margin, 4rem);
+  }
+
+  .app-shell [role="dialog"].fixed {
+    padding-top: max(0.75rem, env(safe-area-inset-top, 0px));
+    padding-right: max(0.75rem, env(safe-area-inset-right, 0px));
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+    padding-left: max(0.75rem, env(safe-area-inset-left, 0px));
+    overflow-y: auto;
+  }
+
+  .app-shell [role="dialog"].fixed > div:first-child {
+    max-height: 100%;
+    overflow-y: auto;
+  }
+
+  .history-chart-point {
+    position: static;
+  }
+
+  .history-chart-points .history-chart-tooltip {
+    inset: -0.75rem 0 auto;
+    width: fit-content;
+    max-width: 100%;
+    margin-inline: auto;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.25rem 0.5rem;
+    white-space: normal;
+    --tw-translate-x: 0px;
+  }
+}
+
+/* Barras no fluxo quando a altura disponível é pequena demais para fixá-las. */
+@media screen and (max-width: 767px) and (max-height: 160px),
+  screen and (max-width: 1023px) and (max-height: 160px) and (pointer: coarse) {
+  html:has(.app-shell) {
+    scroll-padding-block: 0;
+  }
+
+  .app-shell :is(.site-header, .mobile-navigation) {
+    position: static;
+  }
+
+  .app-shell .app-footer {
+    padding-bottom: 1.25rem;
+  }
+}

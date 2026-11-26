@@ -55,7 +55,7 @@ export class LiveTelemetryController {
   private readonly fallbackUrl: string;
   private readonly fallbackIntervalMs: number;
   private readonly enabled: boolean;
-  private readonly fetchFn: typeof fetch;
+  private readonly fetchFn?: typeof fetch;
   private readonly eventSourceClass: any;
   private readonly onTelemetryCallback?: (snapshot: LiveTelemetrySnapshot) => void;
   private readonly onConnectionChangeCallback?: (status: ConnectionStatus) => void;
@@ -77,7 +77,7 @@ export class LiveTelemetryController {
     this.fallbackUrl = options.fallbackUrl || "/api/dashboard-status";
     this.fallbackIntervalMs = options.fallbackPollingIntervalMs || 5000;
     this.enabled = options.enabled !== false;
-    this.fetchFn = options.fetchFn || (typeof fetch !== "undefined" ? fetch : (() => Promise.reject()) as any);
+    this.fetchFn = options.fetchFn ?? globalThis.fetch?.bind(globalThis);
     this.eventSourceClass = options.eventSourceClass || (typeof EventSource !== "undefined" ? EventSource : null);
     this.onTelemetryCallback = options.onTelemetry;
     this.onConnectionChangeCallback = options.onConnectionChange;

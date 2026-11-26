@@ -461,7 +461,7 @@ export default function ProfilePage() {
 
   return (
     <Layout title="Perfil e Segurança">
-      <div className="space-y-8">
+      <div className="min-w-0 space-y-4 md:space-y-8">
         {/* Cabeçalho de Boas-vindas da Conta */}
         <div className="animate-card stagger-1 interactive-card flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/80 p-4 sm:p-6 rounded-2xl border border-slate-800 shadow-xl backdrop-blur">
           <div className="flex items-center gap-3.5 sm:gap-4">
@@ -469,10 +469,10 @@ export default function ProfilePage() {
               {(fullName || user?.email || "U").charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0">
-              <h2 className="text-lg sm:text-xl font-bold text-slate-100 flex items-center gap-2 truncate">
+              <h2 className="text-lg sm:text-xl font-bold text-slate-100 break-words">
                 {fullName || "Usuário WattFlow"}
               </h2>
-              <p className="text-xs text-slate-400 font-mono mt-0.5 truncate">{email || user?.email}</p>
+              <p className="text-xs text-slate-400 font-mono mt-0.5 break-all">{email || user?.email}</p>
             </div>
           </div>
 
@@ -496,9 +496,9 @@ export default function ProfilePage() {
         </div>
 
         {/* Grade Responsiva em 2 Colunas */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-8 items-start">
           {/* Coluna 1: Dados Pessoais & Senha */}
-          <div className="space-y-8">
+          <div className="min-w-0 space-y-4 md:space-y-8">
             {/* 1. Card de Dados Pessoais e Troca de E-mail */}
             <section className="animate-card stagger-2 interactive-card bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-xl space-y-5">
               <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
@@ -642,7 +642,7 @@ export default function ProfilePage() {
                     <button
                       type="button"
                       onClick={() => setShowCurrentPassword((prev) => !prev)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-2 min-w-[40px] min-h-[40px] flex items-center justify-center cursor-pointer"
+                      className="absolute right-0 md:right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-2 min-w-[40px] min-h-[40px] flex items-center justify-center cursor-pointer"
                     >
                       {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -668,7 +668,7 @@ export default function ProfilePage() {
                     <button
                       type="button"
                       onClick={() => setShowNewPassword((prev) => !prev)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-2 min-w-[40px] min-h-[40px] flex items-center justify-center cursor-pointer"
+                      className="absolute right-0 md:right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-2 min-w-[40px] min-h-[40px] flex items-center justify-center cursor-pointer"
                     >
                       {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -709,7 +709,7 @@ export default function ProfilePage() {
           </div>
 
           {/* Coluna 2: Fatores de Autenticação (2FA & Passkeys) */}
-          <div className="space-y-8">
+          <div className="min-w-0 space-y-4 md:space-y-8">
             {/* 3. Card de Autenticação em Duas Etapas (2FA / TOTP) */}
             <section className="animate-card stagger-4 interactive-card bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-xl space-y-5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
