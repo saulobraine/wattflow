@@ -1,7 +1,7 @@
 import React, { ReactNode, useState, useEffect } from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
-import { Zap, Sliders, Settings, Activity, LogOut, User, BarChart3, Monitor } from "lucide-react";
+import { Zap, Sliders, Settings, Activity, LogOut, User, BarChart3, Monitor, Cpu } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { TransitionLink } from "./TransitionLink";
 import { Tooltip, TooltipTrigger, TooltipContent } from "./ui/tooltip";
@@ -90,15 +90,16 @@ export function Layout({ children, title }: LayoutProps) {
     { href: "/", label: "Painel", icon: Activity },
     { href: "/statistics", label: "Estatísticas", icon: BarChart3 },
     { href: "/automations", label: "Automações", icon: Sliders },
-    { href: "/settings", label: "Credenciais", icon: Settings },
+    { href: "/devices", label: "Dispositivos", icon: Cpu },
+    { href: "/settings", label: "Configurações", icon: Settings },
   ];
 
   const bottomNavItems = [
     { href: "/", label: "Painel", icon: Activity },
     { href: "/statistics", label: "Estatísticas", icon: BarChart3 },
     { href: "/automations", label: "Automações", icon: Sliders },
-    { href: "/settings", label: "Credenciais", icon: Settings },
-    { href: "/profile", label: "Perfil", icon: User },
+    { href: "/devices", label: "Dispositivos", icon: Cpu },
+    { href: "/settings", label: "Configurações", icon: Settings },
   ];
 
   const browserTitle = title
