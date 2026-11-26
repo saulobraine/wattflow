@@ -1,7 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { EventEmitter } from "events";
-import liveTelemetryFixture from "../../../../e2e/fixtures/live-telemetry.json";
+
+const liveTelemetryFixture = {
+  batteryPercentage: 95,
+  solarInputWatts: 1400,
+  outputWatts: 420,
+  isAcOutputEnabled: true,
+  batteryTempCelsius: 32,
+  batterySoh: 100,
+  batteryCycles: 50,
+};
 
 const { mockExtractUser } = vi.hoisted(() => ({
   mockExtractUser: vi.fn(),
