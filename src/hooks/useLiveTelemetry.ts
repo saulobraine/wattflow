@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 
-export type ConnectionStatus = "LIVE" | "POLLING" | "OFFLINE";
+export type ConnectionStatus = "CONNECTING" | "LIVE" | "POLLING" | "RECONNECTING" | "OFFLINE";
 
 export interface LiveTelemetrySnapshot {
   batteryPercentage: number;
@@ -42,7 +42,7 @@ export interface UseLiveTelemetryResult {
  * Suporta execução isolada para testes unitários, SSR e clients browser.
  */
 export class LiveTelemetryController {
-  private status: ConnectionStatus = "POLLING";
+  private status: ConnectionStatus = "CONNECTING";
   private telemetry: LiveTelemetrySnapshot | null = null;
   private lastUpdated: Date | null = null;
   private eventSource: EventSource | null = null;
@@ -88,7 +88,7 @@ export class LiveTelemetryController {
         ? navigator.onLine
         : true;
 
-    this.status = isOnline ? "POLLING" : "OFFLINE";
+    this.status = isOnline ? "CONNECTING" : "OFFLINE";
   }
 
   private isOnline(): boolean {
@@ -128,12 +128,17 @@ export class LiveTelemetryController {
     this.cleanupSse();
     this.stopPolling();
     this.reconnectAttempts = 0;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
 
     if (!this.isOnline()) {
       this.updateStatus("OFFLINE");
       return;
     }
 
+    this.updateStatus("CONNECTING");
     this.connectSse();
   }
 
@@ -220,7 +225,9 @@ export class LiveTelemetryController {
   }
 
   private activatePollingFallback(): void {
-    this.updateStatus("POLLING");
+    if (this.status !== "LIVE" && this.status !== "OFFLINE") {
+      this.updateStatus("POLLING");
+    }
     this.startPolling();
   }
 
@@ -243,12 +250,17 @@ export class LiveTelemetryController {
     }
   }
 
+  private consecutivePollFailures = 0;
+
   private async pollFallback(): Promise<void> {
     if (typeof this.fetchFn !== "function") return;
 
     try {
       const res = await this.fetchFn(`${this.fallbackUrl}?t=${Date.now()}`, { cache: "no-store" });
-      if (!res.ok) return;
+      if (!res.ok) {
+        this.handlePollError();
+        return;
+      }
 
       const json = await res.json();
       if (json && json.data) {
@@ -265,10 +277,25 @@ export class LiveTelemetryController {
           deviceMaxChargeSoc: d.deviceMaxChargeSoc ?? null,
           deviceMinDsgSoc: d.deviceMinDsgSoc ?? null,
         };
+        this.consecutivePollFailures = 0;
         this.handleNewSnapshot(snapshot);
+        if (this.status !== "LIVE" && this.status !== "OFFLINE") {
+          this.updateStatus("POLLING");
+        }
+      } else {
+        this.handlePollError();
       }
     } catch {
-      // Ignora falhas isoladas de polling
+      this.handlePollError();
+    }
+  }
+
+  private handlePollError(): void {
+    this.consecutivePollFailures++;
+    if (!this.isOnline()) {
+      this.updateStatus("OFFLINE");
+    } else if (this.consecutivePollFailures >= 2) {
+      this.updateStatus("RECONNECTING");
     }
   }
 
@@ -370,7 +397,7 @@ export class LiveTelemetryController {
  */
 export function useLiveTelemetry(options: UseLiveTelemetryOptions = {}): UseLiveTelemetryResult {
   const [telemetry, setTelemetry] = useState<LiveTelemetrySnapshot | null>(null);
-  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("POLLING");
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("CONNECTING");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const controllerRef = useRef<LiveTelemetryController | null>(null);

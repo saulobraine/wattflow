@@ -410,9 +410,17 @@ export default function SettingsPage() {
       }
 
       const keyResponse = await fetch("/api/push/public-key");
-      const keyJson = await keyResponse.json();
-      if (!keyResponse.ok || !keyJson.publicKey) {
-        throw new Error(keyJson.message || "Chave pública VAPID não configurada.");
+      const keyContentType = keyResponse.headers.get("content-type") || "";
+      let keyJson: any = null;
+      if (keyContentType.includes("application/json")) {
+        keyJson = await keyResponse.json();
+      } else {
+        const errText = await keyResponse.text();
+        throw new Error(`Resposta inesperada do servidor (${keyResponse.status}): ${errText.slice(0, 80)}`);
+      }
+
+      if (!keyResponse.ok || !keyJson?.publicKey) {
+        throw new Error(keyJson?.message || "Chave pública VAPID não configurada.");
       }
 
       const registration = await navigator.serviceWorker.ready;
@@ -434,11 +442,23 @@ export default function SettingsPage() {
 
       const saveResponse = await fetch("/api/push/subscribe", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+        },
         body: JSON.stringify(subscription),
       });
-      const saveJson = await saveResponse.json();
-      if (saveResponse.ok && saveJson.success) {
+
+      const saveContentType = saveResponse.headers.get("content-type") || "";
+      let saveJson: any = null;
+      if (saveContentType.includes("application/json")) {
+        saveJson = await saveResponse.json();
+      } else {
+        const errText = await saveResponse.text();
+        throw new Error(`Falha na comunicação com o servidor (${saveResponse.status}): ${errText.slice(0, 80)}`);
+      }
+
+      if (saveResponse.ok && saveJson?.success) {
         setPushFeedback({
           isSuccess: true,
           message: "Notificações Web Push ativadas com sucesso neste dispositivo!",
@@ -449,7 +469,7 @@ export default function SettingsPage() {
           variant: "success",
         });
       } else {
-        throw new Error(saveJson.message || "Erro ao salvar inscrição no servidor.");
+        throw new Error(saveJson?.message || "Erro ao salvar inscrição no servidor.");
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Falha ao assinar Web Push.";
@@ -464,17 +484,36 @@ export default function SettingsPage() {
     setIsTestingPush(true);
     setPushFeedback(null);
     try {
-      const response = await fetch("/api/push/send-test", { method: "POST" });
-      const json = await response.json();
-      if (response.ok && json.success) {
-        setPushFeedback({ isSuccess: true, message: "Notificação de teste disparada com sucesso!" });
+      const response = await fetch("/api/push/test", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+        },
+        body: JSON.stringify({
+          title: "WattFlow - Teste de Notificação",
+          message: "Notificação de teste recebida com sucesso! O canal Web Push está ativo.",
+        }),
+      });
+
+      const contentType = response.headers.get("content-type") || "";
+      let json: any = null;
+      if (contentType.includes("application/json")) {
+        json = await response.json();
+      } else {
+        const errText = await response.text();
+        throw new Error(`Servidor retornou resposta inesperada (${response.status}): ${errText.slice(0, 80)}`);
+      }
+
+      if (response.ok && json?.success) {
+        setPushFeedback({ isSuccess: true, message: json?.message || "Notificação de teste disparada com sucesso!" });
         toast({
           title: "Push Enviado",
           description: "Verifique se o alerta chegou na central de notificações.",
           variant: "success",
         });
       } else {
-        throw new Error(json.message || "Erro ao disparar notificação.");
+        throw new Error(json?.message || "Erro ao disparar notificação.");
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Erro ao testar push.";
