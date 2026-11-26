@@ -15,14 +15,25 @@ describe("LiveTelemetryController (SSE & Fallback Polling State Machine)", () =>
     vi.useRealTimers();
   });
 
-  it("inicializa em POLLING quando está online mas sem EventSource", () => {
+  it("inicializa em CONNECTING quando instanciado online antes do start", () => {
     const controller = new LiveTelemetryController({
       fallbackPollingIntervalMs: 5000,
       eventSourceClass: null,
     });
 
-    expect(controller.getStatus()).toBe("POLLING");
+    expect(controller.getStatus()).toBe("CONNECTING");
     expect(controller.getTelemetry()).toBeNull();
+  });
+
+  it("transita para POLLING imediatamente ao iniciar sem suporte a EventSource", () => {
+    const controller = new LiveTelemetryController({
+      fallbackPollingIntervalMs: 5000,
+      eventSourceClass: null,
+    });
+
+    controller.start();
+    expect(controller.getStatus()).toBe("POLLING");
+    controller.destroy();
   });
 
   it("detecta rede offline e transita para o estado OFFLINE", () => {
@@ -148,6 +159,103 @@ describe("LiveTelemetryController (SSE & Fallback Polling State Machine)", () =>
     // Segundo poll após 3 segundos
     vi.advanceTimersByTime(3000);
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+
+    controller.destroy();
+  });
+
+  it("mantém status POLLING e agenda reconexão com backoff quando EventSource falha", () => {
+    class FailingEventSource {
+      public onopen: (() => void) | null = null;
+      public onerror: (() => void) | null = null;
+      private listeners: Record<string, ((e: any) => void)[]> = {};
+
+      constructor() {
+        setTimeout(() => {
+          if (this.onerror) this.onerror();
+        }, 10);
+      }
+
+      public addEventListener(type: string, fn: (e: any) => void) {
+        if (!this.listeners[type]) this.listeners[type] = [];
+        this.listeners[type].push(fn);
+      }
+
+      public close() {}
+    }
+
+    const controller = new LiveTelemetryController({
+      eventSourceClass: FailingEventSource,
+      fallbackPollingIntervalMs: 5000,
+      fetchFn: vi.fn().mockResolvedValue({ ok: true, json: async () => ({ data: {} }) }) as any,
+    });
+
+    controller.start();
+    expect(controller.getStatus()).toBe("CONNECTING");
+
+    // Avança para disparar onerror
+    vi.advanceTimersByTime(20);
+    // Não deve ficar travado em erro de alarme; transita graciosamente para POLLING
+    expect(controller.getStatus()).toBe("POLLING");
+
+    controller.destroy();
+  });
+
+  it("transita para RECONNECTING quando o fallback polling falha consecutivamente e recupera ao obter dados", async () => {
+    let shouldFail = true;
+    const mockFetch = vi.fn().mockImplementation(async () => {
+      if (shouldFail) {
+        return { ok: false, status: 502 };
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          data: {
+            lastBatteryPercentage: 90,
+            lastSolarWatts: 500,
+            lastOutputWatts: 150,
+            lastAction: "ENABLE_ECOFLOW_AC",
+            lastSyncTime: new Date().toISOString(),
+          },
+        }),
+      };
+    });
+
+    const controller = new LiveTelemetryController({
+      fallbackPollingIntervalMs: 2000,
+      eventSourceClass: null,
+      fetchFn: mockFetch as any,
+    });
+
+    controller.start();
+    // Primeiro poll imediato (falha 1)
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+    expect(controller.getStatus()).toBe("POLLING");
+
+    // Segundo poll (falha 2 consecutiva -> transita para RECONNECTING)
+    vi.advanceTimersByTime(2000);
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+    expect(controller.getStatus()).toBe("RECONNECTING");
+
+    // Recuperação: próxima resposta tem sucesso
+    shouldFail = false;
+    vi.advanceTimersByTime(2000);
+    await vi.waitFor(() => expect(controller.getStatus()).toBe("POLLING"));
+    expect(controller.getTelemetry()?.batteryPercentage).toBe(90);
+
+    controller.destroy();
+  });
+
+  it("reconnect() transita para CONNECTING antes de restabelecer conexão", () => {
+    const controller = new LiveTelemetryController({
+      eventSourceClass: null,
+    });
+
+    controller.start();
+    expect(controller.getStatus()).toBe("POLLING");
+
+    controller.reconnect();
+    // Ao iniciar reconnect() sem EventSource, ele transita para CONNECTING e imediatamente comuta para POLLING
+    expect(controller.getStatus()).toBe("POLLING");
 
     controller.destroy();
   });
