@@ -40,6 +40,7 @@ import { NotificationDispatcher, NotificationPayload } from "../NotificationDisp
 import handleGetPublicKey from "../../../pages/api/push/public-key";
 import handlePushSubscribe from "../../../pages/api/push/subscribe";
 import handlePushTest from "../../../pages/api/push/test";
+import handlePushSendTest from "../../../pages/api/push/send-test";
 import { AuthenticationTokenService } from "../../../domain/services/AuthenticationTokenService";
 import { SESSION_COOKIE_NAME } from "../../auth/sessionHelper";
 
@@ -339,6 +340,37 @@ describe("Web Push & Notificações de Comutação ATS", () => {
       const res = createMockApiResponse();
 
       await handlePushTest(req, res);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.totalSent).toBe(1);
+    });
+
+    it("POST /api/push/send-test opera como alias retrocompatível para handlePushTest", async () => {
+      const req = {
+        method: "POST",
+        headers: {
+          cookie: buildAuthCookieHeader(),
+          "x-csrf-token": "mock-csrf-token",
+          host: "wattflow.local",
+          origin: "https://wattflow.local",
+          "sec-fetch-site": "same-origin",
+        },
+        body: {
+          title: "Teste Alias",
+          message: "Mensagem de teste alias",
+          subscription: {
+            endpoint: "https://fcm.googleapis.com/fcm/send/direct-test-alias",
+            keys: {
+              p256dh: "key",
+              auth: "auth",
+            },
+          },
+        },
+      } as unknown as NextApiRequest;
+      const res = createMockApiResponse();
+
+      await handlePushSendTest(req, res);
 
       expect(res.statusCode).toBe(200);
       expect(res.body.success).toBe(true);

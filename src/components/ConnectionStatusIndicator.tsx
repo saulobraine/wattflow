@@ -45,8 +45,24 @@ export function ConnectionStatusIndicator({
       textClass: "text-emerald-400",
     },
     POLLING: {
+      label: "Ao Vivo (Polling)",
+      tooltip: `Modo de sincronização contínua via polling (a cada 5s). ${liveDetail}`,
+      dotClass: "bg-emerald-500 shadow-[0_0_8px_#10b981]",
+      pingClass: "bg-emerald-400/60 opacity-60",
+      containerClass: "bg-emerald-500/10 border-emerald-500/30 text-emerald-300",
+      textClass: "text-emerald-400",
+    },
+    CONNECTING: {
+      label: "Conectando",
+      tooltip: "Estabelecendo conexão com o servidor de telemetria...",
+      dotClass: "bg-sky-500 shadow-[0_0_8px_#0ea5e9]",
+      pingClass: "bg-sky-400 opacity-75 animate-pulse",
+      containerClass: "bg-sky-500/10 border-sky-500/30 text-sky-300",
+      textClass: "text-sky-400",
+    },
+    RECONNECTING: {
       label: "Reconectando",
-      tooltip: "Modo de contingência ativo. Atualizando via polling a cada 5s.",
+      tooltip: "Falha temporária de comunicação. Tentando reconectar ao servidor...",
       dotClass: "bg-amber-500 shadow-[0_0_8px_#f59e0b]",
       pingClass: "bg-amber-400 opacity-60 animate-pulse",
       containerClass: "bg-amber-500/10 border-amber-500/30 text-amber-300",
@@ -61,7 +77,7 @@ export function ConnectionStatusIndicator({
     },
   };
 
-  const config = configs[status];
+  const config = configs[status] ?? configs.CONNECTING;
 
   return (
     <Tooltip enabled={true}>
@@ -98,7 +114,11 @@ export function ConnectionStatusIndicator({
           <p className="font-semibold text-slate-100">{config.label}</p>
           <p className="text-slate-300 leading-tight">{config.tooltip}</p>
           {status !== "LIVE" && (
-            <p className="text-[10px] text-emerald-400 font-mono pt-0.5">Clique para tentar reconectar</p>
+            <p className="text-[10px] text-emerald-400 font-mono pt-0.5">
+              {status === "POLLING"
+                ? "Clique para tentar stream direto SSE"
+                : "Clique para tentar reconectar"}
+            </p>
           )}
         </div>
       </TooltipContent>
