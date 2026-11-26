@@ -8,7 +8,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "./ui/tooltip";
 import { ConnectionStatusIndicator } from "./ConnectionStatusIndicator";
 import { PwaInstallPrompt } from "./PwaInstallPrompt";
 
-// Bottom nav mobile com 5 abas fixas, safe-area e alvos de toque >= 44x44px (md:hidden)
+// Bottom nav mobile com 5 abas fixas, safe-area e alvos de toque >= 44x44px
 const BottomNav = ({
   navItems,
   pathname,
@@ -19,9 +19,9 @@ const BottomNav = ({
   <nav
     role="navigation"
     aria-label="Navegação Mobile Inferior"
-    className="md:hidden print:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-lg border-t border-slate-800/90 shadow-2xl pb-[env(safe-area-inset-bottom,0px)]"
+    className="mobile-navigation md:hidden print:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-lg border-t border-slate-800/90 shadow-2xl pb-[env(safe-area-inset-bottom,0px)]"
   >
-    <div className="flex items-stretch justify-around h-16 max-w-md mx-auto px-1">
+    <div className="flex items-stretch justify-around h-[var(--app-nav-height)] mx-auto px-1">
       {navItems.map((item) => {
         const Icon = item.icon;
         const isActive = pathname === item.href;
@@ -31,7 +31,7 @@ const BottomNav = ({
             href={item.href}
             aria-current={isActive ? "page" : undefined}
             aria-label={item.label}
-            className={`relative flex flex-1 flex-col items-center justify-center min-w-[44px] min-h-[44px] py-1 gap-0.5 text-[10px] font-medium transition-all duration-200 active:scale-95 ${
+            className={`relative flex flex-1 flex-col items-center justify-center min-w-[44px] min-h-[44px] py-1 gap-0.5 text-[11px] font-medium transition-all duration-200 active:scale-95 ${
               isActive
                 ? "text-emerald-400 font-semibold"
                 : "text-slate-400 hover:text-slate-200"
@@ -57,7 +57,7 @@ const BottomNav = ({
                 aria-hidden="true"
               />
             </div>
-            <span className="leading-tight truncate max-w-[64px] text-center">
+            <span className="leading-tight text-center">
               {item.label}
             </span>
           </TransitionLink>
@@ -134,7 +134,7 @@ export function Layout({ children, title }: LayoutProps) {
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <link rel="alternate icon" href="/favicon.ico" />
       </Head>
-      <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 overflow-x-hidden">
+      <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 app-shell">
         <header
           role="banner"
           className={`site-header print:hidden border-b border-slate-800/90 backdrop-blur-md sticky top-0 z-40 transition-all duration-300 ease-in-out ${
@@ -144,8 +144,8 @@ export function Layout({ children, title }: LayoutProps) {
           }`}
         >
           <div
-            className={`max-w-6xl mx-auto px-4 flex items-center justify-between transition-all duration-300 ease-in-out ${
-              isScrolled ? "h-12" : "h-16"
+            className={`app-gutter app-header-row max-w-6xl mx-auto flex items-center justify-between gap-1 transition-all duration-300 ease-in-out ${
+              isScrolled ? "h-12" : "h-12 md:h-16"
             }`}
           >
             <TransitionLink
@@ -169,13 +169,6 @@ export function Layout({ children, title }: LayoutProps) {
                 <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">
                   WattFlow
                 </span>
-                <span
-                  className={`text-[10px] text-slate-400 ml-1.5 font-mono overflow-hidden transition-all duration-300 ${
-                    isScrolled ? "max-w-0 opacity-0" : "max-w-xs opacity-100"
-                  }`}
-                >
-                  MVP
-                </span>
               </div>
             </TransitionLink>
 
@@ -183,7 +176,7 @@ export function Layout({ children, title }: LayoutProps) {
               <nav
                 role="navigation"
                 aria-label="Navegação Principal"
-                className="hidden md:flex items-center gap-1 sm:gap-1.5"
+                className="desktop-navigation hidden md:flex items-center gap-1 sm:gap-1.5"
               >
                 {navItems.map((item) => {
                   const Icon = item.icon;
@@ -229,7 +222,7 @@ export function Layout({ children, title }: LayoutProps) {
               </nav>
 
               {/* Indicador de Status SSE / Conexão em Tempo Real */}
-              <ConnectionStatusIndicator />
+              <ConnectionStatusIndicator className="app-connection-status" />
 
               {/* Botão de Acesso Direto ao Modo Kiosk (Wall Panel) */}
               <Tooltip enabled={true}>
@@ -313,11 +306,11 @@ export function Layout({ children, title }: LayoutProps) {
 
         <main
           role="main"
-          className="max-w-6xl w-full mx-auto px-4 py-4 sm:py-6 pb-20 md:pb-8 page-content animate-fade-in"
+          className="app-gutter max-w-6xl w-full min-w-0 mx-auto py-3 sm:py-6 md:pb-8 page-content animate-fade-in"
         >
           {title && (
-            <div className="mb-6 animate-slide-down">
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-100">{title}</h1>
+            <div className="mb-3 md:mb-6 animate-slide-down">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-slate-100">{title}</h1>
             </div>
           )}
           {children}
@@ -325,7 +318,7 @@ export function Layout({ children, title }: LayoutProps) {
 
         <footer
           role="contentinfo"
-          className="print:hidden mt-6 border-t border-slate-800/80 py-5 text-center text-xs text-slate-500 pb-24 md:pb-5"
+          className="print:hidden mt-6 border-t border-slate-800/80 py-5 text-center text-xs text-slate-500 app-footer"
         >
           <p><strong className="font-semibold text-slate-400">wattflow</strong> - desenvolvido com ♥ por Braine</p>
         </footer>

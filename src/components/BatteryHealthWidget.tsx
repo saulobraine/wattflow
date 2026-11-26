@@ -595,7 +595,7 @@ export function BatteryHealthWidget({
 
         <TransitionLink
           href="/automations"
-          className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1 transition-colors font-sans font-medium"
+          className="app-touch-target text-cyan-400 hover:text-cyan-300 flex items-center gap-1 transition-colors font-sans font-medium"
         >
           <span>Ajustar Limiares Térmicos</span>
           <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />

@@ -377,7 +377,7 @@ export default function DashboardPage() {
 
   return (
     <Layout>
-      <div className="space-y-8">
+      <div className="space-y-4 md:space-y-8">
         {/* Banner de Alerta Crítico: Modo No-Break Preventivo Preditivo (Auto-Storm) */}
         <StormAlertBanner
           isStormAlertActive={autoStormInfo.isStormAlertActive}
@@ -513,7 +513,7 @@ export default function DashboardPage() {
             <div className="text-sm">
               <span className="font-bold block">Configuração da EcoFlow Pendente</span>
               Preencha sua Access Key, Secret Key e Número de Série da estação nas{" "}
-              <TransitionLink href="/settings" className="underline font-semibold hover:text-amber-200 transition-colors">
+              <TransitionLink href="/settings" className="app-touch-target underline font-semibold hover:text-amber-200 transition-colors">
                 Configurações (BYOK)
               </TransitionLink>{" "}
               para que a orquestração com a chave ATS funcione.
@@ -522,7 +522,7 @@ export default function DashboardPage() {
         )}
 
         {/* Grade de Indicadores Principais (8 métricas em 4 colunas perfeitamente distribuídas) */}
-        <section aria-label="Indicadores Operacionais" className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4 lg:gap-5">
+        <section aria-label="Indicadores Operacionais" className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4 lg:gap-5">
           {/* Card 1: Bateria (SOC %) */}
           <div className="animate-card stagger-2 interactive-card min-h-[105px] sm:min-h-[125px] flex flex-col justify-between p-3 sm:p-4 rounded-xl border border-slate-800/80 bg-slate-900/90 hover:border-slate-700 transition-all shadow-md group">
             <div className="flex items-center gap-2">
@@ -1341,7 +1341,7 @@ export default function DashboardPage() {
 
             <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-500 font-mono">
               <span>Simulador Off-Grid EcoFlow</span>
-              <TransitionLink href="/settings" className="text-emerald-400 hover:underline">
+              <TransitionLink href="/settings" className="app-touch-target text-emerald-400 hover:underline">
                 Gerenciar Aparelhos &rarr;
               </TransitionLink>
             </div>

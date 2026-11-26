@@ -25,7 +25,7 @@ const MAX_NOTIF_PER_USER = 5;
 interface TestNotificationApiResponse {
   success: boolean;
   message: string;
-  channel?: "TELEGRAM" | "WHATSAPP";
+  channel?: "TELEGRAM" | "WHATSAPP" | "WEB_PUSH";
   errorDetails?: string;
 }
 
@@ -180,6 +180,19 @@ export default async function handleTestNotification(
         ? `Mensagem de teste enviada com sucesso no Telegram às ${timeFormatted}!`
         : `Falha ao enviar mensagem no Telegram: ${result.errorMessage || "Erro desconhecido"}`,
       channel: "TELEGRAM",
+      errorDetails: result.errorMessage,
+    });
+    return;
+  }
+
+  if (channel === "WEB_PUSH") {
+    const result = await dispatcher.dispatchWebPushOnly(samplePayload, { userId: extractedUserId });
+    response.status(200).json({
+      success: result.isSuccess,
+      message: result.isSuccess
+        ? `Notificação Web Push de teste despachada com sucesso às ${timeFormatted}!`
+        : `Falha ao enviar notificação Web Push: ${result.errorMessage || "Erro desconhecido"}`,
+      channel: "WEB_PUSH",
       errorDetails: result.errorMessage,
     });
     return;

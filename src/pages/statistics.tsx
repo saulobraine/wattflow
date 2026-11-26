@@ -327,7 +327,7 @@ export default function StatisticsPage() {
 
   return (
     <Layout title="Estatísticas de Geração e Consumo">
-      <div className="space-y-8 max-w-6xl mx-auto">
+      <div className="space-y-4 md:space-y-8 max-w-6xl mx-auto">
         {/* Cabeçalho da Seção */}
         <div className="animate-card stagger-1 interactive-card flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/60 p-4 sm:p-6 rounded-2xl border border-slate-800 backdrop-blur shadow-xl">
           <div className="space-y-1">
@@ -1314,7 +1314,7 @@ export default function StatisticsPage() {
 
           {/* Barra de Filtros por Abas em Pills */}
           <div className="flex flex-wrap items-center justify-between gap-3 no-print">
-            <div className="inline-flex p-1 rounded-xl bg-slate-950 border border-slate-800/90 gap-1 overflow-x-auto max-w-full">
+            <div className="flex flex-wrap p-1 rounded-xl bg-slate-950 border border-slate-800/90 gap-1 max-w-full">
               {(
                 [
                   { id: "today-vs-yesterday", label: "Hoje vs Ontem" },
@@ -1334,7 +1334,7 @@ export default function StatisticsPage() {
                       setHoveredHistPoint(null);
                       setHoveredCompPoint(null);
                     }}
-                    className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                    className={`px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
                       isActive
                         ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm"
                         : "text-slate-400 hover:text-slate-200 hover:bg-slate-900 border border-transparent"
@@ -1516,21 +1516,21 @@ export default function StatisticsPage() {
                     .join(" ");
 
                   return (
-                    <div className="relative h-64 w-full pt-6 pb-2 px-1">
+                    <div className="relative h-52 sm:h-64 w-full pt-6 pb-2 px-1">
                       {/* Linhas de Grade de Escala */}
                       <div className="absolute inset-x-1 inset-y-0 pt-6 pb-6 pointer-events-none flex flex-col justify-between z-0">
                         <div className="w-full flex items-center justify-between border-b border-dashed border-slate-800/70">
-                          <span className="text-[10px] font-mono text-slate-500 select-none -translate-y-2">
+                          <span className="text-xs font-mono text-slate-400 select-none -translate-y-2">
                             {scaleMax} W
                           </span>
                         </div>
                         <div className="w-full flex items-center justify-between border-b border-dashed border-slate-800/40">
-                          <span className="text-[10px] font-mono text-slate-500 select-none -translate-y-2">
+                          <span className="text-xs font-mono text-slate-400 select-none -translate-y-2">
                             {scaleMid} W
                           </span>
                         </div>
                         <div className="w-full flex items-center justify-between border-b border-slate-800/90">
-                          <span className="text-[10px] font-mono text-slate-500 select-none -translate-y-2">
+                          <span className="text-xs font-mono text-slate-400 select-none -translate-y-2">
                             0 W
                           </span>
                         </div>
@@ -1590,7 +1590,7 @@ export default function StatisticsPage() {
                       </svg>
 
                       {/* Fatias transparentes de captura de hover/touch para Tooltip Comparativo */}
-                      <div className="absolute inset-0 pt-6 pb-6 px-1 flex items-stretch justify-between z-20">
+                      <div className="history-chart-points absolute inset-0 pt-6 pb-6 px-1 flex items-stretch justify-between z-20">
                         {Array.from({ length: maxPtsCount }).map((_, idx) => {
                           const ptToday = todayPts[idx];
                           const ptYesterday = yesterdayPts[idx];
@@ -1620,10 +1620,10 @@ export default function StatisticsPage() {
                               onPointerDown={() =>
                                 setHoveredCompPoint({ today: ptToday, yesterday: ptYesterday, time })
                               }
-                              className="flex-1 h-full relative cursor-pointer group flex items-start justify-center"
+                              className="history-chart-point flex-1 min-w-0 h-full relative cursor-pointer group flex items-start justify-center"
                             >
                               <div
-                                className={`transition-all duration-150 pointer-events-none absolute -top-12 z-30 bg-slate-950/95 border border-slate-700 text-slate-100 px-3 py-1.5 rounded-lg text-[10px] sm:text-[11px] whitespace-normal sm:whitespace-nowrap max-w-[280px] sm:max-w-none shadow-2xl backdrop-blur-md flex items-center gap-2 ${
+                                className={`history-chart-tooltip transition-all duration-150 pointer-events-none absolute -top-12 z-30 bg-slate-950/95 border border-slate-700 text-slate-100 px-3 py-1.5 rounded-lg text-[10px] sm:text-[11px] whitespace-normal sm:whitespace-nowrap max-w-[280px] sm:max-w-none shadow-2xl backdrop-blur-md flex items-center gap-2 ${
                                   isSelected ? "opacity-100 scale-100" : "opacity-0 group-hover:opacity-100 scale-95"
                                 } ${
                                   idx < 4
@@ -1763,21 +1763,21 @@ export default function StatisticsPage() {
                     .join(" ");
 
                   return (
-                    <div className="relative h-64 w-full pt-6 pb-2 px-1">
+                    <div className="relative h-52 sm:h-64 w-full pt-6 pb-2 px-1">
                       {/* Linhas de Grade de Escala */}
                       <div className="absolute inset-x-1 inset-y-0 pt-6 pb-6 pointer-events-none flex flex-col justify-between z-0">
                         <div className="w-full flex items-center justify-between border-b border-dashed border-slate-800/70">
-                          <span className="text-[10px] font-mono text-slate-500 select-none -translate-y-2">
+                          <span className="text-xs font-mono text-slate-400 select-none -translate-y-2">
                             {scaleMax} W
                           </span>
                         </div>
                         <div className="w-full flex items-center justify-between border-b border-dashed border-slate-800/40">
-                          <span className="text-[10px] font-mono text-slate-500 select-none -translate-y-2">
+                          <span className="text-xs font-mono text-slate-400 select-none -translate-y-2">
                             {scaleMid} W
                           </span>
                         </div>
                         <div className="w-full flex items-center justify-between border-b border-slate-800/90">
-                          <span className="text-[10px] font-mono text-slate-500 select-none -translate-y-2">
+                          <span className="text-xs font-mono text-slate-400 select-none -translate-y-2">
                             0 W
                           </span>
                         </div>
@@ -1849,7 +1849,7 @@ export default function StatisticsPage() {
                       </svg>
 
                       {/* Fatias de hover/touch */}
-                      <div className="absolute inset-0 pt-6 pb-6 px-1 flex items-stretch justify-between z-20">
+                      <div className="history-chart-points absolute inset-0 pt-6 pb-6 px-1 flex items-stretch justify-between z-20">
                         {pts.map((point, i) => {
                           const isSelected = hoveredHistPoint === point;
                           return (
@@ -1859,10 +1859,10 @@ export default function StatisticsPage() {
                               onMouseLeave={() => setHoveredHistPoint(null)}
                               onTouchStart={() => setHoveredHistPoint(point)}
                               onPointerDown={() => setHoveredHistPoint(point)}
-                              className="flex-1 h-full relative cursor-pointer group flex items-start justify-center"
+                              className="history-chart-point flex-1 min-w-0 h-full relative cursor-pointer group flex items-start justify-center"
                             >
                               <div
-                                className={`transition-all duration-150 pointer-events-none absolute -top-12 z-30 bg-slate-950/95 border border-slate-700 text-slate-100 px-3 py-1.5 rounded-lg text-[10px] sm:text-[11px] whitespace-normal sm:whitespace-nowrap max-w-[280px] sm:max-w-none shadow-2xl backdrop-blur-md flex items-center gap-2 ${
+                                className={`history-chart-tooltip transition-all duration-150 pointer-events-none absolute -top-12 z-30 bg-slate-950/95 border border-slate-700 text-slate-100 px-3 py-1.5 rounded-lg text-[10px] sm:text-[11px] whitespace-normal sm:whitespace-nowrap max-w-[280px] sm:max-w-none shadow-2xl backdrop-blur-md flex items-center gap-2 ${
                                   isSelected ? "opacity-100 scale-100" : "opacity-0 group-hover:opacity-100 scale-95"
                                 } ${
                                   i < 3
