@@ -112,6 +112,18 @@ export interface ApplianceSimulationMetrics {
   totalAppliancesCount: number;
 }
 
+interface StatisticsCacheEntry {
+  data: NonNullable<StatisticsResponseData["data"]>;
+  cachedAt: number;
+}
+
+const statisticsMemoryCache = new Map<string, StatisticsCacheEntry>();
+export const STATISTICS_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutos (TTL para previsão solar Open-Meteo e agregações)
+
+export function clearStatisticsCache(): void {
+  statisticsMemoryCache.clear();
+}
+
 interface StatisticsResponseData {
   success: boolean;
   message?: string;
@@ -693,6 +705,58 @@ export default async function handleStatistics(
     extractedUserId = userId;
   });
 
+  const isTest = process.env.NODE_ENV === "test";
+  const enableCacheInTest = request.headers?.["x-enable-cache"] === "true";
+  const skipCache =
+    (isTest && !enableCacheInTest) ||
+    request.headers?.["x-skip-cache"] === "true" ||
+    request.query?.fresh === "true";
+
+  if (!skipCache && statisticsMemoryCache.has(extractedUserId)) {
+    const cachedEntry = statisticsMemoryCache.get(extractedUserId)!;
+    const isCacheValid = Date.now() - cachedEntry.cachedAt < STATISTICS_CACHE_TTL_MS;
+
+    if (isCacheValid) {
+      const liveMqtt = EcoFlowMqttStreamService.getInstance().getLatestTelemetry(extractedUserId);
+      const cachedData = { ...cachedEntry.data };
+
+      if (liveMqtt) {
+        if (typeof liveMqtt.solarInputWatts === "number") {
+          cachedData.currentWatts = liveMqtt.solarInputWatts;
+        }
+        if (typeof liveMqtt.outputWatts === "number") {
+          cachedData.currentOutputWatts = liveMqtt.outputWatts;
+          cachedData.netWatts = (cachedData.currentWatts || 0) - liveMqtt.outputWatts;
+        }
+        if (typeof liveMqtt.batteryTempCelsius === "number") {
+          const currentTemp = liveMqtt.batteryTempCelsius;
+          const warning = cachedData.bmsAnalytics?.thermalWarningThreshold ?? 45;
+          const shutdown = cachedData.bmsAnalytics?.thermalShutdownThreshold ?? 50;
+          let thermalStatus: "NORMAL" | "WARM" | "HOT" | "CRITICAL" = "NORMAL";
+          if (currentTemp >= shutdown) {
+            thermalStatus = "CRITICAL";
+          } else if (currentTemp >= warning) {
+            thermalStatus = "HOT";
+          } else if (currentTemp >= 38.0) {
+            thermalStatus = "WARM";
+          }
+          cachedData.bmsAnalytics = {
+            ...cachedData.bmsAnalytics,
+            temperatureCelsius: currentTemp,
+            thermalStatus,
+          };
+        }
+      }
+
+      response.setHeader("X-Cache", "HIT");
+      response.status(200).json({
+        success: true,
+        data: cachedData,
+      });
+      return;
+    }
+  }
+
   try {
     const liveService = new LiveTelemetryService(prisma);
     await liveService.syncIfStale(extractedUserId, 2000);
@@ -880,7 +944,7 @@ export default async function handleStatistics(
     }
 
     const bucketDurationMs = 5 * 60 * 1000;
-    const newestLogTime = rawLogs30m[0].executedAt.getTime();
+    const newestLogTime = rawLogs30m[0]?.executedAt ? rawLogs30m[0].executedAt.getTime() : nowTimestamp;
     const isWithinRecentWindow = newestLogTime >= (nowTimestamp - 30 * 60 * 1000);
     const windowEndTime = isWithinRecentWindow ? nowTimestamp : newestLogTime;
     const windowStartTime = windowEndTime - 30 * 60 * 1000;
@@ -1050,31 +1114,39 @@ export default async function handleStatistics(
       autonomyEstimate.runtimeMinutes
     );
 
+    const finalStatisticsData: NonNullable<StatisticsResponseData["data"]> = {
+      currentWatts,
+      currentOutputWatts,
+      netWatts,
+      peakWatts: numericPeakWatts,
+      averageWatts: averageWatts24h,
+      averageOutputWatts: averageOutputWatts24h,
+      estimatedEnergyWattHours,
+      estimatedEnergyKwh,
+      estimatedConsumedWattHours,
+      estimatedConsumedKwh,
+      netEnergyWattHours,
+      netEnergyKwh,
+      totalReadingsCount: rawLogs24h.length,
+      chartPoints,
+      recentLogs,
+      atsHealth,
+      financialSavings,
+      autonomyEstimate,
+      solarForecast,
+      bmsAnalytics,
+      applianceSimulation,
+    };
+
+    statisticsMemoryCache.set(extractedUserId, {
+      data: finalStatisticsData,
+      cachedAt: Date.now(),
+    });
+
+    response.setHeader("X-Cache", "MISS");
     response.status(200).json({
       success: true,
-      data: {
-        currentWatts,
-        currentOutputWatts,
-        netWatts,
-        peakWatts: numericPeakWatts,
-        averageWatts: averageWatts24h,
-        averageOutputWatts: averageOutputWatts24h,
-        estimatedEnergyWattHours,
-        estimatedEnergyKwh,
-        estimatedConsumedWattHours,
-        estimatedConsumedKwh,
-        netEnergyWattHours,
-        netEnergyKwh,
-        totalReadingsCount: rawLogs24h.length,
-        chartPoints,
-        recentLogs,
-        atsHealth,
-        financialSavings,
-        autonomyEstimate,
-        solarForecast,
-        bmsAnalytics,
-        applianceSimulation,
-      },
+      data: finalStatisticsData,
     });
   } catch (error) {
     console.error("Erro ao gerar estatísticas solares:", error);

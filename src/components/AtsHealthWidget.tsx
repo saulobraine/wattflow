@@ -321,7 +321,7 @@ export function AtsHealthWidget({
         </div>
         <TransitionLink
           href="/statistics#ats-health"
-          className="text-cyan-400 hover:text-cyan-300 inline-flex items-center gap-1 font-semibold transition-colors"
+          className="app-touch-target text-cyan-400 hover:text-cyan-300 inline-flex items-center gap-1 font-semibold transition-colors"
         >
           <span>Ver histórico &amp; relatórios</span>
           <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />

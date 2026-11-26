@@ -1,9 +1,14 @@
+import { WebPushService, WebPushSubscriptionData } from "./WebPushService";
+
 export interface NotificationConfig {
   telegramBotToken?: string;
   telegramChatId?: string;
   whatsappPhoneNumber?: string;
   whatsappApiKey?: string;
   isNotificationActive?: boolean;
+  isWebPushActive?: boolean;
+  userId?: string;
+  webPushSubscriptions?: WebPushSubscriptionData[];
 }
 
 export interface NotificationPayload {
@@ -20,6 +25,8 @@ export interface NotificationDispatchResult {
   telegramError?: string;
   whatsappSuccess: boolean;
   whatsappError?: string;
+  webPushSuccess?: boolean;
+  webPushError?: string;
   summaryMessage: string;
 }
 
@@ -90,15 +97,91 @@ export class NotificationDispatcher {
       whatsappError = whatsappResult.errorMessage;
     }
 
-    const summary = this.buildSummary(hasTelegram, telegramSuccess, hasWhatsApp, whatsappSuccess);
+    let webPushSuccess = false;
+    let webPushError: string | undefined;
+    let hasWebPush = false;
+
+    const isAtsSwitchOrAlert =
+      !payload.actionState ||
+      payload.actionState === "SOLAR_BATTERY" ||
+      payload.actionState === "GRID" ||
+      payload.actionState === "ALERT";
+
+    if (config.isWebPushActive !== false && isAtsSwitchOrAlert) {
+      const pushResult = await this.dispatchWebPushOnly(payload, config);
+      hasWebPush = true;
+      webPushSuccess = pushResult.isSuccess;
+      webPushError = pushResult.errorMessage;
+    }
+
+    const summary = this.buildSummary(
+      hasTelegram,
+      telegramSuccess,
+      hasWhatsApp,
+      whatsappSuccess,
+      hasWebPush,
+      webPushSuccess
+    );
 
     return {
       telegramSuccess,
       telegramError,
       whatsappSuccess,
       whatsappError,
+      webPushSuccess,
+      webPushError,
       summaryMessage: summary,
     };
+  }
+
+  public async dispatchWebPushOnly(
+    payload: NotificationPayload,
+    config?: NotificationConfig
+  ): Promise<{ isSuccess: boolean; errorMessage?: string; sentCount?: number }> {
+    try {
+      const pushService = WebPushService.getInstance();
+      const pushPayload = {
+        title: `⚡ [WattFlow] ${payload.title}`,
+        message: payload.message,
+        actionState: payload.actionState,
+        batteryPercentage: payload.batteryPercentage,
+        solarWatts: payload.solarWatts,
+        timestamp: payload.timestamp ?? new Date(),
+        url: "/",
+        tag: `wattflow-${payload.actionState || "status"}`,
+      };
+
+      if (config?.webPushSubscriptions && config.webPushSubscriptions.length > 0) {
+        let sent = 0;
+        let lastErr: string | undefined;
+        for (const sub of config.webPushSubscriptions) {
+          const res = await pushService.sendNotification(sub, pushPayload);
+          if (res.isSuccess) {
+            sent += 1;
+          } else {
+            lastErr = res.errorMessage;
+          }
+        }
+        return {
+          isSuccess: sent > 0 || config.webPushSubscriptions.length === 0,
+          errorMessage: sent === 0 && config.webPushSubscriptions.length > 0 ? lastErr : undefined,
+          sentCount: sent,
+        };
+      }
+
+      const broadcastResult = await pushService.broadcastNotification(pushPayload, config?.userId);
+      return {
+        isSuccess: broadcastResult.totalSent > 0 || broadcastResult.failed === 0,
+        errorMessage:
+          broadcastResult.failed > 0 && broadcastResult.totalSent === 0
+            ? "Falha ao entregar notificação push aos dispositivos inscritos."
+            : undefined,
+        sentCount: broadcastResult.totalSent,
+      };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Erro desconhecido ao despachar Web Push";
+      return { isSuccess: false, errorMessage: msg };
+    }
   }
 
   public async dispatchTelegramOnly(
@@ -288,9 +371,11 @@ export class NotificationDispatcher {
     hasTelegram: boolean,
     telegramOk: boolean,
     hasWhatsApp: boolean,
-    whatsappOk: boolean
+    whatsappOk: boolean,
+    hasWebPush = false,
+    webPushOk = false
   ): string {
-    if (!hasTelegram && !hasWhatsApp) {
+    if (!hasTelegram && !hasWhatsApp && !hasWebPush) {
       return "Nenhum canal de notificação (Telegram ou WhatsApp) configurado.";
     }
 
@@ -300,6 +385,9 @@ export class NotificationDispatcher {
     }
     if (hasWhatsApp) {
       parts.push(whatsappOk ? "WhatsApp: enviado" : "WhatsApp: falhou");
+    }
+    if (hasWebPush) {
+      parts.push(webPushOk ? "Web Push: enviado" : "Web Push: falhou");
     }
     return parts.join(" | ");
   }

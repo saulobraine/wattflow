@@ -77,6 +77,15 @@ export default function SettingsPage() {
   const [whatsappPhoneNumber, setWhatsappPhoneNumber] = useState("");
   const [whatsappApiKey, setWhatsappApiKey] = useState("");
   const [isNotificationActive, setIsNotificationActive] = useState(true);
+  const [isWebPushActive, setIsWebPushActive] = useState(true);
+  const [isPushSupported, setIsPushSupported] = useState(true);
+  const [pushPermission, setPushPermission] = useState<NotificationPermission | "unsupported">("default");
+  const [isSubscribingPush, setIsSubscribingPush] = useState(false);
+  const [isTestingPush, setIsTestingPush] = useState(false);
+  const [pushFeedback, setPushFeedback] = useState<{
+    isSuccess: boolean;
+    message: string;
+  } | null>(null);
 
   // Estados de Saúde Operacional da ATS (Chave de Transferência Automática)
   const [atsLifespanCycles, setAtsLifespanCycles] = useState<number>(10000);
@@ -319,6 +328,7 @@ export default function SettingsPage() {
         setWhatsappApiKeyMasked(json.data.whatsappApiKeyMasked || "");
         setWhatsappApiKey("");
         setIsNotificationActive(json.data.isNotificationActive ?? true);
+        setIsWebPushActive(json.data.isWebPushActive ?? true);
         setAtsLifespanCycles(
           typeof json.data.atsLifespanCycles === "number" ? json.data.atsLifespanCycles : 10000
         );
@@ -547,6 +557,7 @@ export default function SettingsPage() {
           whatsappPhoneNumber,
           whatsappApiKey,
           isNotificationActive,
+          isWebPushActive,
           atsLifespanCycles: Number(atsLifespanCycles),
           atsCurrentCycles: Number(atsCurrentCycles),
           energyCostPerKwh: Number(energyCostPerKwh),
@@ -744,6 +755,149 @@ export default function SettingsPage() {
     }
   };
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const supported =
+        "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+      setIsPushSupported(supported);
+      if (supported) {
+        setPushPermission(Notification.permission);
+      } else {
+        setPushPermission("unsupported");
+      }
+    }
+  }, []);
+
+  const handleSubscribePush = async () => {
+    if (!isPushSupported || typeof window === "undefined") {
+      toast({
+        title: "Não suportado",
+        description: "Seu navegador não suporta notificações Web Push nativas.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSubscribingPush(true);
+    setPushFeedback(null);
+
+    try {
+      const permission = await Notification.requestPermission();
+      setPushPermission(permission);
+
+      if (permission !== "granted") {
+        const msg =
+          permission === "denied"
+            ? "Permissão bloqueada no navegador. Habilite notificações nas permissões do site."
+            : "Permissão de notificações não concedida.";
+        setPushFeedback({ isSuccess: false, message: msg });
+        toast({ title: "Push não concedido", description: msg, variant: "destructive" });
+        return;
+      }
+
+      const keyResponse = await fetch("/api/push/public-key");
+      const keyJson = await keyResponse.json();
+      if (!keyResponse.ok || !keyJson.publicKey) {
+        throw new Error(keyJson.message || "Falha ao obter chave pública VAPID do servidor.");
+      }
+
+      let swRegistration = await navigator.serviceWorker.getRegistration();
+      if (!swRegistration) {
+        swRegistration = await navigator.serviceWorker.register("/sw.js");
+      }
+      await navigator.serviceWorker.ready;
+
+      const padding = "=".repeat((4 - (keyJson.publicKey.length % 4)) % 4);
+      const base64 = (keyJson.publicKey + padding).replace(/-/g, "+").replace(/_/g, "/");
+      const rawData = window.atob(base64);
+      const outputArray = new Uint8Array(rawData.length);
+      for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+      }
+
+      const pushSubscription = await swRegistration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: outputArray,
+      });
+
+      const subscribeResponse = await fetch("/api/push/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subscription: pushSubscription.toJSON() }),
+      });
+      const subscribeJson = await subscribeResponse.json();
+
+      if (!subscribeResponse.ok || !subscribeJson.success) {
+        throw new Error(subscribeJson.message || "Falha ao registrar inscrição no servidor.");
+      }
+
+      setPushFeedback({
+        isSuccess: true,
+        message: "Notificações Web Push ativadas com sucesso neste dispositivo!",
+      });
+      toast({
+        title: "Web Push Ativado",
+        description: "Dispositivo registrado para alertas de comutação ATS.",
+        variant: "success",
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Erro desconhecido ao ativar Web Push.";
+      setPushFeedback({ isSuccess: false, message: msg });
+      toast({ title: "Falha na ativação", description: msg, variant: "destructive" });
+    } finally {
+      setIsSubscribingPush(false);
+    }
+  };
+
+  const handleTestPush = async () => {
+    setIsTestingPush(true);
+    setPushFeedback(null);
+
+    try {
+      let swSubJson: PushSubscriptionJSON | undefined;
+      if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (reg) {
+          const sub = await reg.pushManager.getSubscription();
+          if (sub) {
+            swSubJson = sub.toJSON();
+          }
+        }
+      }
+
+      const response = await fetch("/api/push/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: "⚡ WattFlow - Teste de Notificação Web Push",
+          message: "Transferência de rede/bateria simulada com sucesso!",
+          subscription: swSubJson,
+        }),
+      });
+
+      const json = await response.json();
+      const message = json.message || "Resposta do teste de Web Push recebida.";
+      setPushFeedback({
+        isSuccess: json.success,
+        message,
+      });
+      toast({
+        title: json.success ? "Push enviado" : "Falha no envio de push",
+        description: message,
+        variant: json.success ? "success" : "destructive",
+      });
+    } catch {
+      const message = "Erro de rede ao disparar teste de Web Push.";
+      setPushFeedback({
+        isSuccess: false,
+        message,
+      });
+      toast({ title: "Erro de rede", description: message, variant: "destructive" });
+    } finally {
+      setIsTestingPush(false);
+    }
+  };
+
   const handleDiscoverDevices = async () => {
     setIsDiscoveringDevices(true);
     setDiscoveryMessage(null);
@@ -815,7 +969,7 @@ export default function SettingsPage() {
 
   return (
     <Layout title="Configurações e Credenciais (BYOK)">
-      <div className="space-y-8">
+      <div className="space-y-4 md:space-y-8">
         {/* Banner Informativo sobre a Chave de Transferência Automática (ATS) */}
         <section
           aria-label="Sobre a automação EcoFlow e Chave ATS"
@@ -854,9 +1008,9 @@ export default function SettingsPage() {
         )}
 
         {/* Formulário Principal */}
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
           {/* 1. EcoFlow Developer Open API */}
-          <div className="animate-card stagger-2 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-5">
+          <div className="animate-card stagger-2 interactive-card p-3 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-5">
             <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
               <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
                 <Cpu className="w-5 h-5" aria-hidden="true" />
@@ -1058,7 +1212,7 @@ export default function SettingsPage() {
           </div>
 
           {/* 2. Notificações Telegram & WhatsApp (Separados) */}
-          <div className="animate-card stagger-3 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+          <div className="animate-card stagger-3 interactive-card p-3 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-cyan-500/10 text-cyan-400">
@@ -1283,10 +1437,129 @@ export default function SettingsPage() {
                 </div>
               )}
             </div>
+
+            {/* Subseção Web Push (Navegador/Dispositivo) com Toggle e Botão de Teste */}
+            <div className="space-y-4 p-4 sm:p-5 rounded-xl bg-slate-950 border border-purple-900/30 transition-all hover:border-purple-850">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <BellRing className="w-4 h-4 text-purple-400" aria-hidden="true" />
+                  <span className="text-sm font-bold text-purple-300">
+                    Notificações Web Push (Navegador &amp; Dispositivo Móvel)
+                  </span>
+                </div>
+                <div className="flex items-center gap-2.5 self-start sm:self-auto">
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-purple-950 text-purple-300 border border-purple-800/60 font-mono">
+                    Canal 3 (Nativo)
+                  </span>
+                  <label htmlFor="webpush-active-checkbox" className="flex items-center gap-1.5 cursor-pointer group">
+                    <input
+                      id="webpush-active-checkbox"
+                      type="checkbox"
+                      checked={isWebPushActive}
+                      onChange={(e) => setIsWebPushActive(e.target.checked)}
+                      className="w-4 h-4 accent-purple-500 rounded cursor-pointer transition-transform active:scale-90"
+                    />
+                    <span className="text-xs font-semibold text-slate-300 group-hover:text-purple-300 transition-colors">
+                      Ativar Push
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Receba alertas nativos diretamente na tela de bloqueio e barra de notificações do seu celular ou navegador sempre que a chave ATS comutar entre a <strong>Rede Elétrica (GRID)</strong> e a <strong>Bateria EcoFlow (SOLAR_BATTERY)</strong>.
+              </p>
+
+              {/* Status da Permissão no Navegador */}
+              <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-lg bg-slate-900/80 border border-slate-800 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-400">Status no Dispositivo:</span>
+                  {pushPermission === "granted" && (
+                    <span className="inline-flex items-center gap-1 font-mono font-semibold text-emerald-400">
+                      <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
+                      Permitido &amp; Inscrito
+                    </span>
+                  )}
+                  {pushPermission === "denied" && (
+                    <span className="inline-flex items-center gap-1 font-mono font-semibold text-rose-400">
+                      <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" />
+                      Bloqueado no Navegador
+                    </span>
+                  )}
+                  {pushPermission === "default" && (
+                    <span className="inline-flex items-center gap-1 font-mono font-semibold text-amber-400">
+                      <Clock className="w-3.5 h-3.5" aria-hidden="true" />
+                      Pendente de Autorização
+                    </span>
+                  )}
+                  {pushPermission === "unsupported" && (
+                    <span className="inline-flex items-center gap-1 font-mono font-semibold text-slate-500">
+                      Não suportado neste navegador
+                    </span>
+                  )}
+                </div>
+
+                {pushPermission !== "granted" && pushPermission !== "unsupported" && (
+                  <button
+                    type="button"
+                    disabled={isSubscribingPush}
+                    onClick={handleSubscribePush}
+                    className="py-1.5 px-3 rounded-lg font-semibold text-xs bg-purple-600 hover:bg-purple-500 active:scale-95 text-white transition-all duration-150 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {isSubscribingPush ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <BellRing className="w-3.5 h-3.5" aria-hidden="true" />
+                    )}
+                    {isSubscribingPush ? "Solicitando..." : "Autorizar neste Dispositivo"}
+                  </button>
+                )}
+              </div>
+
+              {/* Botão de Teste Específico de Web Push */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-slate-800/60">
+                <span className="text-[11px] text-slate-400">
+                  Envia um alerta push com badge, ícone e dados da transferência de energia para o seu dispositivo
+                </span>
+                <button
+                  type="button"
+                  disabled={isTestingPush || !isPushSupported || !isWebPushActive}
+                  onClick={handleTestPush}
+                  aria-label="Testar envio de notificação push no navegador"
+                  className="w-full sm:w-auto py-2.5 px-4 min-h-[44px] rounded-xl font-semibold text-xs bg-purple-950 hover:bg-purple-900/90 active:scale-95 text-purple-200 border border-purple-700/60 transition-all duration-150 flex items-center justify-center gap-2 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                >
+                  {isTestingPush ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-400" aria-hidden="true" />
+                  ) : (
+                    <BellRing className="w-3.5 h-3.5 text-purple-400" aria-hidden="true" />
+                  )}
+                  {isTestingPush ? "Disparando Push..." : "Testar Notificação Push"}
+                </button>
+              </div>
+
+              {pushFeedback && (
+                <div
+                  role="alert"
+                  aria-live="polite"
+                  className={`animate-alert p-3 rounded-xl border text-xs font-mono flex items-center gap-2 shadow-sm ${
+                    pushFeedback.isSuccess
+                      ? "bg-slate-900 border-purple-500/40 text-purple-300"
+                      : "bg-slate-900 border-rose-500/40 text-rose-300"
+                  }`}
+                >
+                  {pushFeedback.isSuccess ? (
+                    <CheckCircle2 className="w-4 h-4 text-purple-400 shrink-0" aria-hidden="true" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" aria-hidden="true" />
+                  )}
+                  <span>{pushFeedback.message}</span>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* 3. Chave de Transferência Automática (ATS) - Parâmetros & Vida Útil */}
-          <div className="animate-card stagger-4 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+          <div className="animate-card stagger-4 interactive-card p-3 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
@@ -1370,7 +1643,7 @@ export default function SettingsPage() {
           </div>
 
           {/* 4. Parâmetros Econômicos & Tarifa de Energia */}
-          <div className="animate-card stagger-5 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+          <div className="animate-card stagger-5 interactive-card p-3 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
@@ -1459,7 +1732,7 @@ export default function SettingsPage() {
           </div>
 
           {/* Investimento Inicial & Metas de Payback (CAPEX) */}
-          <div className="animate-card stagger-5 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+          <div className="animate-card stagger-5 interactive-card p-3 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
@@ -1602,7 +1875,7 @@ export default function SettingsPage() {
           </div>
 
           {/* 5. Capacidade da Bateria & Autonomia */}
-          <div className="animate-card stagger-6 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+          <div className="animate-card stagger-6 interactive-card p-3 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-sky-500/10 text-sky-400">
@@ -1662,19 +1935,19 @@ export default function SettingsPage() {
                 {/* Barra de Busca e Filtros de Categoria */}
                 <div className="space-y-2.5">
                   <div className="relative">
-                    <Search className="w-4 h-4 text-slate-500 absolute left-3 top-3" aria-hidden="true" />
+                    <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" aria-hidden="true" />
                     <input
                       type="text"
                       placeholder="Pesquisar por modelo ou capacidade (ex: RIVER 2 Pro, DELTA 2, 768, 2048)..."
                       value={modelSearchQuery}
                       onChange={(e) => setModelSearchQuery(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500 transition-colors"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-12 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500 transition-colors"
                     />
                     {modelSearchQuery && (
                       <button
                         type="button"
                         onClick={() => setModelSearchQuery("")}
-                        className="absolute right-3 top-2.5 text-xs text-slate-500 hover:text-slate-300"
+                        className="absolute right-0 top-1/2 -translate-y-1/2 px-1.5 inline-flex items-center justify-center text-xs text-slate-500 hover:text-slate-300"
                         title="Limpar busca"
                       >
                         <X className="w-3.5 h-3.5" aria-hidden="true" />
@@ -1801,7 +2074,7 @@ export default function SettingsPage() {
           </div>
 
           {/* 6. Relatório Executivo Noturno (WhatsApp) */}
-          <div className="animate-card stagger-6 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+          <div className="animate-card stagger-6 interactive-card p-3 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
@@ -1865,7 +2138,7 @@ export default function SettingsPage() {
           </div>
 
           {/* 7. Previsão Solar & Histerese Adaptativa */}
-          <div className="animate-card stagger-6 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+          <div className="animate-card stagger-6 interactive-card p-3 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400">
@@ -2110,7 +2383,7 @@ export default function SettingsPage() {
           </div>
 
           {/* 8. Monitoramento Térmico & BMS da Bateria */}
-          <div className="animate-card stagger-6 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+          <div className="animate-card stagger-6 interactive-card p-3 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-rose-500/10 text-rose-400">
@@ -2192,7 +2465,7 @@ export default function SettingsPage() {
           </div>
 
           {/* 9. Tarifas Dinâmicas & Horário de Ponta (Tarifa Branca) */}
-          <div className="animate-card stagger-6 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+          <div className="animate-card stagger-6 interactive-card p-3 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400">
@@ -2410,7 +2683,7 @@ export default function SettingsPage() {
           </div>
 
           {/* 10. Alertas Críticos em Tempo Real & Inversor */}
-          <div className="animate-card stagger-6 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+          <div className="animate-card stagger-6 interactive-card p-3 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-rose-500/10 text-rose-400">
@@ -2924,7 +3197,7 @@ export default function SettingsPage() {
         {/* Painel de Validação e Teste do Acionamento AC */}
         <section
           aria-label="Painel de Testes e Validação Direta"
-          className="animate-card stagger-5 interactive-card p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-5"
+          className="animate-card stagger-5 interactive-card p-3 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-5"
         >
           <div className="flex items-center justify-between border-b border-slate-800 pb-4">
             <div className="flex items-center gap-3">

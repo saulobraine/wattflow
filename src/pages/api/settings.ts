@@ -44,6 +44,7 @@ export interface SettingsResponseData {
   hasWhatsappApiKey: boolean;
   whatsappApiKeyMasked: string;
   isNotificationActive: boolean;
+  isWebPushActive: boolean;
   atsLifespanCycles: number;
   atsCurrentCycles: number;
   atsLastSwitchedAt: string | null;
@@ -221,6 +222,7 @@ export default async function handleSettings(
           hasWhatsappApiKey: decryptedSecrets.whatsappApiKey.length > 0,
           whatsappApiKeyMasked: maskSecretIrreversible(decryptedSecrets.whatsappApiKey),
           isNotificationActive: existing.isNotificationActive ?? true,
+          isWebPushActive: (existing as { isWebPushActive?: boolean }).isWebPushActive ?? true,
           atsLifespanCycles: existing.atsLifespanCycles ?? 10000,
           atsCurrentCycles: existing.atsCurrentCycles ?? 0,
           atsLastSwitchedAt: existing.atsLastSwitchedAt ? existing.atsLastSwitchedAt.toISOString() : null,
@@ -339,6 +341,7 @@ export default async function handleSettings(
       whatsappPhoneNumber,
       whatsappApiKey,
       isNotificationActive,
+      isWebPushActive,
       atsLifespanCycles,
       atsCurrentCycles,
       energyCostPerKwh,
@@ -502,6 +505,10 @@ export default async function handleSettings(
         typeof isNotificationActive === "boolean"
           ? isNotificationActive
           : existingConfig?.isNotificationActive ?? true;
+      const resolvedWebPushActive =
+        typeof isWebPushActive === "boolean"
+          ? isWebPushActive
+          : (existingConfig as { isWebPushActive?: boolean })?.isWebPushActive ?? true;
       const resolvedAtsLifespanCycles =
         typeof atsLifespanCycles === "number"
           ? atsLifespanCycles
@@ -751,6 +758,7 @@ export default async function handleSettings(
           whatsappPhoneNumber: resolvedWhatsappPhone,
           whatsappApiKey: encryptedWhatsAppKey,
           isNotificationActive: resolvedNotificationActive,
+          isWebPushActive: resolvedWebPushActive,
           atsLifespanCycles: resolvedAtsLifespanCycles,
           atsCurrentCycles: resolvedAtsCurrentCycles,
           energyCostPerKwh: resolvedEnergyCostPerKwh,
@@ -826,6 +834,7 @@ export default async function handleSettings(
           whatsappPhoneNumber: resolvedWhatsappPhone,
           whatsappApiKey: encryptedWhatsAppKey,
           isNotificationActive: resolvedNotificationActive,
+          isWebPushActive: resolvedWebPushActive,
           atsLifespanCycles: resolvedAtsLifespanCycles,
           atsCurrentCycles: resolvedAtsCurrentCycles,
           energyCostPerKwh: resolvedEnergyCostPerKwh,

@@ -92,9 +92,9 @@ interface DashboardData {
 }
 
 export default function DashboardPage() {
-  const { telemetry: liveTelemetry } = useLiveTelemetry();
+  const { telemetry: liveTelemetry, isLive } = useLiveTelemetry();
   const [data, setData] = useState<DashboardData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isStatsLoading, setIsStatsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
@@ -170,14 +170,10 @@ export default function DashboardPage() {
     }
   };
 
-  const fetchStatus = async () => {
+  // 1. Telemetria e status essencial: carregamento imediato (SSE-First)
+  const fetchDashboardStatus = async () => {
     try {
-      const [statusRes, statsRes, settingsRes] = await Promise.all([
-        fetch("/api/dashboard-status"),
-        fetch("/api/statistics"),
-        fetch("/api/settings"),
-      ]);
-
+      const statusRes = await fetch("/api/dashboard-status");
       const statusJson = await statusRes.json();
       if (statusJson.success && statusJson.data) {
         setData(statusJson.data);
@@ -185,7 +181,34 @@ export default function DashboardPage() {
           setIsStormModeActive(statusJson.data.isStormModeActive);
         }
       }
+    } catch (err) {
+      console.error("Erro ao carregar status operacional:", err);
+    }
+  };
 
+  // 2. Configurações de Auto-Storm e alertas em background
+  const fetchSettings = async () => {
+    try {
+      const settingsRes = await fetch("/api/settings");
+      const settingsJson = await settingsRes.json();
+      if (settingsJson.success && settingsJson.data) {
+        setAutoStormInfo({
+          isStormAlertActive: settingsJson.data.isStormAlertActive ?? false,
+          lastStormAlertDescription: settingsJson.data.lastStormAlertDescription ?? null,
+          lastStormAlertTriggeredAt: settingsJson.data.lastStormAlertTriggeredAt ?? null,
+          autoStormReserveThreshold: settingsJson.data.autoStormReserveThreshold ?? 85,
+          autoStormPrechargeAc: settingsJson.data.autoStormPrechargeAc ?? true,
+        });
+      }
+    } catch (err) {
+      console.error("Erro ao carregar configurações de alertas:", err);
+    }
+  };
+
+  // 3. Estatísticas analíticas pesadas: carregamento assíncrono em background
+  const fetchStatistics = async () => {
+    try {
+      const statsRes = await fetch("/api/statistics");
       const statsJson = await statsRes.json();
       if (statsJson.success && statsJson.data) {
         if (statsJson.data.autonomyEstimate) {
@@ -204,32 +227,33 @@ export default function DashboardPage() {
           setAtsHealth(statsJson.data.atsHealth);
         }
       }
-
-      const settingsJson = await settingsRes.json();
-      if (settingsJson.success && settingsJson.data) {
-        setAutoStormInfo({
-          isStormAlertActive: settingsJson.data.isStormAlertActive ?? false,
-          lastStormAlertDescription: settingsJson.data.lastStormAlertDescription ?? null,
-          lastStormAlertTriggeredAt: settingsJson.data.lastStormAlertTriggeredAt ?? null,
-          autoStormReserveThreshold: settingsJson.data.autoStormReserveThreshold ?? 85,
-          autoStormPrechargeAc: settingsJson.data.autoStormPrechargeAc ?? true,
-        });
-      }
     } catch (err) {
-      console.error("Erro ao carregar status:", err);
+      console.error("Erro ao carregar estatísticas analíticas:", err);
     } finally {
-      setIsLoading(false);
+      setIsStatsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchStatus();
+    // Renderização imediata (SSE-First): dispara chamadas assíncronas desacopladas
+    fetchDashboardStatus();
+    fetchSettings();
+    fetchStatistics();
     fetchAppliances();
   }, []);
 
+  // Polling para status operacional:
+  // Se SSE (isLive) estiver ativo, o stream já entrega telemetria contínua, desacelerando o polling para 30s.
+  // Se o SSE estiver inativo, faz polling a cada 8s como fallback.
   useVisibilityPolling({
-    pollingIntervalMs: 2000,
-    onPoll: fetchStatus,
+    pollingIntervalMs: isLive ? 30000 : 8000,
+    onPoll: fetchDashboardStatus,
+  });
+
+  // Polling espaçado de 60s exclusivo para as estatísticas analíticas pesadas (Open-Meteo, BMS e Payback)
+  useVisibilityPolling({
+    pollingIntervalMs: 60000,
+    onPoll: fetchStatistics,
   });
 
   const handleToggleStormMode = async () => {
@@ -250,7 +274,7 @@ export default function DashboardPage() {
             ? "Modo Tempestade ATIVADO: Inversor desarmado para a rede da concessionária para preservar 100% da bateria."
             : "Modo Tempestade DESATIVADO: Orquestração solar/bateria normalizada.",
         });
-        await fetchStatus();
+        await fetchDashboardStatus();
       } else {
         setSyncFeedback({
           type: "error",
@@ -276,7 +300,7 @@ export default function DashboardPage() {
       if (result.success) {
         const detail = result.data?.detailMessage || result.message || "Sincronização realizada com sucesso!";
         setSyncFeedback({ type: "success", message: detail });
-        await fetchStatus();
+        await fetchDashboardStatus();
         return;
       }
       const failureMessage = result.message || "Falha na sincronização.";
@@ -377,7 +401,7 @@ export default function DashboardPage() {
 
   return (
     <Layout>
-      <div className="space-y-8">
+      <div className="space-y-4 md:space-y-8">
         {/* Banner de Alerta Crítico: Modo No-Break Preventivo Preditivo (Auto-Storm) */}
         <StormAlertBanner
           isStormAlertActive={autoStormInfo.isStormAlertActive}
@@ -504,7 +528,7 @@ export default function DashboardPage() {
         )}
 
         {/* Alerta de Configuração Pendente */}
-        {data && !data.isConfigured && !isLoading && (
+        {data && !data.isConfigured && (
           <div
             role="status"
             className="animate-alert p-4 rounded-xl bg-amber-500/10 border border-amber-500/40 text-amber-300 flex items-start gap-3 shadow-md shadow-amber-950/20"
@@ -513,7 +537,7 @@ export default function DashboardPage() {
             <div className="text-sm">
               <span className="font-bold block">Configuração da EcoFlow Pendente</span>
               Preencha sua Access Key, Secret Key e Número de Série da estação nas{" "}
-              <TransitionLink href="/settings" className="underline font-semibold hover:text-amber-200 transition-colors">
+              <TransitionLink href="/settings" className="app-touch-target underline font-semibold hover:text-amber-200 transition-colors">
                 Configurações (BYOK)
               </TransitionLink>{" "}
               para que a orquestração com a chave ATS funcione.
@@ -522,7 +546,7 @@ export default function DashboardPage() {
         )}
 
         {/* Grade de Indicadores Principais (8 métricas em 4 colunas perfeitamente distribuídas) */}
-        <section aria-label="Indicadores Operacionais" className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4 lg:gap-5">
+        <section aria-label="Indicadores Operacionais" className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4 lg:gap-5">
           {/* Card 1: Bateria (SOC %) */}
           <div className="animate-card stagger-2 interactive-card min-h-[105px] sm:min-h-[125px] flex flex-col justify-between p-3 sm:p-4 rounded-xl border border-slate-800/80 bg-slate-900/90 hover:border-slate-700 transition-all shadow-md group">
             <div className="flex items-center gap-2">
@@ -583,7 +607,12 @@ export default function DashboardPage() {
             </div>
 
             <div className="truncate my-1">
-              {autonomyData?.isRecharging ? (
+              {isStatsLoading && !autonomyData ? (
+                <div className="space-y-1 my-0.5" aria-busy="true">
+                  <div className="h-6 w-20 bg-slate-800 rounded animate-pulse" />
+                  <div className="h-3 w-28 bg-slate-800/60 rounded animate-pulse" />
+                </div>
+              ) : autonomyData?.isRecharging ? (
                 <span className="text-sm sm:text-base font-bold text-emerald-400 leading-tight block truncate">
                   Carregando
                 </span>
@@ -634,9 +663,16 @@ export default function DashboardPage() {
             </div>
 
             <div className="text-xl sm:text-2xl font-bold font-mono text-emerald-400 truncate my-1">
-              {savingsData
-                ? formatCurrency(savingsData.todaySavings, savingsData.currencySymbol)
-                : "--"}
+              {isStatsLoading && !savingsData ? (
+                <div className="space-y-1 my-0.5" aria-busy="true">
+                  <div className="h-6 w-24 bg-slate-800 rounded animate-pulse" />
+                  <div className="h-3 w-32 bg-slate-800/60 rounded animate-pulse" />
+                </div>
+              ) : savingsData ? (
+                formatCurrency(savingsData.todaySavings, savingsData.currencySymbol)
+              ) : (
+                "--"
+              )}
             </div>
 
             <div className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20 w-fit max-w-full truncate">
@@ -829,28 +865,43 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
-                  {solarForecast?.isDaylightOnlyActive && !solarForecast?.isDaylight && (
-                    <span className="inline-flex items-center gap-1.5 text-xs font-mono font-bold px-2.5 py-1 rounded-full border shadow-sm bg-indigo-950/90 text-indigo-300 border-indigo-600/70 shadow-indigo-950/40">
-                      <Moon className="w-3.5 h-3.5 text-indigo-400" aria-hidden="true" />
-                      Modo Noturno (Standby)
-                    </span>
+                  {isStatsLoading && !solarForecast ? (
+                    <div className="h-6 w-28 bg-slate-800 rounded-full animate-pulse" />
+                  ) : (
+                    <>
+                      {solarForecast?.isDaylightOnlyActive && !solarForecast?.isDaylight && (
+                        <span className="inline-flex items-center gap-1.5 text-xs font-mono font-bold px-2.5 py-1 rounded-full border shadow-sm bg-indigo-950/90 text-indigo-300 border-indigo-600/70 shadow-indigo-950/40">
+                          <Moon className="w-3.5 h-3.5 text-indigo-400" aria-hidden="true" />
+                          Modo Noturno (Standby)
+                        </span>
+                      )}
+                      {(() => {
+                        const badge = getSolarExpectationBadge(solarForecast?.expectation);
+                        const BadgeIcon = badge.icon;
+                        return (
+                          <span className={`inline-flex items-center gap-1.5 text-xs font-mono font-bold px-3 py-1 rounded-full border shadow-sm ${badge.classes}`}>
+                            <BadgeIcon className="w-3.5 h-3.5" aria-hidden="true" />
+                            {badge.label}
+                          </span>
+                        );
+                      })()}
+                    </>
                   )}
-                  {(() => {
-                    const badge = getSolarExpectationBadge(solarForecast?.expectation);
-                    const BadgeIcon = badge.icon;
-                    return (
-                      <span className={`inline-flex items-center gap-1.5 text-xs font-mono font-bold px-3 py-1 rounded-full border shadow-sm ${badge.classes}`}>
-                        <BadgeIcon className="w-3.5 h-3.5" aria-hidden="true" />
-                        {badge.label}
-                      </span>
-                    );
-                  })()}
                 </div>
               </div>
 
               {/* Destaque do Limiar de Corte (Adaptativo vs Estático) */}
               <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-2">
-                {solarForecast?.isAdaptiveActive ? (
+                {isStatsLoading && !solarForecast ? (
+                  <div className="space-y-2.5 animate-pulse py-1" aria-busy="true">
+                    <div className="flex justify-between">
+                      <div className="h-3 w-32 bg-slate-800 rounded" />
+                      <div className="h-3 w-28 bg-slate-800/60 rounded" />
+                    </div>
+                    <div className="h-8 w-48 bg-slate-800/80 rounded" />
+                    <div className="h-3 w-full bg-slate-800/50 rounded" />
+                  </div>
+                ) : solarForecast?.isAdaptiveActive ? (
                   <>
                     <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1">
                       <span className="text-xs uppercase font-semibold tracking-wider text-slate-400">
@@ -906,18 +957,26 @@ export default function DashboardPage() {
                 <div className="p-3 rounded-xl bg-slate-950 border border-slate-800/80">
                   <span className="text-slate-400 block text-[11px]">Irradiância Diária</span>
                   <span className="text-base sm:text-lg font-bold font-mono text-slate-200 mt-0.5 block">
-                    {solarForecast?.radiationMj !== null && solarForecast?.radiationMj !== undefined
-                      ? `${solarForecast.radiationMj.toFixed(1)} MJ/m²`
-                      : "-- MJ/m²"}
+                    {isStatsLoading && !solarForecast ? (
+                      <span className="h-5 w-16 bg-slate-800 rounded animate-pulse inline-block" />
+                    ) : solarForecast?.radiationMj !== null && solarForecast?.radiationMj !== undefined ? (
+                      `${solarForecast.radiationMj.toFixed(1)} MJ/m²`
+                    ) : (
+                      "-- MJ/m²"
+                    )}
                   </span>
                 </div>
 
                 <div className="p-3 rounded-xl bg-slate-950 border border-slate-800/80">
                   <span className="text-slate-400 block text-[11px]">Horas de Sol Estimadas</span>
                   <span className="text-base sm:text-lg font-bold font-mono text-slate-200 mt-0.5 block">
-                    {solarForecast?.sunshineDurationSeconds
-                      ? `${(solarForecast.sunshineDurationSeconds / 3600).toFixed(1)}h`
-                      : "-- h"}
+                    {isStatsLoading && !solarForecast ? (
+                      <span className="h-5 w-14 bg-slate-800 rounded animate-pulse inline-block" />
+                    ) : solarForecast?.sunshineDurationSeconds ? (
+                      `${(solarForecast.sunshineDurationSeconds / 3600).toFixed(1)}h`
+                    ) : (
+                      "-- h"
+                    )}
                   </span>
                 </div>
 
@@ -926,7 +985,13 @@ export default function DashboardPage() {
                   <span className={`text-xs font-bold font-mono mt-1.5 block ${
                     solarForecast?.isAdaptiveActive ? "text-emerald-400" : "text-slate-400"
                   }`}>
-                    {solarForecast?.isAdaptiveActive ? "ATIVA (Dinâmica)" : "Standby / Fixa"}
+                    {isStatsLoading && !solarForecast ? (
+                      <span className="h-4 w-20 bg-slate-800 rounded animate-pulse inline-block" />
+                    ) : solarForecast?.isAdaptiveActive ? (
+                      "ATIVA (Dinâmica)"
+                    ) : (
+                      "Standby / Fixa"
+                    )}
                   </span>
                 </div>
               </div>
@@ -1341,7 +1406,7 @@ export default function DashboardPage() {
 
             <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-500 font-mono">
               <span>Simulador Off-Grid EcoFlow</span>
-              <TransitionLink href="/settings" className="text-emerald-400 hover:underline">
+              <TransitionLink href="/settings" className="app-touch-target text-emerald-400 hover:underline">
                 Gerenciar Aparelhos &rarr;
               </TransitionLink>
             </div>

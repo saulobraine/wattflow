@@ -115,6 +115,7 @@ export const settingsPostBodySchema = z.object({
   whatsappPhoneNumber: z.string().max(32, "Número de WhatsApp excede 32 caracteres.").optional(),
   whatsappApiKey: z.string().max(256, "API Key do WhatsApp excede 256 caracteres.").optional(),
   isNotificationActive: z.boolean().optional(),
+  isWebPushActive: z.boolean().optional(),
   atsLifespanCycles: z
     .number({ message: "Vida útil da ATS deve ser um número." })
     .int("A vida útil deve ser um número inteiro.")
@@ -442,13 +443,39 @@ export const testControlPostBodySchema = z.object({
 });
 
 export const testNotificationPostBodySchema = z.object({
-  channel: z.enum(["TELEGRAM", "WHATSAPP"], {
-    message: "Canal de notificação inválido. Utilize TELEGRAM ou WHATSAPP.",
+  channel: z.enum(["TELEGRAM", "WHATSAPP", "WEB_PUSH"], {
+    message: "Canal de notificação inválido. Utilize TELEGRAM, WHATSAPP ou WEB_PUSH.",
   }),
   telegramBotToken: z.string().max(256, "Token do Telegram excede 256 caracteres.").optional(),
   telegramChatId: z.string().max(64, "Chat ID do Telegram excede 64 caracteres.").optional(),
   whatsappPhoneNumber: z.string().max(32, "Telefone excede 32 caracteres.").optional(),
   whatsappApiKey: z.string().max(256, "API Key do WhatsApp excede 256 caracteres.").optional(),
+});
+
+export const pushSubscriptionKeysSchema = z.object({
+  p256dh: z.string().min(1, "Chave p256dh é obrigatória."),
+  auth: z.string().min(1, "Chave auth é obrigatória."),
+});
+
+export const pushSubscriptionSchema = z.object({
+  endpoint: z.string().url("Endpoint da inscrição deve ser uma URL válida."),
+  expirationTime: z.number().nullable().optional(),
+  keys: pushSubscriptionKeysSchema,
+});
+
+export const pushSubscribeBodySchema = z.object({
+  subscription: pushSubscriptionSchema.optional(),
+  endpoint: z.string().url("Endpoint da inscrição deve ser uma URL válida.").optional(),
+  keys: pushSubscriptionKeysSchema.optional(),
+}).refine(
+  (data) => Boolean(data.subscription || (data.endpoint && data.keys)),
+  { message: "Inscrição Web Push inválida. É obrigatório fornecer a subscription ou endpoint com keys." }
+);
+
+export const pushTestBodySchema = z.object({
+  title: z.string().max(128, "Título excede 128 caracteres.").optional(),
+  message: z.string().max(512, "Mensagem excede 512 caracteres.").optional(),
+  subscription: pushSubscriptionSchema.optional(),
 });
 
 // Feature 2.3: Painel de Autonomia por Carga (Etapa 4)

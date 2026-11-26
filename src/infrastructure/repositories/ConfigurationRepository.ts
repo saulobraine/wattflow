@@ -354,6 +354,8 @@ export class ConfigurationRepository {
         whatsappPhoneNumber: rawRecord.whatsappPhoneNumber,
         whatsappApiKey: decryptedSecrets.whatsappApiKey,
         isNotificationActive: rawRecord.isNotificationActive,
+        isWebPushActive: (rawRecord as { isWebPushActive?: boolean }).isWebPushActive ?? true,
+        userId: rawRecord.userId,
       },
       configuration,
       atsLifespanCycles: rawRecord.atsLifespanCycles ?? 10000,
